@@ -7,8 +7,8 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 
 | Task | Title | Status | Commit |
 | --- | --- | --- | --- |
-| V2-01 | Inspect repo, branch, tree, baseline tests | in progress | — |
-| V2-02 | Document UI + credential-storage limitations | todo | — |
+| V2-01 | Inspect repo, branch, tree, baseline tests | done | `6f465be` |
+| V2-02 | Document UI + credential-storage limitations | in progress | — |
 | V2-03 | Verify Claude Code config + router compatibility | todo | — |
 | V2-04 | V2 tracker, acceptance criteria, migration strategy | todo | — |
 | V2-05 | Design tokens (spacing, type, color, border, surface) | todo | — |
