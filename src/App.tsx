@@ -264,9 +264,12 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 bg-zinc-50 p-6 pb-28 dark:bg-zinc-950">
-      <header className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 bg-app px-6 pt-3 pb-28 text-ink">
+      <header
+        data-tauri-drag-region
+        className="flex h-11 items-center justify-between pl-16 select-none"
+      >
+        <h1 className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
           Claude Config Manager
         </h1>
         <span

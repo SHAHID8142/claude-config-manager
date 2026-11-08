@@ -11,8 +11,8 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-02 | Document UI + credential-storage limitations | done | `ee9a9d4` |
 | V2-03 | Verify Claude Code config + router compatibility | done | `7fd266e` |
 | V2-04 | V2 tracker, acceptance criteria, migration strategy | done | `ab14026` |
-| V2-05 | Design tokens (spacing, type, color, border, surface) | in progress | — |
-| V2-06 | Native-feeling window layout and sizing | todo | — |
+| V2-05 | Design tokens (spacing, type, color, border, surface) | done | `1ee5e07` |
+| V2-06 | Native-feeling window layout and sizing | in progress | — |
 | V2-07 | Header + active configuration summary | todo | — |
 | V2-08 | Reusable icon-button component | todo | — |
 | V2-09 | Accessible tooltip + help popover | todo | — |
