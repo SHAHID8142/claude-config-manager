@@ -21,6 +21,7 @@ pub mod config_writer;
 pub mod connection_test;
 pub mod credential_handoff;
 pub mod credential_index;
+pub mod credential_migration;
 pub mod credential_service;
 pub mod environment_check;
 pub mod file_secret_store;
