@@ -9,9 +9,11 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod credential_service;
 pub mod keychain_store;
 pub mod presets;
 pub mod provider_catalog;
+pub mod redact;
 pub mod secret_store;
 
 /// Structured error payload crossing the UI boundary (T11 contract).
