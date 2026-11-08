@@ -1,6 +1,6 @@
 //! macOS Keychain-backed `SecretStore` (T22).
 //!
-//! Uses the `keyring` crate (v3) against the login keychain. Windows
+//! Uses the `keyring` crate (v4) against the login keychain. Windows
 //! Credential Manager / Linux secret-service backends come from the same
 //! crate — the trait boundary from T21 keeps platform swaps local.
 //!
