@@ -29,7 +29,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 | Task | Status | Date | Commit | Push | Notes |
 |------|--------|------|--------|------|-------|
-| T08 Init minimal Tauri 2 + React + TS + Tailwind app | ⬜ | — | — | — | Note: Tauri CLI will be added as npm dev-dependency (not installed globally) |
+| T08 Init minimal Tauri 2 + React + TS + Tailwind app | ✅ | 2026-11-08 | (T08 commit) | ✓ | Tauri 2.12.5; restrictive CSP; opener plugin removed; lockfiles committed; npm+cargo gates green |
 | T09 Formatting, lint, TS/Rust checks, test runners | ⬜ | — | — | — | — |
 | T10 CI workflow: checks, secret scan, dependency audit | ⬜ | — | — | — | — |
 | T11 Typed UI↔Rust command contracts with mocks | ⬜ | — | — | — | — |
