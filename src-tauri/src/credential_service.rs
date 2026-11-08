@@ -54,6 +54,15 @@ impl<'a> CredentialService<'a> {
             .map_err(|e| surface(e, &[]))
     }
 
+    /// Read the credential back (used by the V2 credential vault, which must
+    /// resolve a *specific* credential id rather than a provider default).
+    pub fn get_credential(&self, provider_id: &str) -> Result<Option<String>, SecretError> {
+        let service = service_name(provider_id)?;
+        self.store
+            .get_secret(&service, provider_id)
+            .map_err(|e| surface(e, &[]))
+    }
+
     /// Delete the credential. Idempotent.
     pub fn delete_credential(&self, provider_id: &str) -> Result<(), SecretError> {
         let service = service_name(provider_id)?;
