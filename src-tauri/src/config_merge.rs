@@ -45,6 +45,13 @@ pub struct DesiredSettings {
     /// credentials rank BELOW those env vars in auth precedence, so setting
     /// both would silently shadow the helper (T02 auth matrix).
     pub api_key_helper: Option<String>,
+    /// Explicitly remove `ANTHROPIC_BASE_URL` (M1 fix).
+    ///
+    /// `None` cannot express "delete" — it means "leave untouched" — so
+    /// switching from a compat provider back to native Anthropic would leave the
+    /// OLD endpoint in place and send the Anthropic key to a third party. When
+    /// this is set, the managed base URL is removed instead.
+    pub clear_env_base_url: bool,
 }
 
 impl DesiredSettings {
@@ -190,7 +197,7 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
     }
 
     let env_writes = desired.env_writes();
-    if !env_writes.is_empty() {
+    if !env_writes.is_empty() || desired.clear_env_base_url {
         let existing_env = match out.get("env") {
             Some(Value::Object(m)) => m.clone(),
             Some(Value::Null) | None => Map::new(),
@@ -206,6 +213,9 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
             }
         };
         let mut env = existing_env;
+        if desired.clear_env_base_url {
+            env.remove("ANTHROPIC_BASE_URL");
+        }
         for (key, value) in env_writes {
             env.insert(key.to_string(), Value::String(value.to_string()));
         }

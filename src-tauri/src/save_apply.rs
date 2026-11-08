@@ -224,6 +224,10 @@ impl SaveApplyService {
         let desired = DesiredSettings {
             model: model.map(|m| m.to_string()),
             env_base_url: base_url.map(|b| b.to_string()),
+            // M1: a previously applied provider endpoint must not survive a
+            // switch to one that has none (native Anthropic) — the key would
+            // otherwise be sent to the previous provider.
+            clear_env_base_url: base_url.is_none(),
             api_key_helper: Some(helper_path.to_string_lossy().to_string()),
             env_default_haiku: roles.haiku,
             env_default_sonnet: roles.sonnet,
@@ -540,6 +544,61 @@ mod tests {
         let doc: Value = serde_json::from_slice(&after).expect("json");
         assert_eq!(doc["model"], "good-model");
         assert_eq!(doc["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"], "role-sonnet");
+    }
+
+    /// M1 regression: switching from a compat provider back to native Anthropic
+    /// must REMOVE the old base URL. Leaving it would send the Anthropic key to
+    /// the previous provider — the worst failure mode in this app.
+    #[test]
+    fn switching_to_native_clears_the_previous_provider_endpoint() {
+        let (home, store) = fixture("m1-switch");
+        let svc = service(&home, store);
+        svc.apply(
+            "deepseek",
+            Some("deepseek-chat"),
+            Some("https://api.deepseek.com/anthropic"),
+            Some(FAKE_KEY),
+        )
+        .expect("compat apply");
+        assert_eq!(
+            read_env(&home)["ANTHROPIC_BASE_URL"],
+            "https://api.deepseek.com/anthropic"
+        );
+
+        // Now switch to native Anthropic: no base URL is requested at all.
+        svc.apply("anthropic", Some("claude-sonnet-4-5"), None, Some(FAKE_KEY))
+            .expect("native apply");
+
+        let env = read_env(&home);
+        assert_eq!(
+            env.get("ANTHROPIC_BASE_URL"),
+            None,
+            "stale endpoint must be removed, not inherited"
+        );
+        // Unrelated env is preserved through the removal.
+        assert_eq!(env["CLAUDE_CODE_X"], "1");
+        let doc: Value = serde_json::from_str(
+            &fs::read_to_string(home.join(".claude/settings.json")).expect("read"),
+        )
+        .expect("json");
+        assert_eq!(doc["model"], "claude-sonnet-4-5");
+    }
+
+    /// The clear flag must not touch a settings file that has no endpoint.
+    #[test]
+    fn clearing_an_absent_endpoint_is_a_no_op() {
+        let (home, store) = fixture("m1-noop");
+        fs::write(
+            home.join(".claude/settings.json"),
+            r#"{"env":{"KEEP":"1"}}"#,
+        )
+        .expect("seed");
+        let svc = service(&home, store);
+        svc.apply("anthropic", None, None, Some(FAKE_KEY))
+            .expect("apply");
+
+        let env = read_env(&home);
+        assert_eq!(env, serde_json::json!({"KEEP":"1"}));
     }
 
     #[test]
