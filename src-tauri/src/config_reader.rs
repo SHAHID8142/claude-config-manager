@@ -74,6 +74,12 @@ pub fn read_settings(path: &Path) -> Result<Value, ConfigError> {
         }
         Err(e) => return Err(ConfigError::Io(e.to_string())),
     }
+    if locator
+        .config_dir_is_symlink(path)
+        .map_err(|e| ConfigError::Io(e.to_string()))?
+    {
+        return Err(ConfigError::SymlinkRefused);
+    }
 
     let raw = std::fs::read_to_string(path).map_err(|e| match e.kind() {
         std::io::ErrorKind::PermissionDenied => ConfigError::PermissionDenied(e.to_string()),

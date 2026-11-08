@@ -83,6 +83,46 @@ impl ConfigLocator {
             Ok(LocatedStatus::OtherFile)
         }
     }
+
+    /// Check every ancestor of `path` up to (but excluding) `root` for
+    /// symlinks. A symlinked ancestor (e.g. `~/.claude` itself) would
+    /// redirect reads AND writes outside the expected location (threat T5,
+    /// T31 hardening) — returns the first offending directory.
+    ///
+    /// `root` must be an ancestor of `path` (typically the home dir).
+    pub fn first_symlinked_ancestor(
+        &self,
+        path: &Path,
+        root: &Path,
+    ) -> Result<Option<PathBuf>, std::io::Error> {
+        let mut cur = path.parent();
+        while let Some(dir) = cur {
+            if dir == root || dir.parent().is_none() {
+                break;
+            }
+            let meta = std::fs::symlink_metadata(dir)?;
+            if meta.file_type().is_symlink() {
+                return Ok(Some(dir.to_path_buf()));
+            }
+            cur = dir.parent();
+        }
+        Ok(None)
+    }
+
+    /// T31 hardening: refuse when the settings file's parent directory (the
+    /// config dir, e.g. `~/.claude`) is itself a symlink — reads and writes
+    /// would be redirected outside the expected location. Deeper ancestors
+    /// (home dirs on automounts, sandbox temp dirs) are legitimately
+    /// symlinked on many systems and are deliberately NOT checked.
+    pub fn config_dir_is_symlink(&self, settings_path: &Path) -> Result<bool, std::io::Error> {
+        match settings_path.parent() {
+            Some(dir) => {
+                let meta = std::fs::symlink_metadata(dir)?;
+                Ok(meta.file_type().is_symlink())
+            }
+            None => Ok(false),
+        }
+    }
 }
 
 #[cfg(test)]

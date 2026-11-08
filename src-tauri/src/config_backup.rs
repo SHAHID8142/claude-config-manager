@@ -35,6 +35,17 @@ impl std::error::Error for BackupError {}
 
 pub const BACKUP_PREFIX: &str = "settings-backup-";
 
+/// Strict backup-name contract: exactly `settings-backup-<digits>.json`.
+pub fn is_valid_backup_name(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix(BACKUP_PREFIX) else {
+        return false;
+    };
+    let Some(digits) = rest.strip_suffix(".json") else {
+        return false;
+    };
+    !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit())
+}
+
 /// Default app-owned backup directory (production path; tests pass their own).
 pub fn default_backup_dir(home: &Path) -> PathBuf {
     home.join("Library")
@@ -128,7 +139,10 @@ pub fn list_backups(backup_dir: &Path) -> Result<Vec<BackupInfo>, BackupError> {
             Err(_) => continue,
         };
         let name = entry.file_name().to_string_lossy().to_string();
-        if !name.starts_with(BACKUP_PREFIX) || !name.ends_with(".json") {
+        // Strict name contract: settings-backup-<digits>.json. Anything else
+        // (traversal-shaped, wrong extension, directories) is skipped — a
+        // listing can never surface a path-shaped name (T31).
+        if !is_valid_backup_name(&name) {
             continue;
         }
         let meta = match entry.metadata() {

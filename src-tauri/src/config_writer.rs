@@ -103,6 +103,12 @@ pub fn write_settings_atomic(
         }
         Err(e) => return Err(ConfigError::Io(e.to_string())),
     }
+    if locator
+        .config_dir_is_symlink(path)
+        .map_err(|e| ConfigError::Io(e.to_string()))?
+    {
+        return Err(ConfigError::SymlinkRefused);
+    }
 
     // Concurrent-modification detection (threat T4).
     if let Some(expected) = expected_mtime {

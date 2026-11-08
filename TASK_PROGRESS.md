@@ -62,7 +62,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T28 Targeted merge + schema validation | ✅ | 2026-11-08 | (T28 commit) | ✓ | DesiredSettings gate-before-write; env-level preservation; 12 tests; Rust 81/81 |
 | T29 Secure backup + permissions + redaction | ✅ | 2026-11-08 | (T29 commit) | ✓ | 0600 byte-exact backups; metadata-only listings; symlink refusal; 7 tests; Rust 88/88 |
 | T30 Atomic writes, concurrent detection, rollback | ✅ | 2026-11-08 | (T30 commit) | ✓ | temp+fsync+rename, mtime conflict guard, verified rollback; 7 tests; Rust 95/95 |
-| T31 Symlink/traversal/permission negative tests | ⬜ | — | — | — | — |
+| T31 Symlink/traversal/permission negative tests | ✅ | 2026-11-08 | (T31 commit) | ✓ | Config-dir symlink refusal + strict backup-name contract + 7 integration tests; Rust 102/102 |
 | T32 Credential handoff per verified docs | ⬜ | — | — | — | STOP condition: unresolved secure persistent handoff |
 | T33 Save & Apply for ONE verified direct provider | ⬜ | — | — | — | — |
 | T34 Read-back status + override warnings | ⬜ | — | — | — | — |
