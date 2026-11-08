@@ -8,6 +8,11 @@ export interface AdvancedSettingsProps {
   onChange: (key: RoleKey, value: string) => void;
   /** Live effective values from `read_status` (null = no override set). */
   current: Partial<Record<RoleKey, string | null>>;
+  /** Declared context window in tokens, as typed ("" = not managed). */
+  contextWindow: string;
+  onContextWindowChange: (value: string) => void;
+  /** Currently effective `CLAUDE_CODE_MAX_CONTEXT_TOKENS`, if any. */
+  currentContextWindow: string | null;
 }
 
 /**
@@ -22,6 +27,9 @@ export function AdvancedSettings({
   roles,
   onChange,
   current,
+  contextWindow,
+  onContextWindowChange,
+  currentContextWindow,
 }: AdvancedSettingsProps) {
   const checks = roleChecks(roles);
   return (
@@ -42,9 +50,33 @@ export function AdvancedSettings({
           aria-label="Advanced model role overrides"
           className="mt-2 flex flex-col gap-2"
         >
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <p className="text-xs text-ink-subtle">
             Leave a field blank to keep Claude Code&apos;s default for that role. Overrides are
             written to <code>settings.json</code> env only for the roles you fill in.
+          </p>
+          <FieldRow
+            label="Context window (tokens)"
+            htmlFor="context-window-input"
+            hint={
+              currentContextWindow !== null
+                ? `Effective now: ${currentContextWindow} tokens · blank + Save removes the override`
+                : "Only needed for model IDs Claude Code doesn't recognize — it assumes 200k otherwise."
+            }
+          >
+            <input
+              id="context-window-input"
+              className="w-full rounded-md border border-line bg-surface-raised px-2.5 py-1.5 font-mono text-[12.5px] text-ink outline-none focus:border-accent"
+              inputMode="numeric"
+              placeholder="e.g. 1000000"
+              value={contextWindow}
+              onChange={(e) => onContextWindowChange(e.target.value.replace(/[^0-9]/g, ""))}
+              aria-describedby="context-window-help"
+            />
+          </FieldRow>
+          <p id="context-window-help" className="text-xs text-ink-subtle">
+            Writes <code>CLAUDE_CODE_MAX_CONTEXT_TOKENS</code>. Claude Code sizes every model it
+            cannot match to a Claude ID at 200k and auto-compacts there, so a 1M model behind
+            OpenRouter or a gateway is cut off early without this value.
           </p>
           {ROLE_FIELDS.map(({ key, label, env }) => {
             const check = checks.find((c) => c.key === key);

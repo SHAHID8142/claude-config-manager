@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Settings2 } from "lucide-react";
 import { IconButton } from "./IconButton";
 import type { EffectiveStatus } from "../lib/ipc";
+import { connectionLabel } from "../lib/connectionLabel";
 import { applyTheme, loadTheme, saveTheme, type ThemeMode } from "../lib/theme";
 
 export interface AppHeaderProps {
@@ -17,14 +18,6 @@ const MODES: ReadonlyArray<{ value: ThemeMode; label: string }> = [
 ];
 
 /** Human-readable connection state for the header pill. */
-export function connectionLabel(status: EffectiveStatus | null): string {
-  if (status === null) return "reading…";
-  if (!status.settingsFound) return "not configured";
-  if (status.apiKeyHelper !== null) return "connected";
-  if (status.apiKeyPresent || status.authTokenPresent) return "connected (plaintext)";
-  return "no credential";
-}
-
 function connectionTone(status: EffectiveStatus | null): string {
   if (status === null) return "bg-ink-subtle";
   if (!status.settingsFound) return "bg-ink-subtle";

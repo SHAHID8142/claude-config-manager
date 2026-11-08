@@ -77,6 +77,9 @@ fn list_providers() -> Result<Vec<provider_catalog::ProviderSummary>, CommandErr
 
 /// T33 contract: full Save & Apply pipeline for one verified direct provider.
 #[tauri::command]
+// The command surface is intentionally flat: Tauri deserializes each named
+// argument from the webview, so grouping them would only move the field list.
+#[allow(clippy::too_many_arguments)]
 fn save_and_apply(
     provider_id: String,
     model: Option<String>,
@@ -85,6 +88,11 @@ fn save_and_apply(
     role_haiku: Option<String>,
     role_sonnet: Option<String>,
     role_opus: Option<String>,
+    // V2-12b: OPTIONAL declared window for models Claude Code doesn't
+    // recognize (it assumes 200k otherwise). `reset_context_window` removes
+    // the managed key instead of writing a value.
+    max_context_tokens: Option<u32>,
+    reset_context_window: Option<bool>,
 ) -> Result<save_apply::ApplyOutcome, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
@@ -103,12 +111,14 @@ fn save_and_apply(
         sonnet: role_sonnet,
         opus: role_opus,
     };
-    svc.apply_with_roles(
+    svc.apply_with_window(
         &provider_id,
         model.as_deref(),
         base_url.as_deref(),
         api_key.as_deref(),
         &roles,
+        max_context_tokens,
+        reset_context_window.unwrap_or(false),
     )
     .map_err(|e| match e {
         save_apply::ApplyError::InvalidInput(m) => CommandError::invalid_input(m),

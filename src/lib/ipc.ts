@@ -90,6 +90,14 @@ export interface SaveApplyArgs {
    * the managed env var is left untouched, never guessed.
    */
   roleModels?: { haiku?: string; sonnet?: string; opus?: string };
+  /**
+   * Declared context window for a model Claude Code does not recognize
+   * (V2-12b). Without it Claude Code assumes 200k and compacts there even when
+   * the model really supports 1M. Omit to leave the managed key untouched.
+   */
+  maxContextTokens?: number;
+  /** Remove `CLAUDE_CODE_MAX_CONTEXT_TOKENS` instead of writing a value. */
+  resetContextWindow?: boolean;
 }
 
 export async function saveAndApply(
@@ -104,6 +112,8 @@ export async function saveAndApply(
     roleHaiku: args.roleModels?.haiku ?? null,
     roleSonnet: args.roleModels?.sonnet ?? null,
     roleOpus: args.roleModels?.opus ?? null,
+    maxContextTokens: args.maxContextTokens ?? null,
+    resetContextWindow: args.resetContextWindow ?? false,
   });
 }
 
@@ -136,6 +146,8 @@ export interface EffectiveStatus {
   envDefaultHaiku: string | null;
   envDefaultSonnet: string | null;
   envDefaultOpus: string | null;
+  /** V2-12b: declared window for unrecognized ids; null = 200k assumption. */
+  envMaxContextTokens: string | null;
   warnings: StatusWarning[];
 }
 

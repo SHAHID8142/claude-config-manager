@@ -40,6 +40,14 @@ pub struct DesiredSettings {
     pub env_default_haiku: Option<String>,
     pub env_default_sonnet: Option<String>,
     pub env_default_opus: Option<String>,
+    /// `CLAUDE_CODE_MAX_CONTEXT_TOKENS` (V2-12b).
+    ///
+    /// Claude Code assumes a 200k window for any model id it does not
+    /// recognize — every OpenRouter/NVIDIA/custom id — and auto-compacts there
+    /// even when the model really has 1M. This variable is the documented way
+    /// to tell it the real window
+    /// (code.claude.com/docs/en/model-config#correct-the-window-for-a-gateway-or-custom-model-id).
+    pub env_max_context_tokens: Option<String>,
     /// Absolute path to an installed apiKeyHelper script (T32 helper mode).
     /// Mutually exclusive with `env_auth_token`/`env_api_key`: helper
     /// credentials rank BELOW those env vars in auth precedence, so setting
@@ -66,6 +74,8 @@ pub struct DesiredSettings {
     /// picked — Save & Apply would "succeed" while Claude Code used something
     /// else. Only relevant when `model` is set; env-model mode uses `env_model`.
     pub clear_env_model: bool,
+    /// Explicitly remove `CLAUDE_CODE_MAX_CONTEXT_TOKENS` (window reset).
+    pub clear_env_max_context_tokens: bool,
 }
 
 impl DesiredSettings {
@@ -83,6 +93,7 @@ impl DesiredSettings {
             ("ANTHROPIC_DEFAULT_HAIKU_MODEL", &self.env_default_haiku),
             ("ANTHROPIC_DEFAULT_SONNET_MODEL", &self.env_default_sonnet),
             ("ANTHROPIC_DEFAULT_OPUS_MODEL", &self.env_default_opus),
+            ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", &self.env_max_context_tokens),
         ]
         .into_iter()
         .filter_map(|(k, v)| v.as_ref().map(|s| (k, s.as_str())))
@@ -134,6 +145,20 @@ impl DesiredSettings {
                         return Err(ConfigError::ValidationFailed(format!(
                             "{key}: endpoint must be a valid https URL"
                         )));
+                    }
+                }
+                "CLAUDE_CODE_MAX_CONTEXT_TOKENS" => {
+                    // Claude Code only accepts plain digits; a typo like "1M"
+                    // would be ignored silently, leaving the 200k assumption.
+                    let n: u32 = value.parse().map_err(|_| {
+                        ConfigError::ValidationFailed(
+                            "CLAUDE_CODE_MAX_CONTEXT_TOKENS must be a plain token count (digits only)".into(),
+                        )
+                    })?;
+                    if !(1_000..=10_000_000).contains(&n) {
+                        return Err(ConfigError::ValidationFailed(
+                            "CLAUDE_CODE_MAX_CONTEXT_TOKENS must be between 1,000 and 10,000,000 tokens".into(),
+                        ));
                     }
                 }
                 _ => {
@@ -223,6 +248,7 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
         || desired.clear_env_base_url
         || desired.clear_env_credentials
         || desired.clear_env_model
+        || desired.clear_env_max_context_tokens
     {
         let existing_env = match out.get("env") {
             Some(Value::Object(m)) => m.clone(),
@@ -244,6 +270,9 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
         }
         if desired.clear_env_model {
             env.remove("ANTHROPIC_MODEL");
+        }
+        if desired.clear_env_max_context_tokens {
+            env.remove("CLAUDE_CODE_MAX_CONTEXT_TOKENS");
         }
         if desired.clear_env_credentials {
             // A blank string counts as present for precedence purposes, so both
@@ -271,6 +300,51 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v.clone()))
                 .collect(),
         )
+    }
+
+    #[test]
+    fn declares_a_context_window_for_unrecognized_model_ids() {
+        // V2-12b: Claude Code assumes 200k for ids it cannot match, so a 1M
+        // model gets compacted early until this env key declares the window.
+        let desired = DesiredSettings {
+            env_max_context_tokens: Some("1000000".into()),
+            ..Default::default()
+        };
+        let next = apply_desired(&obj(&[]), &desired).expect("applies");
+        assert_eq!(next["env"]["CLAUDE_CODE_MAX_CONTEXT_TOKENS"], "1000000");
+    }
+
+    #[test]
+    fn context_window_must_be_plain_digits_in_a_sane_range() {
+        for bad in ["1M", "1_000_000", "999", "20000000"] {
+            let desired = DesiredSettings {
+                env_max_context_tokens: Some(bad.into()),
+                ..Default::default()
+            };
+            let err = apply_desired(&obj(&[]), &desired).expect_err("must refuse");
+            assert!(
+                err.to_string().contains("CLAUDE_CODE_MAX_CONTEXT_TOKENS"),
+                "{bad}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn resetting_the_window_removes_the_managed_key_only() {
+        let current = obj(&[(
+            "env",
+            obj(&[
+                ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", Value::String("1000000".into())),
+                ("ANTHROPIC_BASE_URL", Value::String("https://openrouter.ai/api".into())),
+            ]),
+        )]);
+        let desired = DesiredSettings {
+            clear_env_max_context_tokens: true,
+            ..Default::default()
+        };
+        let next = apply_desired(&current, &desired).expect("applies");
+        assert!(next["env"].get("CLAUDE_CODE_MAX_CONTEXT_TOKENS").is_none());
+        assert_eq!(next["env"]["ANTHROPIC_BASE_URL"], "https://openrouter.ai/api");
     }
 
     #[test]

@@ -10,6 +10,9 @@ const baseProps = {
   roles: EMPTY_ROLES,
   onChange: () => {},
   current: {},
+  contextWindow: "",
+  onContextWindowChange: () => {},
+  currentContextWindow: null,
 };
 
 describe("AdvancedSettings (T45)", () => {

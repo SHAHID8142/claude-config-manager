@@ -17,6 +17,7 @@ const statusFixture: EffectiveStatus = {
   envDefaultHaiku: null,
   envDefaultSonnet: null,
   envDefaultOpus: null,
+  envMaxContextTokens: null,
   warnings: [],
 };
 
@@ -259,6 +260,26 @@ describe("Save & Apply (T33)", () => {
     });
     expect(screen.getByText(/Backup: settings-backup-/)).toBeInTheDocument();
     expect(screen.getByText(/never written into/)).toBeInTheDocument();
+  });
+
+  it("sends the declared context window for an unrecognized model id (V2-12b)", async () => {
+    const ipc = mockWithApply();
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "anthropic");
+    await userEvent.type(
+      screen.getByLabelText("API key", { selector: "input" }),
+      "sk-test-fixture-key",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /advanced settings/i }));
+    const windowInput = screen.getByLabelText(/context window/i);
+    // Digits only: a typed "1M" must never reach settings.json as a no-op value.
+    await userEvent.type(windowInput, "1M000000");
+    expect(windowInput).toHaveValue("1000000");
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(ipc.calls.some((c) => c.cmd === "save_and_apply")).toBe(true));
+    const call = ipc.calls.find((c) => c.cmd === "save_and_apply");
+    expect(call?.args).toMatchObject({ maxContextTokens: 1000000, resetContextWindow: false });
   });
 
   it("shows an error banner when apply fails, without leaking the key", async () => {

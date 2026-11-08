@@ -114,8 +114,14 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   // T45: role overrides start empty = "no override" and stay collapsed.
   const [roles, setRoles] = useState<RoleState>(EMPTY_ROLES);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // V2-12b: declared window for models Claude Code can't recognize.
+  const [contextWindow, setContextWindow] = useState("");
+
   // V2-12a: a stored credential means the key field can stay blank.
-  const [storedCredential, setStoredCredential] = useState(false);
+  const [credentialCheck, setCredentialCheck] = useState<{
+    providerId: string;
+    has: boolean;
+  } | null>(null);
 
   async function handleFetchModels() {
     if (selected === null || isCustom) return;
@@ -186,17 +192,16 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   // exists when it does not.
   useEffect(() => {
     let cancelled = false;
-    setStoredCredential(false);
     if (selectedId === "" || selectedId === CUSTOM_ID)
       return () => {
         cancelled = true;
       };
     hasCredential(selectedId, ipc)
       .then((found) => {
-        if (!cancelled) setStoredCredential(found);
+        if (!cancelled) setCredentialCheck({ providerId: selectedId, has: found });
       })
       .catch(() => {
-        if (!cancelled) setStoredCredential(false);
+        if (!cancelled) setCredentialCheck({ providerId: selectedId, has: false });
       });
     return () => {
       cancelled = true;
@@ -237,9 +242,19 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const modelInvalid = modelValidation !== null && !modelValidation.ok;
   const roleInvalid = hasInvalidRole(roles);
 
+  // Only a result for the CURRENT provider counts; a stale answer from the
+  // previous selection must never enable Save.
+  const storedCredential = credentialCheck?.providerId === selectedId && credentialCheck.has;
+
+  const contextWindowDigits = contextWindow.trim();
+  const contextWindowInvalid =
+    contextWindowDigits !== "" &&
+    !(Number(contextWindowDigits) >= 1_000 && Number(contextWindowDigits) <= 10_000_000);
+
   const canApply =
     (selected !== null || (isCustom && customEndpoint.trim() !== "")) &&
     (apiKey.trim() !== "" || storedCredential) &&
+    !contextWindowInvalid &&
     !modelInvalid &&
     !roleInvalid &&
     !applying;
@@ -267,6 +282,11 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           model: modelValidation?.ok ? modelValidation.value : undefined,
           // T45: only filled-in roles are sent; the rest stay untouched.
           roleModels: rolesToSend(roles),
+          // Blank means "leave the managed key as it is"; the reset flag is
+          // only sent when an effective value exists and the field was cleared.
+          maxContextTokens: contextWindowDigits === "" ? undefined : Number(contextWindowDigits),
+          resetContextWindow:
+            contextWindowDigits === "" && (status?.envMaxContextTokens ?? null) !== null,
           // Blank keeps the stored credential untouched (backend contract).
           apiKey: apiKey.trim(),
         },
@@ -553,6 +573,9 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                 sonnet: status?.envDefaultSonnet ?? null,
                 opus: status?.envDefaultOpus ?? null,
               }}
+              contextWindow={contextWindow}
+              onContextWindowChange={setContextWindow}
+              currentContextWindow={status?.envMaxContextTokens ?? null}
             />
             {roleInvalid && (
               <p

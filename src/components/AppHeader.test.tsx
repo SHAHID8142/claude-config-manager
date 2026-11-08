@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AppHeader, connectionLabel } from "./AppHeader";
+import { AppHeader } from "./AppHeader";
+import { connectionLabel } from "../lib/connectionLabel";
 import type { EffectiveStatus } from "../lib/ipc";
 
 function status(overrides: Partial<EffectiveStatus> = {}): EffectiveStatus {
@@ -16,6 +17,7 @@ function status(overrides: Partial<EffectiveStatus> = {}): EffectiveStatus {
     envDefaultHaiku: null,
     envDefaultSonnet: null,
     envDefaultOpus: null,
+    envMaxContextTokens: null,
     warnings: [],
     ...overrides,
   };

@@ -140,6 +140,24 @@ impl SaveApplyService {
         api_key: Option<&str>,
         roles: &RoleOverrides,
     ) -> Result<ApplyOutcome, ApplyError> {
+        self.apply_with_window(provider_id, model, base_url, api_key, roles, None, false)
+    }
+
+    /// [`Self::apply_with_roles`] plus the declared context window
+    /// (`CLAUDE_CODE_MAX_CONTEXT_TOKENS`, V2-12b). `None` leaves the managed
+    /// key untouched; `reset_window` removes it so Claude Code falls back to
+    /// its own assumption.
+    #[allow(clippy::too_many_arguments)]
+    pub fn apply_with_window(
+        &self,
+        provider_id: &str,
+        model: Option<&str>,
+        base_url: Option<&str>,
+        api_key: Option<&str>,
+        roles: &RoleOverrides,
+        context_window: Option<u32>,
+        reset_window: bool,
+    ) -> Result<ApplyOutcome, ApplyError> {
         // --- Mutual exclusion (G4): one apply at a time, process-wide ---
         // Acquired before anything is read so two windows cannot interleave a
         // read-merge-write cycle. Released automatically when this returns.
@@ -253,6 +271,8 @@ impl SaveApplyService {
             env_default_haiku: roles.haiku,
             env_default_sonnet: roles.sonnet,
             env_default_opus: roles.opus,
+            env_max_context_tokens: context_window.map(|n| n.to_string()),
+            clear_env_max_context_tokens: reset_window,
             ..Default::default()
         };
         let next = apply_desired(&current, &desired).map_err(|e| redact(ApplyError::Config(e)))?;

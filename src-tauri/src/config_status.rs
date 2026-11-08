@@ -48,6 +48,9 @@ pub struct EffectiveStatus {
     pub env_default_haiku: Option<String>,
     pub env_default_sonnet: Option<String>,
     pub env_default_opus: Option<String>,
+    /// V2-12b: declared window for unrecognized model ids (None = Claude Code
+    /// assumes 200k).
+    pub env_max_context_tokens: Option<String>,
     pub warnings: Vec<StatusWarning>,
 }
 
@@ -68,6 +71,7 @@ pub fn read_effective_status(path: &Path) -> Result<EffectiveStatus, ConfigError
                 env_default_haiku: None,
                 env_default_sonnet: None,
                 env_default_opus: None,
+                env_max_context_tokens: None,
                 warnings: Vec::new(),
             });
         }
@@ -91,6 +95,7 @@ pub fn read_effective_status(path: &Path) -> Result<EffectiveStatus, ConfigError
     let env_default_haiku = get_env("ANTHROPIC_DEFAULT_HAIKU_MODEL");
     let env_default_sonnet = get_env("ANTHROPIC_DEFAULT_SONNET_MODEL");
     let env_default_opus = get_env("ANTHROPIC_DEFAULT_OPUS_MODEL");
+    let env_max_context_tokens = get_env("CLAUDE_CODE_MAX_CONTEXT_TOKENS");
     let auth_token_present = get_env("ANTHROPIC_AUTH_TOKEN").is_some();
     let api_key_present = get_env("ANTHROPIC_API_KEY").is_some();
     let api_key_helper = doc
@@ -132,6 +137,7 @@ pub fn read_effective_status(path: &Path) -> Result<EffectiveStatus, ConfigError
         env_default_haiku,
         env_default_sonnet,
         env_default_opus,
+        env_max_context_tokens,
         warnings,
     })
 }
