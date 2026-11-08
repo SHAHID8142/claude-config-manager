@@ -187,6 +187,26 @@ export interface ModelEntry {
   source: string;
 }
 
+export interface ConnectionTestResult {
+  providerId: string;
+  ok: boolean;
+  status: number | null;
+  message: string;
+  endpoint: string;
+  latencyMs: number;
+}
+
+export async function testConnection(
+  providerId: string,
+  credential?: string,
+  ipc: IpcLike = defaultIpc,
+): Promise<ConnectionTestResult> {
+  return ipc.invoke<ConnectionTestResult>("test_connection", {
+    providerId,
+    credential: credential ?? null,
+  });
+}
+
 export async function discoverModels(
   providerId: string,
   credential?: string,

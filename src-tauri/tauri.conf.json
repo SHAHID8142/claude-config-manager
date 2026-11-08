@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "Claude Config Manager",
-        "width": 800,
-        "height": 600,
-        "minWidth": 640,
-        "minHeight": 480
+        "width": 880,
+        "height": 880,
+        "minWidth": 680,
+        "minHeight": 640
       }
     ],
     "security": {

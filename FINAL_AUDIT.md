@@ -45,11 +45,11 @@ cargo fmt --check                              # PASS
 cargo clippy --all-targets -- -D warnings      # PASS (0 warnings)
 cargo test                                     # 185 unit + 7 adversarial + 7 crash + 6 lifecycle
                                                # + 14 malformed + 6 property-based + 11 secret/network
-                                               # = 233 passed, 0 failed, 3 ignored (live network, opt-in)
+                                               # = 243 passed, 0 failed, 3 ignored (live network, opt-in)
 npm run lint                                   # PASS
 npm run format:check                           # PASS
 npx tsc --noEmit                               # PASS
-npx vitest run                                 # 124 passed / 14 files
+npx vitest run                                 # 128 passed / 14 files
 npm run build                                  # PASS (240 kB bundle)
 scripts/dep-audit.sh                           # PASS — 0 advisories in the macOS graph
 cargo test live_nvidia_nim   -- --ignored      # PASS — 84 models fetched live
@@ -123,6 +123,14 @@ refusing symlinks, refusing a loosened file on read. The helper script reads tha
 closed when it is missing or world-readable. The `keyring` dependency and all Keychain code were
 removed. The honest trade-off is stated in the user guide: this protects against other users, cloud
 sync and leaks, **not** against another process running as you (same as `~/.ssh` keys).
+
+## Round 5 — owner-reported: shadowed keys + testing a key
+- **G15a:** Save & Apply left plaintext `ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_API_KEY` in `settings.json`, which
+  outrank `apiKeyHelper` — so the app reported success while the stored key was ignored. The merge now
+  removes them in helper mode (verified against the owner's real file, read-only).
+- **G15b:** there was no way to test a credential. A real connection test now calls each provider's
+  *documented* key-check endpoint and classifies the answer; providers without one say so instead of guessing.
+- **G15c:** the action row was below the fold at every default window size; it is now a fixed footer.
 
 ## Round 2 (gap closure after "did you audit every aspect?")
 `docs/audits/GAPS-CLOSURE.md` records ten gaps found by that question, eight closed in code here:

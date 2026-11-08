@@ -244,6 +244,9 @@ impl SaveApplyService {
             // otherwise be sent to the previous provider.
             clear_env_base_url: base_url.is_none(),
             api_key_helper: Some(helper_path.to_string_lossy().to_string()),
+            // The credential now lives in the helper only; plaintext env keys
+            // would outrank it and silently make the stored key dead weight.
+            clear_env_credentials: true,
             env_default_haiku: roles.haiku,
             env_default_sonnet: roles.sonnet,
             env_default_opus: roles.opus,

@@ -18,6 +18,7 @@ pub mod config_reader;
 pub mod config_restore;
 pub mod config_status;
 pub mod config_writer;
+pub mod connection_test;
 pub mod credential_handoff;
 pub mod credential_service;
 pub mod environment_check;
@@ -146,6 +147,53 @@ fn check_environment() -> Result<environment_check::EnvironmentReport, CommandEr
     Ok(environment_check::check_environment(&home, None))
 }
 
+/// "Test connection": prove the stored credential is actually accepted.
+///
+/// Save & Apply only proves the file was written; this performs one authenticated
+/// request to a documented key-check endpoint and classifies the answer.
+#[tauri::command]
+fn test_connection(
+    provider_id: String,
+    credential: Option<String>,
+) -> Result<connection_test::ConnectionTest, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let template = presets::load_builtin_presets()
+        .into_iter()
+        .find(|t| t.id == provider_id)
+        .unwrap_or_else(|| {
+            let mut t = presets::load_builtin_presets()
+                .into_iter()
+                .find(|p| p.id == "anthropic")
+                .expect("anthropic preset");
+            t.id = provider_id.clone();
+            t.name = provider_id.clone();
+            t.discovery = provider_catalog::DiscoverySpec::None;
+            t
+        });
+
+    let store = file_secret_store::FileSecretStore::for_home(&home);
+    let secret = match credential {
+        Some(c) if !c.trim().is_empty() => c,
+        _ => secret_store::SecretStore::get_secret(
+            &store,
+            &format!("com.claude-config-manager.{provider_id}"),
+            &provider_id,
+        )
+        .map_err(|e| CommandError::io(e.to_string()))?
+        .ok_or_else(|| {
+            CommandError::not_available(
+                "no credential stored for this provider — enter a key and save it first",
+            )
+        })?,
+    };
+    connection_test::test_connection(&template, secret.trim()).map_err(|e| match e {
+        connection_test::TestError::Unsupported(_) => CommandError::not_available(e.to_string()),
+        other => CommandError::io(other.to_string()),
+    })
+}
+
 /// T38 contract: model discovery for one verified provider template.
 #[tauri::command]
 fn discover_models(
@@ -177,7 +225,8 @@ pub fn run() {
             read_status,
             restore_last_backup,
             check_environment,
-            discover_models
+            discover_models,
+            test_connection
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

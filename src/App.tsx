@@ -18,12 +18,14 @@ import {
   checkEnvironment,
   defaultIpc,
   discoverModels,
+  testConnection,
   listProviders,
   readStatus,
   restoreLastBackup,
   saveAndApply,
   isCommandError,
   type ApplyOutcome,
+  type ConnectionTestResult,
   type EffectiveStatus,
   type EnvironmentReport,
   type IpcLike,
@@ -37,8 +39,6 @@ import { validateModelId } from "./lib/modelId";
 import { focusRing } from "./lib/focus";
 
 const inputClass = `w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 placeholder-zinc-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 ${focusRing}`;
-
-const secondaryButtonClass = `rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 ${focusRing}`;
 
 /** Sentinels for the provider selector: presets use their real ids;
  * custom entry and the empty state use dedicated sentinels. */
@@ -104,6 +104,9 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [fetchingModels, setFetchingModels] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [modelsFetchedFor, setModelsFetchedFor] = useState<string | null>(null);
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionTest, setConnectionTest] = useState<ConnectionTestResult | null>(null);
+  const [connectionTestError, setConnectionTestError] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   // T45: role overrides start empty = "no override" and stay collapsed.
   const [roles, setRoles] = useState<RoleState>(EMPTY_ROLES);
@@ -125,6 +128,23 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       setModelsError(isCommandError(err) ? err.message : "Model discovery failed.");
     } finally {
       setFetchingModels(false);
+    }
+  }
+
+  async function handleTestConnection() {
+    if (selected === null || isCustom) return;
+    setTestingConnection(true);
+    setConnectionTest(null);
+    setConnectionTestError(null);
+    try {
+      const result = await testConnection(selected.id, apiKey.trim() || undefined, ipc);
+      setConnectionTest(result);
+    } catch (err: unknown) {
+      setConnectionTestError(
+        isCommandError(err) ? err.message : "The connection test could not be completed.",
+      );
+    } finally {
+      setTestingConnection(false);
     }
   }
 
@@ -191,6 +211,10 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     !roleInvalid &&
     !applying;
 
+  // The connection test needs a real provider (a custom endpoint has no
+  // documented key-check endpoint) and something to test.
+  const testDisabled = selected === null || isCustom || apiKey.trim() === "" || testingConnection;
+
   async function handleApply() {
     if (!canApply) return;
     setApplying(true);
@@ -233,7 +257,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 bg-zinc-50 p-6 dark:bg-zinc-950">
+    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 bg-zinc-50 p-6 pb-28 dark:bg-zinc-950">
       <header className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
           Claude Config Manager
@@ -578,30 +602,63 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             onDismiss={() => setRestoreError(null)}
           />
         )}
-        <div className="flex flex-wrap gap-2">
-          <button type="button" disabled className={secondaryButtonClass}>
-            Test Connection
-          </button>
-          <LoadingButton
-            label="Save & Apply"
-            pendingLabel="Applying…"
-            pending={applying}
-            // One gate, one source of truth: `canApply` covers provider, key,
-            // model validity and role-override validity (T43/T45).
-            disabled={!canApply}
-            variant="primary"
-            onClick={() => {
-              void handleApply();
-            }}
+        {connectionTestError !== null && (
+          <StatusBanner
+            severity="error"
+            message="Connection test could not run."
+            detail={connectionTestError}
+            onDismiss={() => setConnectionTestError(null)}
           />
-          <LoadingButton
-            label="Restore last backup"
-            pendingLabel="Restoring…"
-            pending={restoring}
-            onClick={() => {
-              void handleRestore();
-            }}
+        )}
+        {connectionTest !== null && (
+          <StatusBanner
+            severity={connectionTest.ok ? "success" : "error"}
+            message={
+              connectionTest.ok
+                ? `Connection OK — ${connectionTest.message} (${connectionTest.latencyMs} ms)`
+                : `Connection failed — ${connectionTest.message}`
+            }
+            detail={connectionTest.endpoint}
+            onDismiss={() => setConnectionTest(null)}
           />
+        )}
+        {/* Fixed footer: the primary action must never be below the fold
+            (at 800x600 and 880x880 it was, which made Save & Apply invisible). */}
+        <div className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-200 bg-zinc-50/95 px-6 py-3 backdrop-blur dark:border-zinc-700 dark:bg-zinc-950/95">
+          <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-2">
+            {/* "Configuration applied and verified" only proves the FILE was
+              written. This asks the provider whether the key actually works. */}
+            <LoadingButton
+              label="Test Connection"
+              pendingLabel="Testing…"
+              pending={testingConnection}
+              disabled={testDisabled}
+              variant="secondary"
+              onClick={() => {
+                void handleTestConnection();
+              }}
+            />
+            <LoadingButton
+              label="Save & Apply"
+              pendingLabel="Applying…"
+              pending={applying}
+              // One gate, one source of truth: `canApply` covers provider, key,
+              // model validity and role-override validity (T43/T45).
+              disabled={!canApply}
+              variant="primary"
+              onClick={() => {
+                void handleApply();
+              }}
+            />
+            <LoadingButton
+              label="Restore last backup"
+              pendingLabel="Restoring…"
+              pending={restoring}
+              onClick={() => {
+                void handleRestore();
+              }}
+            />
+          </div>
         </div>
         {selected !== null && (
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">

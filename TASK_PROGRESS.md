@@ -130,6 +130,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | G12 black screen after Save | ✅ | 2026-11-08 | 148f9e8 | ✓ | unit-variant wire shape + camelCase fixed; ErrorBoundary; verified against real DTO payloads and in the running bundle |
 | G13 credential storage | ✅ | 2026-11-08 | 0a6026f | ✓ | Keychain removed (keyring dep gone); 0600 file store, atomic write, symlink/mode/traversal refusals; helper fails closed; end-to-end apply verified |
 | G14 CLI detection | ✅ | 2026-11-08 | 0a6026f | ✓ | finds ~/.local/bin etc. with the GUI PATH (proven: 2.1.319 found with PATH=/usr/bin:/bin); probe PATH repaired for `env node` |
+| G15 shadowed keys + connection test | ✅ | 2026-11-08 | (this commit) | ✓ | helper mode clears plaintext env creds (proven on the owner's file); real key-check test per provider with 8 tests; fixed action footer verified on screen |
 
 ## Blockers / open items
 

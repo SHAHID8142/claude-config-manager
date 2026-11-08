@@ -20,6 +20,7 @@ the reason — never silently dropped.
 | G12 | Black screen after Save (uncaught `in` on a string during render) | ✅ closed (`G11-G12-field-defects.md`) |
 | G13 | Keychain unusable → credentials moved to an owner-only file (0600) | ✅ closed (`G13-G14-storage-and-cli-detection.md`) |
 | G14 | "Claude Code CLI not found" on GUI-PATH launches | ✅ closed (`G13-G14-storage-and-cli-detection.md`) |
+| G15 | Shadowing env keys survived apply; no way to test a key; actions below the fold | ✅ closed (`G15-shadowing-keys-and-connection-test.md`) |
 
 ---
 

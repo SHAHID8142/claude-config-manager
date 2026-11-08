@@ -52,6 +52,14 @@ pub struct DesiredSettings {
     /// OLD endpoint in place and send the Anthropic key to a third party. When
     /// this is set, the managed base URL is removed instead.
     pub clear_env_base_url: bool,
+    /// Explicitly remove plaintext credentials from `env` (helper mode).
+    ///
+    /// Same reasoning as `clear_env_base_url`: `None` means "leave untouched", so
+    /// a key left behind by another tool (or a hand edit) would keep SHADOWING the
+    /// helper — Claude Code ranks `ANTHROPIC_AUTH_TOKEN`/`API_KEY` above
+    /// `apiKeyHelper`, so Save & Apply would report success while the stored
+    /// credential was never used.
+    pub clear_env_credentials: bool,
 }
 
 impl DesiredSettings {
@@ -197,7 +205,7 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
     }
 
     let env_writes = desired.env_writes();
-    if !env_writes.is_empty() || desired.clear_env_base_url {
+    if !env_writes.is_empty() || desired.clear_env_base_url || desired.clear_env_credentials {
         let existing_env = match out.get("env") {
             Some(Value::Object(m)) => m.clone(),
             Some(Value::Null) | None => Map::new(),
@@ -215,6 +223,12 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
         let mut env = existing_env;
         if desired.clear_env_base_url {
             env.remove("ANTHROPIC_BASE_URL");
+        }
+        if desired.clear_env_credentials {
+            // A blank string counts as present for precedence purposes, so both
+            // an empty value and a real one are removed.
+            env.remove("ANTHROPIC_AUTH_TOKEN");
+            env.remove("ANTHROPIC_API_KEY");
         }
         for (key, value) in env_writes {
             env.insert(key.to_string(), Value::String(value.to_string()));
@@ -236,6 +250,67 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v.clone()))
                 .collect(),
         )
+    }
+
+    #[test]
+    fn helper_mode_removes_shadowing_plaintext_credentials() {
+        // Reproduces a real user's file: a token left by another tool + an empty
+        // API-key string, both of which outrank apiKeyHelper.
+        let current = obj(&[
+            ("apiKeyHelper", Value::String("/old/helper.sh".into())),
+            (
+                "env",
+                obj(&[
+                    (
+                        "ANTHROPIC_AUTH_TOKEN",
+                        Value::String("sk-or-FAKE-stale".into()),
+                    ),
+                    ("ANTHROPIC_API_KEY", Value::String("".into())),
+                    (
+                        "ANTHROPIC_BASE_URL",
+                        Value::String("https://openrouter.ai/api".into()),
+                    ),
+                    ("KEEP_ME", Value::String("1".into())),
+                ]),
+            ),
+        ]);
+        let desired = DesiredSettings {
+            api_key_helper: Some(
+                "/Users/x/Library/Application Support/ClaudeConfigManager/helpers/openrouter.sh"
+                    .into(),
+            ),
+            clear_env_credentials: true,
+            ..Default::default()
+        };
+        let out = apply_desired(&current, &desired).expect("merge");
+        assert!(out["env"].get("ANTHROPIC_AUTH_TOKEN").is_none(), "{out}");
+        assert!(out["env"].get("ANTHROPIC_API_KEY").is_none(), "{out}");
+        assert_eq!(
+            out["env"]["ANTHROPIC_BASE_URL"],
+            "https://openrouter.ai/api"
+        );
+        assert_eq!(
+            out["env"]["KEEP_ME"], "1",
+            "unmanaged env keys are preserved"
+        );
+        assert!(
+            out["apiKeyHelper"]
+                .as_str()
+                .unwrap()
+                .ends_with("openrouter.sh")
+        );
+    }
+
+    #[test]
+    fn env_mode_still_writes_plaintext_credentials_when_asked() {
+        let current = obj(&[]);
+        let desired = DesiredSettings {
+            env_api_key: Some("sk-ant-FAKE-222".into()),
+            clear_env_credentials: false,
+            ..Default::default()
+        };
+        let out = apply_desired(&current, &desired).expect("merge");
+        assert_eq!(out["env"]["ANTHROPIC_API_KEY"], "sk-ant-FAKE-222");
     }
 
     #[test]

@@ -39,10 +39,16 @@ overwrites a file it cannot parse.
    (replacing the earlier Keychain storage — see "Where the key lives" below). It is never written to
    `settings.json`, never logged, and never placed in the helper script. The field is masked and can be
    revealed only deliberately.
-4. Optionally press **Fetch models** to load the provider's catalog. Providers without a documented catalog
+4. Optionally press **Test Connection**. This makes one real authenticated request to the provider's
+   documented key-check endpoint and tells you what the provider thinks of your key (accepted, 401 wrong,
+   402 no credit, 403 forbidden, 429 rate-limited-but-valid). "Save & Apply" only proves the *file* was
+   written — it cannot know whether the key works.
+5. Optionally press **Fetch models** to load the provider's catalog. Providers without a documented catalog
    (currently Z.AI) ask you to type a model id instead.
-5. Pick or type a **Model**.
-6. Press **Save & Apply**.
+6. Pick or type a **Model**.
+7. Press **Save & Apply**. This also **removes any plaintext `ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_API_KEY`
+   left in `settings.json`**, because those outrank `apiKeyHelper` and would make the stored credential dead
+   weight.
 
 Apply is fail-closed and transactional: validate → store credential → install helper script → snapshot →
 merge → backup → atomic write → read-back → report. If any step fails, your previous configuration is intact.

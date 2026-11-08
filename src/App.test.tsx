@@ -754,6 +754,94 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
     return { ipc, calls };
   }
 
+  describe('Test Connection (the only honest answer to "does my key work")', () => {
+    function mockTesting(result: Record<string, unknown> | Error) {
+      const calls: Array<Record<string, unknown>> = [];
+      const ipc = createMockIpc({
+        handlers: {
+          list_providers: () => Promise.resolve(providerSummaryFixtures),
+          read_status: () => Promise.resolve(statusFixture),
+          check_environment: () =>
+            Promise.resolve({
+              cliFound: true,
+              cliVersion: "2.1.246",
+              cliVersionWarning: null,
+              settingsState: "ok",
+              settingsDetail: null,
+              configDirWritable: true,
+            }),
+          test_connection: (args) => {
+            calls.push(args ?? {});
+            return result instanceof Error ? Promise.reject(result) : Promise.resolve(result);
+          },
+        },
+      });
+      return { ipc, calls };
+    }
+
+    const okResult = {
+      providerId: "openrouter",
+      ok: true,
+      status: 200,
+      message: "key accepted by the provider",
+      endpoint: "https://openrouter.ai/api/v1/key",
+      latencyMs: 412,
+    };
+
+    it("is disabled until a provider and a key are present", async () => {
+      const { ipc } = mockTesting(okResult);
+      render(<App ipc={ipc} />);
+      expect(screen.getByRole("button", { name: "Test Connection" })).toBeDisabled();
+      await selectProviderAndKey("openrouter");
+      expect(screen.getByRole("button", { name: "Test Connection" })).toBeEnabled();
+    });
+
+    it("sends the typed key and reports a working connection", async () => {
+      const { ipc, calls } = mockTesting(okResult);
+      render(<App ipc={ipc} />);
+      await selectProviderAndKey("openrouter");
+
+      await userEvent.click(screen.getByRole("button", { name: "Test Connection" }));
+      await waitFor(() => expect(calls).toHaveLength(1));
+      expect(calls[0].providerId).toBe("openrouter");
+      expect(calls[0].credential).toBe("sk-test-key");
+      expect(
+        await screen.findByText(/Connection OK — key accepted by the provider/),
+      ).toBeInTheDocument();
+    });
+
+    it("reports a rejected key as a failure, not as success", async () => {
+      const { ipc } = mockTesting({
+        ...okResult,
+        ok: false,
+        status: 401,
+        message:
+          "the provider rejected this key (401 Unauthorized) — it is wrong, expired, or revoked",
+      });
+      render(<App ipc={ipc} />);
+      await selectProviderAndKey("openrouter");
+
+      await userEvent.click(screen.getByRole("button", { name: "Test Connection" }));
+      expect(
+        await screen.findByText(/Connection failed — the provider rejected this key/),
+      ).toBeInTheDocument();
+      // The success wording must not appear anywhere in the failure state.
+      expect(screen.queryByText(/Connection OK/)).not.toBeInTheDocument();
+    });
+
+    it("surfaces a backend refusal (e.g. no documented endpoint) verbatim", async () => {
+      const err = Object.assign(new Error("there is no documented key-check endpoint for Z.AI"), {
+        name: "CommandError",
+      });
+      const { ipc } = mockTesting(err);
+      render(<App ipc={ipc} />);
+      await selectProviderAndKey("openrouter");
+
+      await userEvent.click(screen.getByRole("button", { name: "Test Connection" }));
+      expect(await screen.findByText(/Connection test could not run/)).toBeInTheDocument();
+    });
+  });
+
   async function selectProviderAndKey(provider = "anthropic") {
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, provider);
