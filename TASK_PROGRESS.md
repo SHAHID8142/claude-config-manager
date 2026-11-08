@@ -19,8 +19,8 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 |------|--------|------|--------|------|-------|
 | T01 Audit repo/workspace/remote/toolchain; record baseline | ✅ | 2026-11-08 | 8c2946a (baseline) + audit commit | ✓ | Baseline docs committed `8c2946a`; remote created & pushed on user authorization; toolchain audit in `docs/audits/T01-baseline.md` |
 | T02 Verify Claude Code global config paths/keys/precedence/auth; document matrix | ✅ | 2026-11-08 | (T02 commit) | ✓ | `docs/research/claude-code-config-matrix.md`; official docs verified + local cross-check; plaintext/env tradeoffs routed to T32/T34 |
-| T03 Evaluate open-source bridges (protocol translation) | ⬜ | — | — | — | — |
-| T04 Select bridge with evidence; write ADR; STOP if no safe candidate | ⬜ | — | — | — | — |
+| T03 Evaluate open-source bridges (protocol translation) | ✅ | 2026-11-08 | 4716814 | ✓ | `docs/research/bridge-evaluation.md`; 7 candidates assessed; direct-mode finding for OpenRouter/DeepSeek/Z.AI; sole surviving candidate: claude-code-router |
+| T04 Select bridge with evidence; write ADR; STOP if no safe candidate | ✅ | 2026-11-08 | (T04 commit) | ✓ | ADR-001: claude-code-router selected as pinned integration target with recorded mitigations; fallback = STOP+decide |
 | T05 Threat model | ⬜ | — | — | — | — |
 | T06 Define module boundaries (documentation only) | ⬜ | — | — | — | — |
 | T07 Acceptance fixtures, test strategy, security checklist | ⬜ | — | — | — | — |
