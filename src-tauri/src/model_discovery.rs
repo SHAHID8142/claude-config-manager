@@ -211,7 +211,9 @@ mod tests {
     use super::*;
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::mpsc;
     use std::thread;
+    use std::time::Duration;
 
     /// Minimal one-shot loopback HTTP fixture (no dependencies).
     fn spawn_one_shot(response: String) -> String {
@@ -378,38 +380,81 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn auth_headers_use_documented_style() {
-        // The mock echoes headers back in the body for assertion.
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    /// Capture the raw request line + headers our client sends for a given
+    /// credential style against a loopback fixture.
+    fn captured_request(auth: AuthStyle, credential: &str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind loopback");
         let addr = listener.local_addr().expect("addr");
+        let (tx, rx) = mpsc::channel();
         let handle = thread::spawn(move || {
             let (mut stream, _) = listener.accept().expect("accept");
             let mut buf = vec![0u8; 8192];
             let n = stream.read(&mut buf).expect("read");
-            let req = String::from_utf8_lossy(&buf[..n]).to_string();
-            // Strip control characters so the echo is valid JSON.
-            let sanitized: String = req
-                .chars()
-                .map(|c| if c.is_control() { ' ' } else { c })
-                .collect();
-            let body = format!(
-                "{{\"data\":[{{\"id\":\"m\"}}],\"echo\":\"{}\"}}",
-                sanitized.replace('"', "'")
-            );
+            let _ = tx.send(String::from_utf8_lossy(&buf[..n]).to_string());
+            let body = "{\"data\":[{\"id\":\"m\"}]}";
             let resp = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{body}");
             let _ = stream.write_all(resp.as_bytes());
         });
-        let url = format!("http://{addr}/models");
+
         let spec = DiscoverySpec::Endpoint {
-            url,
+            url: format!("http://{addr}/models"),
             requires_auth: true,
             list_selector: "data".into(),
         };
-
-        let models = fetch_models(&spec, AuthStyle::ApiKey, Some("sk-fake-key")).expect("fetch");
+        let models = fetch_models(&spec, auth, Some(credential)).expect("fetch");
         assert_eq!(models[0].id, "m");
+
+        let req = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("request captured");
         handle.join().expect("server thread");
+        req.to_lowercase()
+    }
+
+    #[test]
+    fn api_key_style_sends_x_api_key_header() {
+        let req = captured_request(AuthStyle::ApiKey, "sk-fake-key");
+        assert!(req.contains("x-api-key: sk-fake-key"), "request was: {req}");
+        assert!(!req.contains("authorization:"), "request was: {req}");
+    }
+
+    #[test]
+    fn bearer_style_sends_authorization_header() {
+        // T44b: the style DeepSeek's /models catalog needs (docs-verified).
+        let req = captured_request(AuthStyle::BearerToken, "sk-fake-key");
+        assert!(
+            req.contains("authorization: bearer sk-fake-key"),
+            "request was: {req}"
+        );
+        assert!(!req.contains("x-api-key:"), "request was: {req}");
+    }
+
+    #[test]
+    fn credential_is_never_sent_when_catalog_is_public() {
+        // Independent of style: no credential means no auth header at all.
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let (tx, rx) = mpsc::channel();
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept");
+            let mut buf = vec![0u8; 8192];
+            let n = stream.read(&mut buf).expect("read");
+            let _ = tx.send(String::from_utf8_lossy(&buf[..n]).to_string());
+            let _ = stream.write_all(b"HTTP/1.1 200 OK\r\n\r\n{\"data\":[{\"id\":\"m\"}]}");
+        });
+        let spec = DiscoverySpec::Endpoint {
+            url: format!("http://{addr}/models"),
+            requires_auth: false,
+            list_selector: "data".into(),
+        };
+        fetch_models(&spec, AuthStyle::BearerToken, None).expect("fetch");
+        let req = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("captured")
+            .to_lowercase();
+        handle.join().expect("server thread");
+        assert!(!req.contains("authorization:"), "request was: {req}");
+        assert!(!req.contains("x-api-key:"), "request was: {req}");
     }
 
     #[test]

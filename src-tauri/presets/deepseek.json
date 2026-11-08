@@ -3,6 +3,7 @@
   "id": "deepseek",
   "name": "DeepSeek",
   "auth": "api_key",
+  "discovery_auth": "bearer_token",
   "protocol": "anthropic_compat",
   "bridge": "not_required",
   "direct_base_url": "https://api.deepseek.com/anthropic",

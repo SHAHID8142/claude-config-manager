@@ -79,6 +79,16 @@ pub struct ProviderTemplate {
     /// Display name.
     pub name: String,
     pub auth: AuthStyle,
+    /// Optional credential style for the **model-catalog** call when it differs
+    /// from the chat credential style (T44b). Absent = use `auth`.
+    ///
+    /// Verified example: DeepSeek's Anthropic-compatible chat endpoint takes
+    /// the key as `x-api-key`, but its OpenAI-style `GET /models` catalog
+    /// requires `Authorization: Bearer` (api-docs.deepseek.com/api/list-models).
+    /// One field cannot express both, and guessing the wrong one silently
+    /// breaks discovery for every user.
+    #[serde(default)]
+    pub discovery_auth: Option<AuthStyle>,
     pub protocol: Protocol,
     pub bridge: BridgeRequirement,
     /// Anthropic-compatible base URL for direct mode; `None` = native Anthropic
@@ -453,6 +463,32 @@ mod tests {
             EndpointCheck::Invalid(_)
         ));
         assert!(matches!(classify_endpoint(""), EndpointCheck::Invalid(_)));
+    }
+
+    #[test]
+    fn discovery_auth_override_is_optional_and_parsed() {
+        // Absent → None: the chat credential style is used for the catalog.
+        let t = parse_template(VALID_COMPAT).expect("valid");
+        assert_eq!(t.discovery_auth, None);
+
+        // Present → parsed verbatim (T44b: DeepSeek chat=x-api-key, catalog=Bearer).
+        let with = VALID_COMPAT.replace(
+            "\"auth\": \"bearer_token\",",
+            "\"auth\": \"api_key\", \"discovery_auth\": \"bearer_token\",",
+        );
+        let t = parse_template(&with).expect("valid with override");
+        assert_eq!(t.auth, AuthStyle::ApiKey);
+        assert_eq!(t.discovery_auth, Some(AuthStyle::BearerToken));
+    }
+
+    #[test]
+    fn discovery_auth_override_rejects_unknown_style() {
+        let bad = VALID_COMPAT.replace(
+            "\"auth\": \"bearer_token\",",
+            "\"auth\": \"bearer_token\", \"discovery_auth\": \"magic\",",
+        );
+        let err = parse_template(&bad).expect_err("unknown style must be rejected");
+        assert_eq!(err.field, "json");
     }
 
     #[test]

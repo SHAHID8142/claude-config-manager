@@ -8,7 +8,16 @@
 
 use crate::model_discovery::{DiscoveryError, ModelEntry, fetch_models};
 use crate::presets::load_builtin_presets;
+use crate::provider_catalog::{AuthStyle, ProviderTemplate};
 use crate::secret_store::SecretStore;
+
+/// Credential style used for the model-catalog request (T44b).
+///
+/// The template may declare a style for the catalog that differs from the
+/// chat credential style; absent an override we assume they match.
+pub fn resolved_discovery_auth(template: &ProviderTemplate) -> AuthStyle {
+    template.discovery_auth.unwrap_or(template.auth)
+}
 
 /// Resolve the discovery call for one provider template.
 pub fn discover_for_provider(
@@ -51,7 +60,11 @@ pub fn discover_for_provider(
         explicit_credential.map(|s| s.to_string())
     };
 
-    fetch_models(&template.discovery, template.auth, credential.as_deref())
+    fetch_models(
+        &template.discovery,
+        resolved_discovery_auth(&template),
+        credential.as_deref(),
+    )
 }
 
 #[cfg(test)]
@@ -59,6 +72,37 @@ mod tests {
     use super::*;
     use crate::provider_catalog::AuthStyle;
     use crate::secret_store::MockSecretStore;
+
+    fn template(id: &str) -> crate::provider_catalog::ProviderTemplate {
+        load_builtin_presets()
+            .into_iter()
+            .find(|t| t.id == id)
+            .expect("preset present")
+    }
+
+    #[test]
+    fn deepseek_catalog_uses_bearer_not_the_chat_api_key_style() {
+        // Regression for the broken adapter found in T44a: DeepSeek's chat
+        // endpoint is x-api-key (Anthropic-compatible) but GET /models is
+        // OpenAI-style and documented as `Authorization: Bearer`.
+        let t = template("deepseek");
+        assert_eq!(t.auth, AuthStyle::ApiKey, "chat style unchanged");
+        assert_eq!(resolved_discovery_auth(&t), AuthStyle::BearerToken);
+    }
+
+    #[test]
+    fn providers_without_an_override_keep_their_chat_style() {
+        for (id, expected) in [
+            ("openrouter", AuthStyle::BearerToken),
+            ("anthropic", AuthStyle::ApiKey),
+            ("nvidia-nim", AuthStyle::BearerToken),
+            ("zai", AuthStyle::BearerToken),
+        ] {
+            let t = template(id);
+            assert!(t.discovery_auth.is_none(), "{id} must not override");
+            assert_eq!(resolved_discovery_auth(&t), expected, "{id}");
+        }
+    }
 
     #[test]
     fn unknown_provider_refused() {
