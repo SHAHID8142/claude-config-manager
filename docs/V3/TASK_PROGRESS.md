@@ -19,13 +19,13 @@ an owner decision · `not verified` = no claim made.
 | V3-08 | Persist routed configuration | done | `proxy-helper.port` + persistent token |
 | V3-09 | Restart/reboot behaviour + explicit login start | done | `helper_login_start`, opt-in checkbox |
 | V3-10 | Lifecycle regression tests | done | `src-tauri/tests/helper_lifecycle.rs` 5 tests |
-| V3-11 | Compatibility matrix | pending | |
-| V3-12 | Evaluate open-source bridges | pending | |
-| V3-13 | Adapter interface | pending | |
-| V3-14 | Request translation | blocked — needs owner approval of a bridge | |
-| V3-15 | Response translation | blocked — follows V3-14 | |
-| V3-16 | Capability protection | done | explicit bridge-required error; no silent capability drop |
-| V3-17 | Provider integration testing | pending | |
+| V3-11 | Compatibility matrix | done | `docs/V3/V3-11-compatibility-matrix.md` |
+| V3-12 | Evaluate open-source bridges | blocked | `docs/V3/V3-12-bridge-evaluation.md` — needs owner choice; licence not verifiable offline |
+| V3-13 | Adapter interface | done | `proxy::Adapter` + `adapter_for()` |
+| V3-14 | Request translation | blocked | follows V3-12 decision |
+| V3-15 | Response translation | blocked | follows V3-12 decision |
+| V3-16 | Capability protection | done | `501 compatibility_error`, upstream never contacted; 2 tests |
+| V3-17 | Provider integration testing | partial | local mock upstreams only; real API smoke needs owner consent |
 | V3-18 | Quota classification verification | done | `docs/V3/V3-18-failover-verification.md` (failover.rs 5 tests + loopback suite) |
 | V3-19 | Retry and cooldown | done | `docs/V3/V3-18-failover-verification.md` §Retry-After |
 | V3-20 | Credential rotation | done | provider/credential pairing + disabled-key refusal in `proxy::resolve_secret`; 2 tests |

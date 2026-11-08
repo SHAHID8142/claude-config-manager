@@ -318,13 +318,13 @@ fn handle_conn(mut stream: TcpStream, ctx: &Ctx) -> std::io::Result<()> {
             bump(&ctx.status, |s| {
                 s.requests += 1;
                 s.failures += 1;
-                s.last_error = Some(e.clone());
+                s.last_error = Some(e.message.clone());
             });
             write_simple(
                 &mut stream,
-                503,
+                e.status,
                 "application/json",
-                &err_body("proxy_unavailable", &e),
+                &err_body(e.kind, &e.message),
             )
         }
     }
@@ -520,6 +520,66 @@ enum Final {
     Rejected { status: u16, body: String },
 }
 
+/// V3-13/V3-16: which wire protocol a provider speaks.
+///
+/// The proxy forwards the Anthropic Messages API verbatim. A provider that only
+/// speaks OpenAI Chat Completions cannot be served without a translation layer,
+/// so the proxy refuses it explicitly instead of sending a body the provider
+/// will reject with an opaque 400. Capabilities are never silently dropped: an
+/// unbridged provider produces a compatibility error naming the reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Adapter {
+    AnthropicNative,
+    /// Speaks the Anthropic API (native or compatible), forwarded verbatim.
+    AnthropicCompatible,
+    /// OpenAI Chat Completions only; needs a bridge this build does not ship.
+    OpenAiUnbridged,
+}
+
+pub fn adapter_for(provider_id: &str) -> Option<Adapter> {
+    use crate::provider_catalog::Protocol;
+    let templates = crate::presets::load_builtin_presets();
+    let t = templates.iter().find(|t| t.id == provider_id)?;
+    Some(match t.protocol {
+        Protocol::AnthropicNative => Adapter::AnthropicNative,
+        Protocol::AnthropicCompat => Adapter::AnthropicCompatible,
+        Protocol::OpenAiOnly => Adapter::OpenAiUnbridged,
+    })
+}
+
+/// One sentence naming the missing piece. Never includes key material.
+pub fn bridge_requirement_message(provider_id: &str) -> String {
+    format!(
+        "{provider_id} speaks the OpenAI Chat Completions API. This proxy forwards the Anthropic \
+         Messages API and ships no protocol bridge, so the request was not sent. Choose an \
+         Anthropic-compatible provider, or install a bridge and point the target at it."
+    )
+}
+
+/// A failure that is *ours*, with the status and error type Claude Code sees.
+struct ProxyFailure {
+    status: u16,
+    kind: &'static str,
+    message: String,
+}
+
+impl ProxyFailure {
+    fn unavailable(message: String) -> Self {
+        Self {
+            status: 503,
+            kind: "proxy_unavailable",
+            message,
+        }
+    }
+    fn incompatible(message: String) -> Self {
+        Self {
+            status: 501,
+            kind: "compatibility_error",
+            message,
+        }
+    }
+}
+
 /// Try targets in order. Returns the first successful upstream response, or a
 /// redacted description of why every target failed.
 fn forward(
@@ -527,10 +587,12 @@ fn forward(
     client_headers: &HashMap<String, String>,
     cfg: &RoutingConfig,
     ctx: &Ctx,
-) -> Result<Final, String> {
+) -> Result<Final, ProxyFailure> {
     let ordered = cfg.ordered();
     if ordered.is_empty() {
-        return Err("no routing targets are enabled — add one in the app".into());
+        return Err(ProxyFailure::unavailable(
+            "no routing targets are enabled — add one in the app".into(),
+        ));
     }
     let ids: Vec<(String, bool)> = ordered.iter().map(|t| (t.id.clone(), true)).collect();
     let now = Instant::now();
@@ -538,9 +600,24 @@ fn forward(
         let mut cd = ctx
             .cooldowns
             .lock()
-            .map_err(|_| "proxy state poisoned".to_string())?;
+            .map_err(|_| ProxyFailure::unavailable("proxy state poisoned".into()))?;
         failover::candidates(&ids, &mut cd, now)
     };
+
+    // Refuse a chain that can only be served through a bridge, before any
+    // network call, so the caller gets one clear answer instead of a 400.
+    let any_usable = ordered
+        .iter()
+        .any(|t| adapter_for(&t.provider_id) != Some(Adapter::OpenAiUnbridged));
+    if !any_usable {
+        let first = ordered
+            .first()
+            .map(|t| t.provider_id.clone())
+            .unwrap_or_default();
+        return Err(ProxyFailure::incompatible(bridge_requirement_message(
+            &first,
+        )));
+    }
 
     let mut attempts = 0usize;
     let mut reasons: Vec<String> = Vec::new();
@@ -548,6 +625,10 @@ fn forward(
         let Some(target) = ordered.iter().find(|t| t.id == id).copied() else {
             continue;
         };
+        if adapter_for(&target.provider_id) == Some(Adapter::OpenAiUnbridged) {
+            reasons.push(format!("{}: needs a protocol bridge", target.provider_id));
+            continue;
+        }
         attempts += 1;
         match try_target(target, body, client_headers, ctx) {
             Ok(TargetOutcome::Answered(resp)) => {
@@ -575,9 +656,14 @@ fn forward(
         }
     }
     if reasons.is_empty() {
-        return Err("no routing target could be used".into());
+        return Err(ProxyFailure::unavailable(
+            "no routing target could be used".into(),
+        ));
     }
-    Err(format!("all targets failed — {}", reasons.join(", ")))
+    Err(ProxyFailure::unavailable(format!(
+        "all targets failed — {}",
+        reasons.join(", ")
+    )))
 }
 
 struct AttemptError {
