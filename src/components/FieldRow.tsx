@@ -22,13 +22,13 @@ export function FieldRow({ label, htmlFor, hint, children }: FieldRowProps) {
       : children;
 
   return (
-    <div className="flex flex-col gap-1 py-2">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+    <div className="flex flex-col gap-1.5 py-2">
+      <label htmlFor={htmlFor} className="text-[13px] font-medium text-ink">
         {label}
       </label>
       {control}
       {hintId !== undefined && (
-        <p id={hintId} className="text-xs text-zinc-500 dark:text-zinc-400">
+        <p id={hintId} className="text-[12px] leading-snug text-ink-muted">
           {hint}
         </p>
       )}

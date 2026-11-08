@@ -21,13 +21,13 @@
   /* ink */
   --ink: #1b1a19;
   --ink-muted: #6b6661;
-  --ink-subtle: #918b84;
+  --ink-subtle: #6f6a64;
   --ink-on-accent: #ffffff;
 
   /* accent + state */
-  --accent: #2f6ee0;
-  --accent-hover: #2a62c9;
-  --accent-soft: #eaf0fd;
+  --accent: #c15f3c;
+  --accent-hover: #a94f31;
+  --accent-soft: #fbeee8;
   --ok: #16794f;
   --ok-soft: #e8f5ee;
   --warn: #9a5b00;
@@ -39,7 +39,7 @@
   --radius-xs: 0.3125rem;
   --radius-sm: 0.4375rem;
   --radius-md: 0.625rem;
-  --radius-lg: 0.875rem;
+  --radius-lg: 0.75rem;
   --radius-xl: 1.125rem;
 
   /* elevation — restrained, layered, never a drop-shadow blob */
@@ -64,12 +64,12 @@
 
   --ink: #f3f0eb;
   --ink-muted: #a9a29a;
-  --ink-subtle: #7e7871;
-  --ink-on-accent: #0d1220;
+  --ink-subtle: #9d968d;
+  --ink-on-accent: #1d120d;
 
-  --accent: #7ba3ff;
-  --accent-hover: #90b2ff;
-  --accent-soft: #1e2534;
+  --accent: #e58a69;
+  --accent-hover: #f09b7b;
+  --accent-soft: #2c1f19;
   --ok: #4ed3a0;
   --ok-soft: #14261f;
   --warn: #f0b45c;

@@ -265,7 +265,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 bg-app px-6 pt-3 pb-28 text-ink">
+    <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-3 bg-app px-5 pt-2 pb-24 text-ink">
       <AppHeader status={status} />
 
       {loadError !== null && (
@@ -301,380 +301,388 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           />
         )}
 
-      <Section title="Active configuration">
-        {status === null ? (
-          <p className="text-[13px] text-ink-muted">Reading current configuration…</p>
-        ) : status.settingsFound ? (
-          <dl className="flex flex-col gap-1.5 text-[13px]">
-            <div className="flex items-baseline gap-2">
-              <dt className="w-20 shrink-0 text-ink-subtle">Model</dt>
-              <dd className="min-w-0 truncate font-mono text-ink">
-                {status.envModel ?? status.model ?? "not set"}
-              </dd>
-            </div>
-            {status.envModel !== null && status.model !== status.envModel && (
-              <p className="pl-22 text-xs text-warn">
-                ANTHROPIC_MODEL is overriding the settings value.
-              </p>
-            )}
-            {status.envBaseUrl !== null && (
-              <div className="flex items-baseline gap-2">
-                <dt className="w-20 shrink-0 text-ink-subtle">Endpoint</dt>
-                <dd className="min-w-0 truncate text-ink-muted">{status.envBaseUrl}</dd>
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <div className="flex flex-col gap-3 overflow-hidden">
+          <Section title="Provider">
+            <FieldRow
+              label="Provider"
+              htmlFor="provider-select"
+              hint={
+                providers === null
+                  ? "Loading provider catalog…"
+                  : "Custom providers use your own Anthropic-compatible endpoint."
+              }
+            >
+              <select
+                id="provider-select"
+                value={selectedId}
+                disabled={providers === null}
+                onChange={(e) => {
+                  setSelectedId(e.target.value);
+                  // A model id from another provider must never carry over.
+                  setSelectedModel(null);
+                  setModels(null);
+                  setModelsFetchedFor(null);
+                  setModelsError(null);
+                }}
+                className={inputClass}
+              >
+                <option value={EMPTY_ID}>
+                  {providers === null ? "Loading…" : "Select a provider"}
+                </option>
+                {providers?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+                {providers !== null && <option value={CUSTOM_ID}>Custom…</option>}
+              </select>
+            </FieldRow>
+
+            {selected !== null && (
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <CapabilityBadge
+                  status={selected.capabilityStatus.status}
+                  sourceUrl={
+                    selected.capabilityStatus.status === "verified"
+                      ? selected.capabilityStatus.source_url
+                      : null
+                  }
+                />
+                <BridgeBadge required={selected.bridge === "required_for_open_ai_only"} />
               </div>
             )}
-            <div className="flex items-baseline gap-2">
-              <dt className="w-20 shrink-0 text-ink-subtle">Credential</dt>
-              <dd className="min-w-0 break-words text-ink-muted">
-                {status.apiKeyHelper !== null
-                  ? "credential file via apiKeyHelper"
-                  : status.apiKeyPresent || status.authTokenPresent
-                    ? "plaintext env"
-                    : "none"}
-              </dd>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <dt className="w-20 shrink-0 text-ink-subtle">Mode</dt>
-              <dd className="min-w-0 break-words text-ink-muted">{modeLabel(status)}</dd>
-            </div>
-            {status.warnings.length > 0 && (
-              <ul className="mt-1 flex flex-col gap-1 text-xs text-warn">
-                {status.warnings.map((w, i) => (
-                  <li key={i}>{warningText(w)}</li>
-                ))}
-              </ul>
+
+            {isCustom && (
+              <>
+                <FieldRow
+                  label="Custom provider name"
+                  htmlFor="custom-name-input"
+                  hint="Shown in the UI only."
+                >
+                  <input
+                    id="custom-name-input"
+                    type="text"
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    placeholder="My gateway"
+                    className={inputClass}
+                  />
+                </FieldRow>
+                <FieldRow
+                  label="Custom endpoint URL"
+                  htmlFor="custom-endpoint-input"
+                  hint="Must be an Anthropic-compatible https endpoint."
+                >
+                  <input
+                    id="custom-endpoint-input"
+                    type="url"
+                    value={customEndpoint}
+                    onChange={(e) => setCustomEndpoint(e.target.value)}
+                    placeholder="https://"
+                    className={inputClass}
+                  />
+                </FieldRow>
+                {customEndpoint !== "" &&
+                  (() => {
+                    const check = classifyEndpoint(customEndpoint);
+                    const msg = endpointCheckMessage(check);
+                    if (msg === null) return null;
+                    const isError = check.check === "invalid" || check.check === "insecure";
+                    return (
+                      <p
+                        aria-live="polite"
+                        id="custom-endpoint-check"
+                        className={`mb-2 text-xs ${isError ? "font-medium text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}
+                      >
+                        {msg}
+                      </p>
+                    );
+                  })()}
+              </>
             )}
-          </dl>
-        ) : (
-          <p className="text-[13px] text-ink-muted">
-            No settings file yet — the first Save &amp; Apply creates it.
-          </p>
-        )}
-      </Section>
 
-      <Section title="Provider">
-        <FieldRow
-          label="Provider"
-          htmlFor="provider-select"
-          hint={
-            providers === null
-              ? "Loading provider catalog…"
-              : "Custom providers use your own Anthropic-compatible endpoint."
-          }
-        >
-          <select
-            id="provider-select"
-            value={selectedId}
-            disabled={providers === null}
-            onChange={(e) => {
-              setSelectedId(e.target.value);
-              // A model id from another provider must never carry over.
-              setSelectedModel(null);
-              setModels(null);
-              setModelsFetchedFor(null);
-              setModelsError(null);
-            }}
-            className={inputClass}
-          >
-            <option value={EMPTY_ID}>
-              {providers === null ? "Loading…" : "Select a provider"}
-            </option>
-            {providers?.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-            {providers !== null && <option value={CUSTOM_ID}>Custom…</option>}
-          </select>
-        </FieldRow>
+            {selected !== null && !isCustom && selected.protocol !== "open_ai_only" && (
+              <FieldRow
+                label="Endpoint URL"
+                htmlFor="endpoint-input"
+                hint="Provided by the verified preset and not editable."
+              >
+                <input
+                  id="endpoint-input"
+                  type="url"
+                  disabled
+                  value={
+                    selected.protocol === "anthropic_native" ? "https://api.anthropic.com" : ""
+                  }
+                  readOnly
+                  className={inputClass}
+                />
+              </FieldRow>
+            )}
 
-        {selected !== null && (
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <CapabilityBadge
-              status={selected.capabilityStatus.status}
-              sourceUrl={
-                selected.capabilityStatus.status === "verified"
-                  ? selected.capabilityStatus.source_url
-                  : null
+            <FieldRow
+              label="API key"
+              htmlFor="api-key-input"
+              hint={
+                selected === null && !isCustom
+                  ? "Enabled once a provider is selected."
+                  : "Stored as an owner-only file (0600) in Application Support when saving. Never written to logs or backups in plaintext."
               }
-            />
-            <BridgeBadge required={selected.bridge === "required_for_open_ai_only"} />
-          </div>
-        )}
-
-        {isCustom && (
-          <>
-            <FieldRow
-              label="Custom provider name"
-              htmlFor="custom-name-input"
-              hint="Shown in the UI only."
             >
-              <input
-                id="custom-name-input"
-                type="text"
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
-                placeholder="My gateway"
-                className={inputClass}
+              <ApiKeyField
+                id="api-key-input"
+                value={apiKey}
+                onChange={setApiKey}
+                disabled={selected === null && !isCustom}
               />
             </FieldRow>
-            <FieldRow
-              label="Custom endpoint URL"
-              htmlFor="custom-endpoint-input"
-              hint="Must be an Anthropic-compatible https endpoint."
-            >
-              <input
-                id="custom-endpoint-input"
-                type="url"
-                value={customEndpoint}
-                onChange={(e) => setCustomEndpoint(e.target.value)}
-                placeholder="https://"
-                className={inputClass}
+          </Section>
+          <Section title="Model">
+            {modelsError !== null && (
+              <StatusBanner
+                severity="error"
+                message="Model discovery failed."
+                detail={modelsError}
+                onDismiss={() => setModelsError(null)}
               />
-            </FieldRow>
-            {customEndpoint !== "" &&
-              (() => {
-                const check = classifyEndpoint(customEndpoint);
-                const msg = endpointCheckMessage(check);
-                if (msg === null) return null;
-                const isError = check.check === "invalid" || check.check === "insecure";
-                return (
-                  <p
-                    aria-live="polite"
-                    id="custom-endpoint-check"
-                    className={`mb-2 text-xs ${isError ? "font-medium text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}
-                  >
-                    {msg}
-                  </p>
-                );
-              })()}
-          </>
-        )}
-
-        {selected !== null && !isCustom && selected.protocol !== "open_ai_only" && (
-          <FieldRow
-            label="Endpoint URL"
-            htmlFor="endpoint-input"
-            hint="Provided by the verified preset and not editable."
-          >
-            <input
-              id="endpoint-input"
-              type="url"
-              disabled
-              value={selected.protocol === "anthropic_native" ? "https://api.anthropic.com" : ""}
-              readOnly
-              className={inputClass}
-            />
-          </FieldRow>
-        )}
-
-        <FieldRow
-          label="API key"
-          htmlFor="api-key-input"
-          hint={
-            selected === null && !isCustom
-              ? "Enabled once a provider is selected."
-              : "Stored as an owner-only file (0600) in Application Support when saving. Never written to logs or backups in plaintext."
-          }
-        >
-          <ApiKeyField
-            id="api-key-input"
-            value={apiKey}
-            onChange={setApiKey}
-            disabled={selected === null && !isCustom}
-          />
-        </FieldRow>
-      </Section>
-
-      <Section title="Model">
-        {modelsError !== null && (
-          <StatusBanner
-            severity="error"
-            message="Model discovery failed."
-            detail={modelsError}
-            onDismiss={() => setModelsError(null)}
-          />
-        )}
-        <div className="mb-2 flex items-center gap-2">
-          <LoadingButton
-            label="Fetch models"
-            pendingLabel="Fetching…"
-            pending={fetchingModels}
-            disabled={selected === null || isCustom}
-            variant="secondary"
-            onClick={() => {
-              void handleFetchModels();
-            }}
-          />
-          {selected !== null && !isCustom && (
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              Catalog source: verified preset for {selected.name}
-            </span>
-          )}
-        </div>
-        {modelsFetchedFor !== null &&
-          (models !== null && models.length > 0 ? (
-            <div className="mb-2">
-              <ModelList
-                models={models}
-                selectedId={selectedModel}
-                onSelect={(id) => setSelectedModel(id)}
+            )}
+            <div className="mb-2 flex items-center gap-2">
+              <LoadingButton
+                label="Fetch models"
+                pendingLabel="Fetching…"
+                pending={fetchingModels}
+                disabled={selected === null || isCustom}
+                variant="secondary"
+                onClick={() => {
+                  void handleFetchModels();
+                }}
               />
+              {selected !== null && !isCustom && (
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Catalog source: verified preset for {selected.name}
+                </span>
+              )}
             </div>
-          ) : (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Catalog returned no models — use manual Model ID entry below.
-            </p>
-          ))}
-        <FieldRow
-          label="Model"
-          htmlFor="model-input"
-          hint="Selected from the catalog or entered manually; never auto-selected."
-        >
-          <input
-            id="model-input"
-            type="text"
-            value={selectedModel ?? ""}
-            readOnly={models !== null && models.length > 0}
-            disabled={selected === null && !isCustom}
-            onChange={(e) => setSelectedModel(e.target.value)}
-            placeholder="provider-model-id"
-            aria-invalid={modelInvalid}
-            className={inputClass}
-          />
-        </FieldRow>
-        {modelInvalid && modelValidation !== null && !modelValidation.ok && (
-          <p
-            aria-live="polite"
-            id="model-input-error"
-            className="text-xs font-medium text-red-600 dark:text-red-400"
-          >
-            {modelValidation.message} Save &amp; Apply is disabled until this is fixed.
-          </p>
-        )}
-        {selectedModel !== null &&
-          selectedModel.trim() !== "" &&
-          (models === null || models.length === 0) && (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Source: manual entry · capability data unverified (unknown).
-            </p>
-          )}
-        <AdvancedSettings
-          open={advancedOpen}
-          onToggle={() => setAdvancedOpen((v) => !v)}
-          roles={roles}
-          onChange={(key: RoleKey, value: string) => setRoles((r) => ({ ...r, [key]: value }))}
-          current={{
-            haiku: status?.envDefaultHaiku ?? null,
-            sonnet: status?.envDefaultSonnet ?? null,
-            opus: status?.envDefaultOpus ?? null,
-          }}
-        />
-        {roleInvalid && (
-          <p aria-live="polite" className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">
-            A role override is invalid. Save &amp; Apply is disabled until it is fixed.
-          </p>
-        )}
-      </Section>
-
-      <Section title="Actions">
-        {applyOutcome !== null && (
-          <StatusBanner
-            severity="success"
-            message="Configuration applied and verified."
-            detail={`Backup: ${applyOutcome.backupFileName || "(none — first run)"} · helper: ${applyOutcome.helperPath}`}
-            onDismiss={() => setApplyOutcome(null)}
-          />
-        )}
-        {applyError !== null && (
-          <StatusBanner
-            severity="error"
-            message="Save & Apply failed."
-            detail={applyError}
-            onDismiss={() => setApplyError(null)}
-          />
-        )}
-        {restoreOutcome !== null && (
-          <StatusBanner
-            severity="success"
-            message="Settings restored from the latest backup."
-            detail={`Restored: ${restoreOutcome.restoredFrom} · pre-restore copy: ${restoreOutcome.preRestoreBackup || "(none — file was missing)"}`}
-            onDismiss={() => setRestoreOutcome(null)}
-          />
-        )}
-        {restoreError !== null && (
-          <StatusBanner
-            severity="error"
-            message="Restore failed."
-            detail={restoreError}
-            onDismiss={() => setRestoreError(null)}
-          />
-        )}
-        {connectionTestError !== null && (
-          <StatusBanner
-            severity="error"
-            message="Connection test could not run."
-            detail={connectionTestError}
-            onDismiss={() => setConnectionTestError(null)}
-          />
-        )}
-        {connectionTest !== null && (
-          <StatusBanner
-            severity={connectionTest.ok ? "success" : "error"}
-            message={
-              connectionTest.ok
-                ? `Connection OK — ${connectionTest.message} (${connectionTest.latencyMs} ms)`
-                : `Connection failed — ${connectionTest.message}`
-            }
-            detail={connectionTest.endpoint}
-            onDismiss={() => setConnectionTest(null)}
-          />
-        )}
-        {/* Fixed footer: the primary action must never be below the fold
-            (at 800x600 and 880x880 it was, which made Save & Apply invisible). */}
-        <div className="fixed inset-x-0 bottom-0 z-10 border-t border-zinc-200 bg-zinc-50/95 px-6 py-3 backdrop-blur dark:border-zinc-700 dark:bg-zinc-950/95">
-          <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-2">
-            {/* "Configuration applied and verified" only proves the FILE was
-              written. This asks the provider whether the key actually works. */}
-            <LoadingButton
-              label="Test Connection"
-              pendingLabel="Testing…"
-              pending={testingConnection}
-              disabled={testDisabled}
-              variant="secondary"
-              onClick={() => {
-                void handleTestConnection();
+            {modelsFetchedFor !== null &&
+              (models !== null && models.length > 0 ? (
+                <div className="mb-2">
+                  <ModelList
+                    models={models}
+                    selectedId={selectedModel}
+                    onSelect={(id) => setSelectedModel(id)}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Catalog returned no models — use manual Model ID entry below.
+                </p>
+              ))}
+            <FieldRow
+              label="Model"
+              htmlFor="model-input"
+              hint="Selected from the catalog or entered manually; never auto-selected."
+            >
+              <input
+                id="model-input"
+                type="text"
+                value={selectedModel ?? ""}
+                readOnly={models !== null && models.length > 0}
+                disabled={selected === null && !isCustom}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                placeholder="provider-model-id"
+                aria-invalid={modelInvalid}
+                className={inputClass}
+              />
+            </FieldRow>
+            {modelInvalid && modelValidation !== null && !modelValidation.ok && (
+              <p
+                aria-live="polite"
+                id="model-input-error"
+                className="text-xs font-medium text-red-600 dark:text-red-400"
+              >
+                {modelValidation.message} Save &amp; Apply is disabled until this is fixed.
+              </p>
+            )}
+            {selectedModel !== null &&
+              selectedModel.trim() !== "" &&
+              (models === null || models.length === 0) && (
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Source: manual entry · capability data unverified (unknown).
+                </p>
+              )}
+            <AdvancedSettings
+              open={advancedOpen}
+              onToggle={() => setAdvancedOpen((v) => !v)}
+              roles={roles}
+              onChange={(key: RoleKey, value: string) => setRoles((r) => ({ ...r, [key]: value }))}
+              current={{
+                haiku: status?.envDefaultHaiku ?? null,
+                sonnet: status?.envDefaultSonnet ?? null,
+                opus: status?.envDefaultOpus ?? null,
               }}
             />
-            <LoadingButton
-              label="Save & Apply"
-              pendingLabel="Applying…"
-              pending={applying}
-              // One gate, one source of truth: `canApply` covers provider, key,
-              // model validity and role-override validity (T43/T45).
-              disabled={!canApply}
-              variant="primary"
-              onClick={() => {
-                void handleApply();
-              }}
-            />
-            <LoadingButton
-              label="Restore last backup"
-              pendingLabel="Restoring…"
-              pending={restoring}
-              onClick={() => {
-                void handleRestore();
-              }}
-            />
-          </div>
+            {roleInvalid && (
+              <p
+                aria-live="polite"
+                className="mt-2 text-xs font-medium text-red-600 dark:text-red-400"
+              >
+                A role override is invalid. Save &amp; Apply is disabled until it is fixed.
+              </p>
+            )}
+          </Section>
         </div>
-        {selected !== null && (
-          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-            The API key is stored in an owner-only file (0600) and handed to Claude Code via an
-            apiKeyHelper script — it is never written into settings.json.
-          </p>
-        )}
-      </Section>
+        <div className="flex flex-col gap-3 overflow-hidden lg:sticky lg:top-2">
+          <Section title="Active configuration">
+            {status === null ? (
+              <p className="text-[13px] text-ink-muted">Reading current configuration…</p>
+            ) : status.settingsFound ? (
+              <dl className="flex flex-col gap-1.5 text-[13px]">
+                <div className="flex items-baseline gap-2">
+                  <dt className="w-20 shrink-0 text-ink-subtle">Model</dt>
+                  <dd className="min-w-0 truncate font-mono text-ink">
+                    {status.envModel ?? status.model ?? "not set"}
+                  </dd>
+                </div>
+                {status.envModel !== null && status.model !== status.envModel && (
+                  <p className="pl-22 text-xs text-warn">
+                    ANTHROPIC_MODEL is overriding the settings value.
+                  </p>
+                )}
+                {status.envBaseUrl !== null && (
+                  <div className="flex items-baseline gap-2">
+                    <dt className="w-20 shrink-0 text-ink-subtle">Endpoint</dt>
+                    <dd className="min-w-0 truncate text-ink-muted">{status.envBaseUrl}</dd>
+                  </div>
+                )}
+                <div className="flex items-baseline gap-2">
+                  <dt className="w-20 shrink-0 text-ink-subtle">Credential</dt>
+                  <dd className="min-w-0 break-words text-ink-muted">
+                    {status.apiKeyHelper !== null
+                      ? "credential file via apiKeyHelper"
+                      : status.apiKeyPresent || status.authTokenPresent
+                        ? "plaintext env"
+                        : "none"}
+                  </dd>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <dt className="w-20 shrink-0 text-ink-subtle">Mode</dt>
+                  <dd className="min-w-0 break-words text-ink-muted">{modeLabel(status)}</dd>
+                </div>
+                {status.warnings.length > 0 && (
+                  <ul className="mt-1 flex flex-col gap-1 text-xs text-warn">
+                    {status.warnings.map((w, i) => (
+                      <li key={i}>{warningText(w)}</li>
+                    ))}
+                  </ul>
+                )}
+              </dl>
+            ) : (
+              <p className="text-[13px] text-ink-muted">
+                No settings file yet — the first Save &amp; Apply creates it.
+              </p>
+            )}
+          </Section>
+          <Section title="Actions">
+            {applyOutcome !== null && (
+              <StatusBanner
+                severity="success"
+                message="Configuration applied and verified."
+                detail={`Backup: ${applyOutcome.backupFileName || "(none — first run)"} · helper: ${applyOutcome.helperPath}`}
+                onDismiss={() => setApplyOutcome(null)}
+              />
+            )}
+            {applyError !== null && (
+              <StatusBanner
+                severity="error"
+                message="Save & Apply failed."
+                detail={applyError}
+                onDismiss={() => setApplyError(null)}
+              />
+            )}
+            {restoreOutcome !== null && (
+              <StatusBanner
+                severity="success"
+                message="Settings restored from the latest backup."
+                detail={`Restored: ${restoreOutcome.restoredFrom} · pre-restore copy: ${restoreOutcome.preRestoreBackup || "(none — file was missing)"}`}
+                onDismiss={() => setRestoreOutcome(null)}
+              />
+            )}
+            {restoreError !== null && (
+              <StatusBanner
+                severity="error"
+                message="Restore failed."
+                detail={restoreError}
+                onDismiss={() => setRestoreError(null)}
+              />
+            )}
+            {connectionTestError !== null && (
+              <StatusBanner
+                severity="error"
+                message="Connection test could not run."
+                detail={connectionTestError}
+                onDismiss={() => setConnectionTestError(null)}
+              />
+            )}
+            {connectionTest !== null && (
+              <StatusBanner
+                severity={connectionTest.ok ? "success" : "error"}
+                message={
+                  connectionTest.ok
+                    ? `Connection OK — ${connectionTest.message} (${connectionTest.latencyMs} ms)`
+                    : `Connection failed — ${connectionTest.message}`
+                }
+                detail={connectionTest.endpoint}
+                onDismiss={() => setConnectionTest(null)}
+              />
+            )}
+            {/* Fixed footer: the primary action must never be below the fold
+                (at 800x600 and 880x880 it was, which made Save & Apply invisible). */}
+            <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-app px-6 pt-2.5 pb-3">
+              <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-2">
+                {/* "Configuration applied and verified" only proves the FILE was
+                  written. This asks the provider whether the key actually works. */}
+                <LoadingButton
+                  label="Test Connection"
+                  pendingLabel="Testing…"
+                  pending={testingConnection}
+                  disabled={testDisabled}
+                  variant="secondary"
+                  onClick={() => {
+                    void handleTestConnection();
+                  }}
+                />
+                <LoadingButton
+                  label="Save & Apply"
+                  pendingLabel="Applying…"
+                  pending={applying}
+                  // One gate, one source of truth: `canApply` covers provider, key,
+                  // model validity and role-override validity (T43/T45).
+                  disabled={!canApply}
+                  variant="primary"
+                  onClick={() => {
+                    void handleApply();
+                  }}
+                />
+                <LoadingButton
+                  label="Restore last backup"
+                  pendingLabel="Restoring…"
+                  pending={restoring}
+                  onClick={() => {
+                    void handleRestore();
+                  }}
+                />
+              </div>
+            </div>
+            {selected !== null && (
+              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                The API key is stored in an owner-only file (0600) and handed to Claude Code via an
+                apiKeyHelper script — it is never written into settings.json.
+              </p>
+            )}
+          </Section>
+        </div>
+      </div>
 
       <details className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
         <summary

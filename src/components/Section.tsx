@@ -6,13 +6,8 @@ interface SectionProps {
 
 export function Section({ title, children }: SectionProps) {
   return (
-    <section
-      aria-label={title}
-      className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
-    >
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-        {title}
-      </h2>
+    <section aria-label={title} className="rounded-xl border border-line bg-surface px-4 py-3.5">
+      <h2 className="mb-2.5 text-[13px] font-semibold text-ink-muted">{title}</h2>
       {children}
     </section>
   );
