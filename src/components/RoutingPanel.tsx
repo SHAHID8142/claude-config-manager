@@ -12,6 +12,7 @@ import type {
   ProxyStatus,
   RouteTarget,
   RoutingConfig,
+  TargetHealth,
 } from "../lib/ipc";
 
 export interface RoutingPanelProps {
@@ -19,12 +20,16 @@ export interface RoutingPanelProps {
   providers: ProviderSummary[];
   credentials: CredentialView[];
   status: ProxyStatus | null;
+  /** Results of the last "Check targets" run, keyed by target id. */
+  health?: TargetHealth[] | null;
+  checking?: boolean;
   busy?: boolean;
   onChange: (next: RoutingConfig) => void;
   onSave: () => void;
   onStartProxy: () => void;
   onStopProxy: () => void;
   onApplyRouted: () => void;
+  onCheckHealth?: () => void;
   /** Ask the app to load credentials for the provider the owner just picked. */
   onNeedCredentials?: (providerId: string) => void;
   error?: string | null;
@@ -46,12 +51,15 @@ export function RoutingPanel({
   providers,
   credentials,
   status,
+  health = null,
+  checking = false,
   busy = false,
   onChange,
   onSave,
   onStartProxy,
   onStopProxy,
   onApplyRouted,
+  onCheckHealth,
   onNeedCredentials,
   error = null,
 }: RoutingPanelProps) {
@@ -97,14 +105,26 @@ export function RoutingPanel({
           />
           Fail over between targets
         </label>
-        <button
-          type="button"
-          className="h-7 rounded-md border border-line px-2 text-[12px] text-ink hover:bg-surface-sunken disabled:opacity-50"
-          onClick={onSave}
-          disabled={busy}
-        >
-          Save chain
-        </button>
+        <div className="flex gap-2">
+          {onCheckHealth ? (
+            <button
+              type="button"
+              className="h-7 rounded-md border border-line px-2 text-[12px] text-ink hover:bg-surface-sunken disabled:opacity-50"
+              onClick={onCheckHealth}
+              disabled={busy || checking || config.targets.length === 0}
+            >
+              {checking ? "Checking…" : "Check targets"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="h-7 rounded-md border border-line px-2 text-[12px] text-ink hover:bg-surface-sunken disabled:opacity-50"
+            onClick={onSave}
+            disabled={busy}
+          >
+            Save chain
+          </button>
+        </div>
       </div>
 
       <p className="text-[11.5px] text-ink-subtle">
@@ -131,6 +151,18 @@ export function RoutingPanel({
               {status?.cooling.includes(t.id) ? (
                 <span className="shrink-0 rounded-sm bg-warn-soft px-1.5 py-0.5 text-[10.5px] text-warn">
                   cooling down
+                </span>
+              ) : null}
+              {health?.find((h) => h.targetId === t.id) ? (
+                <span
+                  className={`shrink-0 rounded-sm px-1.5 py-0.5 text-[10.5px] ${
+                    health.find((h) => h.targetId === t.id)?.ok
+                      ? "bg-ok-soft text-ok"
+                      : "bg-danger-soft text-danger"
+                  }`}
+                  title={health.find((h) => h.targetId === t.id)?.message}
+                >
+                  {health.find((h) => h.targetId === t.id)?.ok ? "key ok" : "key failed"}
                 </span>
               ) : null}
               <button

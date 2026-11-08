@@ -38,7 +38,7 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-29 | Loopback routing + startup | done | `3597a19` |
 | V2-30 | Helper shutdown/restart/recovery | done | `3597a19` |
 | V2-31 | Routing endpoint into Claude Code config | done | `3597a19` |
-| V2-32 | Routing health checks | partial — on-demand status only | `3597a19` |
+| V2-32 | Routing health checks | done | `check_routing_health` + "Check targets" |
 | V2-33 | Provider error-classification rules | done | `3597a19` |
 | V2-34 | Rate-limit / quota-exhaustion detection | done | `3597a19` |
 | V2-35 | Bounded retry + cooldown | done | `3597a19` |

@@ -39,6 +39,7 @@ import {
   proxyStop,
   proxyStatus,
   applyRoutedMode,
+  checkRoutingHealth,
   type ApplyOutcome,
   type ConnectionTestResult,
   type CredentialView,
@@ -50,6 +51,7 @@ import {
   type RestoreOutcome,
   type ProxyStatus,
   type RoutingConfig,
+  type TargetHealth,
   type StatusWarning,
 } from "./lib/ipc";
 import { classifyEndpoint, endpointCheckMessage } from "./lib/endpoint";
@@ -149,6 +151,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [routingError, setRoutingError] = useState<string | null>(null);
   const [proxy, setProxy] = useState<ProxyStatus | null>(null);
   const [routingBusy, setRoutingBusy] = useState(false);
+  const [routingHealth, setRoutingHealth] = useState<TargetHealth[] | null>(null);
+  const [checkingHealth, setCheckingHealth] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,6 +185,20 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       cancelled = true;
     };
   }, [ipc, routingBusy]);
+
+  async function handleCheckRoutingHealth() {
+    setCheckingHealth(true);
+    setRoutingError(null);
+    try {
+      setRoutingHealth(await checkRoutingHealth(ipc));
+    } catch (err: unknown) {
+      setRoutingError(
+        isCommandError(err) ? err.message : "The routing targets could not be checked.",
+      );
+    } finally {
+      setCheckingHealth(false);
+    }
+  }
 
   async function handleSaveRouting() {
     if (routing === null) return;
@@ -721,6 +739,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                     .catch(() => setCredentials(null));
                 }}
                 status={proxy}
+                health={routingHealth}
+                checking={checkingHealth}
                 busy={routingBusy}
                 error={routingError}
                 onChange={setRouting}
@@ -735,6 +755,9 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                 }}
                 onApplyRouted={() => {
                   void handleApplyRouted();
+                }}
+                onCheckHealth={() => {
+                  void handleCheckRoutingHealth();
                 }}
               />
             )}

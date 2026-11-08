@@ -368,3 +368,16 @@ export async function applyRoutedMode(
 ): Promise<ApplyOutcome> {
   return ipc.invoke<ApplyOutcome>("apply_routed_mode", { model });
 }
+
+export interface TargetHealth {
+  targetId: string;
+  providerId: string;
+  ok: boolean;
+  message: string;
+}
+
+/** V2-32: probe every enabled target at its documented key-check endpoint.
+ *  Never sends a completion, so it cannot spend quota. */
+export async function checkRoutingHealth(ipc: IpcLike = defaultIpc): Promise<TargetHealth[]> {
+  return ipc.invoke<TargetHealth[]>("check_routing_health");
+}

@@ -259,6 +259,65 @@ fn proxy_status(
     Ok(slot.as_ref().map(|h| h.status()))
 }
 
+/// V2-32: one health result per routing target.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TargetHealth {
+    target_id: String,
+    provider_id: String,
+    ok: bool,
+    /// Human sentence; never contains the credential.
+    message: String,
+}
+
+/// V2-32: check every routing target on demand.
+///
+/// This uses the provider's documented key-check endpoint and never sends a
+/// completion request, so checking the chain costs nothing and cannot consume
+/// quota. Targets without a stored key, or providers without a documented
+/// key-check endpoint, report `ok: false` with an honest reason.
+#[tauri::command]
+fn check_routing_health() -> Result<Vec<TargetHealth>, CommandError> {
+    let home = home_dir()?;
+    let cfg = routing_config::load(&home).map_err(|e| CommandError::io(e.to_string()))?;
+    let templates = presets::load_builtin_presets();
+    let mut out = Vec::new();
+    for target in cfg.ordered() {
+        if !target.enabled {
+            continue;
+        }
+        let Some(template) = templates.iter().find(|t| t.id == target.provider_id) else {
+            out.push(TargetHealth {
+                target_id: target.id.clone(),
+                provider_id: target.provider_id.clone(),
+                ok: false,
+                message: "this provider is not in the bundled catalog".into(),
+            });
+            continue;
+        };
+        let Some(secret) = proxy::resolve_secret(&home, target) else {
+            out.push(TargetHealth {
+                target_id: target.id.clone(),
+                provider_id: target.provider_id.clone(),
+                ok: false,
+                message: "no stored key for this target".into(),
+            });
+            continue;
+        };
+        let (ok, message) = match connection_test::test_connection(template, &secret) {
+            Ok(result) => (result.ok, result.message),
+            Err(e) => (false, e.to_string()),
+        };
+        out.push(TargetHealth {
+            target_id: target.id.clone(),
+            provider_id: target.provider_id.clone(),
+            ok,
+            message,
+        });
+    }
+    Ok(out)
+}
+
 /// V2-31: point Claude Code at the proxy (base URL + token helper).
 #[tauri::command]
 fn apply_routed_mode(
@@ -511,6 +570,7 @@ pub fn run() {
             proxy_stop,
             proxy_status,
             apply_routed_mode,
+            check_routing_health,
             list_credentials,
             add_credential,
             remove_credential,

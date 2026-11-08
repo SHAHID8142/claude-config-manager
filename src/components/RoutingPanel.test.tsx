@@ -138,6 +138,21 @@ describe("RoutingPanel", () => {
     expect(next.targets[0].credentialId).toBe("openrouter-1");
   });
 
+  it("reports per-target key health and lets the owner re-check", async () => {
+    const onCheckHealth = vi.fn();
+    setup({
+      onCheckHealth,
+      health: [
+        { targetId: "a", providerId: "openrouter", ok: true, message: "Key accepted." },
+        { targetId: "b", providerId: "openrouter", ok: false, message: "Key rejected (401)." },
+      ],
+    });
+    expect(screen.getByText("key ok")).toBeInTheDocument();
+    expect(screen.getByText("key failed")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Check targets" }));
+    expect(onCheckHealth).toHaveBeenCalledOnce();
+  });
+
   it("cannot route Claude Code with an empty chain", () => {
     setup({ config: config([]) });
     expect(screen.getByRole("button", { name: "Route Claude Code" })).toBeDisabled();
