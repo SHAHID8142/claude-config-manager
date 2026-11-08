@@ -14,6 +14,7 @@ pub mod config_locator;
 pub mod config_merge;
 pub mod config_reader;
 pub mod config_writer;
+pub mod credential_handoff;
 pub mod credential_service;
 pub mod keychain_store;
 pub mod presets;

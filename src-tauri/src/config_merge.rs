@@ -10,8 +10,10 @@
 //!   value never yields a half-written document.
 
 use crate::config_reader::ConfigError;
+use crate::credential_handoff::validate_provider_id;
 use crate::provider_catalog::classify_endpoint;
 use serde_json::{Map, Value};
+use std::path::Path;
 
 /// The env keys this app manages inside `env` (T02 verified set).
 pub const MANAGED_ENV_KEYS: &[&str] = &[
@@ -25,7 +27,7 @@ pub const MANAGED_ENV_KEYS: &[&str] = &[
 ];
 
 /// Top-level keys this app manages.
-pub const MANAGED_TOP_KEYS: &[&str] = &["model", "env"];
+pub const MANAGED_TOP_KEYS: &[&str] = &["model", "env", "apiKeyHelper"];
 
 /// What the user wants applied. `None` = leave the key untouched.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -38,6 +40,11 @@ pub struct DesiredSettings {
     pub env_default_haiku: Option<String>,
     pub env_default_sonnet: Option<String>,
     pub env_default_opus: Option<String>,
+    /// Absolute path to an installed apiKeyHelper script (T32 helper mode).
+    /// Mutually exclusive with `env_auth_token`/`env_api_key`: helper
+    /// credentials rank BELOW those env vars in auth precedence, so setting
+    /// both would silently shadow the helper (T02 auth matrix).
+    pub api_key_helper: Option<String>,
 }
 
 impl DesiredSettings {
@@ -65,6 +72,27 @@ impl DesiredSettings {
     pub fn validate(&self) -> Result<(), ConfigError> {
         if let Some(model) = &self.model {
             validate_model_id(model)?;
+        }
+        // Auth-mode mutual exclusion (T32): the helper must not be shadowed.
+        if self.api_key_helper.is_some()
+            && (self.env_auth_token.is_some() || self.env_api_key.is_some())
+        {
+            return Err(ConfigError::ValidationFailed(
+                "authentication mode conflict: apiKeyHelper and plaintext env credentials are mutually exclusive (helper credentials rank below env keys and would be shadowed)".into(),
+            ));
+        }
+        if let Some(helper) = &self.api_key_helper {
+            let p = Path::new(helper);
+            if !p.is_absolute() {
+                return Err(ConfigError::ValidationFailed(
+                    "apiKeyHelper must be an absolute path (settings env values are not shell-expanded; T02)".into(),
+                ));
+            }
+            if helper.contains('\0') || helper.len() > 4096 {
+                return Err(ConfigError::ValidationFailed(
+                    "apiKeyHelper: invalid path".into(),
+                ));
+            }
         }
         for (key, value) in self.env_writes() {
             match key {
@@ -135,6 +163,22 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
 
     if let Some(model) = &desired.model {
         out.insert("model".to_string(), Value::String(model.clone()));
+    }
+
+    if let Some(helper) = &desired.api_key_helper {
+        // Defense in depth: the helper path's provider segment must refer to
+        // a valid provider id (the script name pattern is ours, T32).
+        let bad_stem = Path::new(helper)
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .map(|stem| validate_provider_id(&stem).is_err())
+            .unwrap_or(false);
+        if bad_stem {
+            return Err(ConfigError::ValidationFailed(
+                "apiKeyHelper path must point at an installed helper script for a valid provider id".into(),
+            ));
+        }
+        out.insert("apiKeyHelper".to_string(), Value::String(helper.clone()));
     }
 
     let env_writes = desired.env_writes();
@@ -330,5 +374,60 @@ mod tests {
             "ANTHROPIC_DEFAULT_OPUS_MODEL",
         ];
         assert_eq!(writable, MANAGED_ENV_KEYS);
+    }
+
+    #[test]
+    fn helper_mode_writes_absolute_path() {
+        let desired = DesiredSettings {
+            api_key_helper: Some(
+                "/Users/x/Library/Application Support/ClaudeConfigManager/helpers/anthropic.sh"
+                    .into(),
+            ),
+            ..Default::default()
+        };
+        let out = apply_desired(&obj(&[]), &desired).expect("merge");
+        assert_eq!(
+            out["apiKeyHelper"],
+            "/Users/x/Library/Application Support/ClaudeConfigManager/helpers/anthropic.sh"
+        );
+    }
+
+    #[test]
+    fn helper_mode_conflicts_with_plaintext_env_keys() {
+        for conflicting in [
+            DesiredSettings {
+                api_key_helper: Some("/app/helpers/anthropic.sh".into()),
+                env_api_key: Some("sk-ant-FAKE".into()),
+                ..Default::default()
+            },
+            DesiredSettings {
+                api_key_helper: Some("/app/helpers/anthropic.sh".into()),
+                env_auth_token: Some("token-FAKE".into()),
+                ..Default::default()
+            },
+        ] {
+            let err = apply_desired(&obj(&[]), &conflicting).expect_err("must reject");
+            assert!(matches!(err, ConfigError::ValidationFailed(_)));
+        }
+    }
+
+    #[test]
+    fn helper_path_must_be_absolute() {
+        let desired = DesiredSettings {
+            api_key_helper: Some("relative/helper.sh".into()),
+            ..Default::default()
+        };
+        let err = apply_desired(&obj(&[]), &desired).expect_err("must reject relative");
+        assert!(matches!(err, ConfigError::ValidationFailed(_)));
+    }
+
+    #[test]
+    fn helper_path_must_reference_valid_provider_script() {
+        let desired = DesiredSettings {
+            api_key_helper: Some("/app/helpers/not a provider!.sh".into()),
+            ..Default::default()
+        };
+        let err = apply_desired(&obj(&[]), &desired).expect_err("must reject bad stem");
+        assert!(matches!(err, ConfigError::ValidationFailed(_)));
     }
 }
