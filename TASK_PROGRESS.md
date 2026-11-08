@@ -21,9 +21,9 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T02 Verify Claude Code global config paths/keys/precedence/auth; document matrix | ✅ | 2026-11-08 | (T02 commit) | ✓ | `docs/research/claude-code-config-matrix.md`; official docs verified + local cross-check; plaintext/env tradeoffs routed to T32/T34 |
 | T03 Evaluate open-source bridges (protocol translation) | ✅ | 2026-11-08 | 4716814 | ✓ | `docs/research/bridge-evaluation.md`; 7 candidates assessed; direct-mode finding for OpenRouter/DeepSeek/Z.AI; sole surviving candidate: claude-code-router |
 | T04 Select bridge with evidence; write ADR; STOP if no safe candidate | ✅ | 2026-11-08 | (T04 commit) | ✓ | ADR-001: claude-code-router selected as pinned integration target with recorded mitigations; fallback = STOP+decide |
-| T05 Threat model | ✅ | 2026-11-08 | (T05 commit) | ✓ | `docs/security/THREAT-MODEL.md`; 18 threats ranked, mapped to tasks |
-| T06 Define module boundaries (documentation only) | ✅ | 2026-11-08 | (T06 commit) | ✓ | `docs/architecture/MODULE-BOUNDARIES.md` |
-| T07 Acceptance fixtures, test strategy, security checklist | ⬜ | — | — | — | — |
+| T05 Threat model | ✅ | 2026-11-08 | 76bd980 | ✓ | `docs/security/THREAT-MODEL.md`; 18 threats ranked, mapped to tasks |
+| T06 Define module boundaries (documentation only) | ✅ | 2026-11-08 | 76bd980 | ✓ | `docs/architecture/MODULE-BOUNDARIES.md`; note: T05+T06 shared one commit (related docs) — process deviation noted, subsequent tasks single-commit |
+| T07 Acceptance fixtures, test strategy, security checklist | ✅ | 2026-11-08 | (T07 commit) | ✓ | `docs/testing/TEST-STRATEGY.md` incl. per-task security checklist |
 
 ## Foundation
 
