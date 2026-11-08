@@ -20,6 +20,12 @@ pub enum StatusWarning {
     /// Plaintext credential material present in settings.json env.
     PlaintextKeyInEnv { which: String },
     /// `model` and `ANTHROPIC_MODEL` disagree; env wins per T02.
+    ///
+    /// `rename_all` on the *enum* renames variants only — struct-variant fields
+    /// need their own attribute. Without this the wire carried `setting_model`
+    /// while the UI read `settingModel`, and the warning rendered the literal
+    /// string "undefined" (found by looking at the running app, G7).
+    #[serde(rename_all = "camelCase")]
     ModelConflict {
         setting_model: String,
         env_model: String,
@@ -254,6 +260,37 @@ mod tests {
             &s.warnings[0],
             StatusWarning::PlaintextKeyInEnv { which } if which == "ANTHROPIC_AUTH_TOKEN"
         ));
+    }
+
+    /// Contract test for the wire shape of every warning variant.
+    ///
+    /// This is the test that would have caught the "undefined" bug: the TS side
+    /// reads `modelConflict.settingModel`, so the wire MUST use camelCase field
+    /// names inside the variant.
+    #[test]
+    fn every_warning_serializes_with_the_field_names_the_ui_reads() {
+        let conflict = serde_json::to_value(StatusWarning::ModelConflict {
+            setting_model: "claude-x".into(),
+            env_model: "claude-y".into(),
+        })
+        .expect("serialise");
+        assert_eq!(
+            conflict,
+            serde_json::json!({"modelConflict": {"settingModel": "claude-x", "envModel": "claude-y"}}),
+            "the UI reads modelConflict.settingModel/envModel"
+        );
+
+        let plaintext = serde_json::to_value(StatusWarning::PlaintextKeyInEnv {
+            which: "ANTHROPIC_API_KEY".into(),
+        })
+        .expect("serialise");
+        assert_eq!(
+            plaintext,
+            serde_json::json!({"plaintextKeyInEnv": {"which": "ANTHROPIC_API_KEY"}})
+        );
+
+        let shadowed = serde_json::to_value(StatusWarning::HelperShadowedByEnv).expect("serialise");
+        assert_eq!(shadowed, serde_json::json!("helperShadowedByEnv"));
     }
 
     #[test]

@@ -111,8 +111,16 @@ export async function saveAndApply(
 // `read_status` (T34) — effective-config read-back with override warnings.
 // ---------------------------------------------------------------------------
 
+/**
+ * Mirrors the Rust `StatusWarning` enum as serde actually emits it.
+ *
+ * Serde serialises a **unit** variant as a bare string, and a struct variant as a
+ * single-key object. Getting this wrong is not cosmetic: `"x" in "string"` throws
+ * a TypeError during render, which unmounts the React tree and leaves a blank
+ * window (the black-screen bug).
+ */
 export type StatusWarning =
-  | { helperShadowedByEnv: null }
+  | "helperShadowedByEnv"
   | { plaintextKeyInEnv: { which: string } }
   | { modelConflict: { settingModel: string; envModel: string } };
 

@@ -16,6 +16,8 @@ the reason — never silently dropped.
 | G8 | Bridge mode fidelity (streaming, tools, vision, reasoning) | **BLOCKED** (feature absent, T47–T58) |
 | G9 | CI pipeline itself never executed | **BLOCKED** (GitHub billing) |
 | G10 | TLS/proxy/certificate-error posture | ✅ closed |
+| G11 | Keychain refusal blocked Save & Apply, with an undiagnosable message | ✅ closed (`G11-G12-field-defects.md`) |
+| G12 | Black screen after Save (uncaught `in` on a string during render) | ✅ closed (`G11-G12-field-defects.md`) |
 
 ---
 

@@ -302,10 +302,7 @@ describe("Effective status + override warnings (T34)", () => {
     const ipc = mockWithProviders({
       ...statusFixture,
       apiKeyPresent: true,
-      warnings: [
-        { helperShadowedByEnv: null },
-        { plaintextKeyInEnv: { which: "ANTHROPIC_API_KEY" } },
-      ],
+      warnings: ["helperShadowedByEnv", { plaintextKeyInEnv: { which: "ANTHROPIC_API_KEY" } }],
     });
     render(<App ipc={ipc} />);
     expect(

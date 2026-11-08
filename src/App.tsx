@@ -56,6 +56,13 @@ function modeLabel(status: EffectiveStatus | null): string {
 
 /** Warning text derived from the typed wire shape. */
 function warningText(w: StatusWarning): string {
+  // Unit variants arrive as plain strings; `typeof` guards before any `in`.
+  if (typeof w === "string") {
+    if (w === "helperShadowedByEnv") {
+      return "apiKeyHelper is shadowed by a plaintext env credential — remove the env key to use the helper.";
+    }
+    return "Unknown warning";
+  }
   if ("helperShadowedByEnv" in w) {
     return "apiKeyHelper is shadowed by a plaintext env credential — remove the env key to use the helper.";
   }

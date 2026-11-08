@@ -36,9 +36,20 @@ fn map_keyring_error(err: &keyring::Error) -> SecretError {
         keyring::Error::Invalid(_attr, _reason) => {
             SecretError::Platform("credential identifier rejected".to_string())
         }
-        keyring::Error::PlatformFailure(_) | keyring::Error::NoStorageAccess(_) => {
-            SecretError::Platform("keychain access refused by the OS".to_string())
-        }
+        // Keep the OS-level cause (an OSStatus or short platform string — never
+        // secret material) so a refusal is diagnosable instead of opaque. The
+        // first shipped build reported only "refused by the OS", which made the
+        // real cause impossible to identify from the UI.
+        // The detail is kept for diagnosis but passed through the secret-shaped
+        // stripper first, so no credential-like token can ride along.
+        keyring::Error::PlatformFailure(inner) => SecretError::Platform(format!(
+            "keychain access failed ({})",
+            crate::redact::strip_secret_shaped(&inner.to_string())
+        )),
+        keyring::Error::NoStorageAccess(inner) => SecretError::Platform(format!(
+            "keychain storage unavailable ({})",
+            crate::redact::strip_secret_shaped(&inner.to_string())
+        )),
         other => SecretError::Platform(format!("credential vault error ({other})")),
     }
 }
@@ -86,15 +97,18 @@ mod tests {
     }
 
     #[test]
-    fn platform_refusals_are_redacted() {
+    fn platform_refusals_keep_the_os_cause_but_drop_secrets() {
+        // Policy (G11): the OSStatus is now KEPT so a refusal is diagnosable —
+        // the previous opaque "refused by the OS" made the shipped failure
+        // impossible to investigate. Credential-shaped tokens are still stripped.
         let err = map_keyring_error(&keyring::Error::PlatformFailure(
-            "internal os detail".into(),
+            "OSStatus error -25293 sk-ant-api03-LEAKEDLEAKEDLEAKED".into(),
         ));
         match err {
             SecretError::Platform(msg) => {
-                // The internal OS detail must not leak into our error.
-                assert!(!msg.contains("internal os detail"));
-                assert!(msg.contains("refused"));
+                assert!(msg.contains("-25293"), "cause must survive: {msg}");
+                assert!(msg.contains("keychain access failed"));
+                assert!(!msg.contains("sk-ant-api03-LEAKED"), "secret leaked: {msg}");
             }
             other => panic!("expected Platform error, got {other:?}"),
         }
