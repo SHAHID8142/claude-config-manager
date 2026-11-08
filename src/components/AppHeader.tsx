@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { Check, Settings2 } from "lucide-react";
+import { IconButton } from "./IconButton";
 import type { EffectiveStatus } from "../lib/ipc";
 import { applyTheme, loadTheme, saveTheme, type ThemeMode } from "../lib/theme";
 
@@ -86,28 +88,14 @@ export function AppHeader({ status, themeStorage }: AppHeaderProps) {
         </span>
 
         <div className="relative" ref={wrapRef}>
-          <button
-            type="button"
-            aria-label="Settings"
+          <IconButton
+            label="Settings"
+            size="sm"
             aria-haspopup="dialog"
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className="grid size-7 place-items-center rounded-md text-ink-muted motion-safe:transition-colors hover:bg-surface-hover hover:text-ink focus-visible:outline-none"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              className="size-4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={1.8}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 14.9a1.7 1.7 0 0 0-1.6-1H1a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 3 7a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 8 3h.1A1.7 1.7 0 0 0 9 1.4V1a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15 3a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 8v.1a1.7 1.7 0 0 0 1.6 1H23a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-            </svg>
-          </button>
+            icon={<Settings2 className="size-4" strokeWidth={1.8} />}
+          />
 
           {open && (
             <div
@@ -132,18 +120,11 @@ export function AppHeader({ status, themeStorage }: AppHeaderProps) {
                   >
                     {m.label}
                     {mode === m.value && (
-                      <svg
-                        viewBox="0 0 24 24"
+                      <Check
                         className="size-3.5 text-accent"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2.4}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                        strokeWidth={2.6}
                         aria-hidden="true"
-                      >
-                        <path d="M20 6 9 17l-5-5" />
-                      </svg>
+                      />
                     )}
                   </button>
                 ))}
