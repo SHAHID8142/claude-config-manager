@@ -112,7 +112,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T63 Dependency/license/vulnerability audit | ✅ | 2026-11-08 | 5f03092 | ✓ | 750 resolved pkgs vs OSV: **0 advisories in macOS graph** (6 excluded = Linux GTK/D-Bus/build-time). npm audit 0 vulns. Licenses all permissive/MPL-2.0; 0 GPL/AGPL. **BLOCKER: project has no LICENSE file — needs owner decision.** Gate: scripts/dep-audit.sh |
 | T64 macOS package (signed if creds) | ⚠️ | 2026-11-08 | 070e720 | ⚠️ | Unsigned arm64 `.app` (5.17 MiB) + `.dmg` (2.59 MiB, sha256 bfd760e…) built OK. **Gatekeeper refuses: adhoc/linker-signed, no Team ID, not notarized → "damaged" on clean Mac. Not distributable.** BLOCKED on Apple Developer ID (owner). No GUI smoke test |
 | T65 Real macOS clean-install + smoke tests | ⬜ | — | — | — | Request user evidence if machine unavailable; report NOT VERIFIED otherwise |
-| T66 Helper restart / GUI closure / uninstall / restore | ✅ | 2026-11-08 | <hash> | ✓ | 6-case suite executes the REAL helper script vs fake `security`: idempotent, fails closed, stderr isolated, 0700. Apply proven synchronous (GUI close safe). Uninstall = manual procedure + contract test (no command — T58 blocked). Rust 201 total |
+| T66 Helper restart / GUI closure / uninstall / restore | ✅ | 2026-11-08 | dadd19c | ✓ | 6-case suite executes the REAL helper script vs fake `security`: idempotent, fails closed, stderr isolated, 0700. Apply proven synchronous (GUI close safe). Uninstall = manual procedure + contract test (no command — T58 blocked). Rust 201 total |
 | T67 Full regression + acceptance review | ⬜ | — | — | — | — |
 | T68 User guide, troubleshooting, Windows notes | ⬜ | — | — | — | — |
 | T69 FINAL_AUDIT.md | ⬜ | — | — | — | — |
