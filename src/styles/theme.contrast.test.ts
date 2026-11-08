@@ -4,10 +4,16 @@
  * values) means a future palette tweak cannot silently fail the check.
  */
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const css = readFileSync(resolve(__dirname, "theme.css"), "utf8");
+// Read the shipped stylesheet, not a copy of the values: a palette tweak that
+// breaks WCAG cannot land without failing this test.
+const css = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), "theme.css"),
+  "utf8",
+);
 
 function block(selector: string): Record<string, string> {
   const start = css.indexOf(selector);

@@ -13,6 +13,8 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+    /* Tests read the shipped stylesheet (V2-16) and need Node's fs types. */
+    "types": ["node", "vite/client"],
 
     /* Linting */
     "strict": true,
