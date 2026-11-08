@@ -1,19 +1,36 @@
 @import "tailwindcss";
+@import "./styles/theme.css";
 
-/* Follow the OS appearance for native controls and scrollbars (T13).
-   Tailwind's `dark:` variant defaults to the `prefers-color-scheme` media
-   query, so the UI tracks the system theme with no runtime toggle. */
 :root {
-  color-scheme: light dark;
-  font-family:
-    system-ui,
-    -apple-system,
-    "SF Pro Text",
-    "Segoe UI",
-    sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body,
+#root {
+  height: 100%;
 }
 
 body {
   margin: 0;
+  background: var(--app-bg);
+  color: var(--ink);
+}
+
+/* One visible focus style everywhere; never removed, only refined. */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+  border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

@@ -1,0 +1,117 @@
+/* V2 design tokens — warm neutral surfaces, graphite ink, one calm accent.
+   Light is the default; `.dark` on <html> switches the same variables, so a
+   component is written once with semantic classes (bg-surface, text-ink…). */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --app-bg: #fbfaf8;
+  --surface: #ffffff;
+  --surface-muted: #f6f4f1;
+  --surface-sunken: #f1eeea;
+  --surface-hover: #f4f1ed;
+
+  /* lines */
+  --line: #e7e2db;
+  --line-strong: #d7d1c8;
+
+  /* ink */
+  --ink: #1b1a19;
+  --ink-muted: #6b6661;
+  --ink-subtle: #918b84;
+  --ink-on-accent: #ffffff;
+
+  /* accent + state */
+  --accent: #2f6ee0;
+  --accent-hover: #2a62c9;
+  --accent-soft: #eaf0fd;
+  --ok: #16794f;
+  --ok-soft: #e8f5ee;
+  --warn: #9a5b00;
+  --warn-soft: #fdf2e2;
+  --danger: #b42318;
+  --danger-soft: #fdecea;
+
+  /* shape */
+  --radius-xs: 0.3125rem;
+  --radius-sm: 0.4375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-xl: 1.125rem;
+
+  /* elevation — restrained, layered, never a drop-shadow blob */
+  --shadow-card: 0 1px 2px rgb(27 26 25 / 0.05), 0 10px 24px -16px rgb(27 26 25 / 0.22);
+  --shadow-pop: 0 2px 6px rgb(27 26 25 / 0.08), 0 18px 40px -20px rgb(27 26 25 / 0.28);
+
+  /* focus */
+  --ring: 0 0 0 2px var(--surface), 0 0 0 4px color-mix(in oklab, var(--accent) 55%, transparent);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --app-bg: #131211;
+  --surface: #1c1b19;
+  --surface-muted: #23211f;
+  --surface-sunken: #171615;
+  --surface-hover: #262421;
+
+  --line: #322f2b;
+  --line-strong: #433f3a;
+
+  --ink: #f3f0eb;
+  --ink-muted: #a9a29a;
+  --ink-subtle: #7e7871;
+  --ink-on-accent: #0d1220;
+
+  --accent: #7ba3ff;
+  --accent-hover: #90b2ff;
+  --accent-soft: #1e2534;
+  --ok: #4ed3a0;
+  --ok-soft: #14261f;
+  --warn: #f0b45c;
+  --warn-soft: #2a2117;
+  --danger: #ff7a6b;
+  --danger-soft: #2c1a18;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 10px 24px -16px rgb(0 0 0 / 0.6);
+  --shadow-pop: 0 2px 8px rgb(0 0 0 / 0.5), 0 20px 44px -22px rgb(0 0 0 / 0.7);
+}
+
+@theme inline {
+  --color-app: var(--app-bg);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-hover: var(--surface-hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-on-accent: var(--ink-on-accent);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --radius-xs: var(--radius-xs);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+
+  --font-sans: system-ui, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
