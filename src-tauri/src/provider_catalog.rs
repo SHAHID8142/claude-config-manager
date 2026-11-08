@@ -170,11 +170,35 @@ pub fn validate(t: &ProviderTemplate) -> Result<(), CatalogError> {
             "OpenAI-only providers cannot be direct",
         ));
     }
-    if t.direct_base_url.is_none() && t.protocol != Protocol::AnthropicNative {
-        return Err(field_err(
-            "direct_base_url",
-            "non-native protocols must declare their Anthropic-compatible base URL",
-        ));
+    // Base-URL policy per protocol (T24 refinement): native Anthropic must
+    // not override; anthropic_compat must declare its compat endpoint;
+    // open_ai_only has no Anthropic base URL at all — the bridge owns the
+    // upstream URL.
+    match t.protocol {
+        Protocol::AnthropicNative => {
+            if t.direct_base_url.is_some() {
+                return Err(field_err(
+                    "direct_base_url",
+                    "native Anthropic must not override the base URL",
+                ));
+            }
+        }
+        Protocol::AnthropicCompat => {
+            if t.direct_base_url.is_none() {
+                return Err(field_err(
+                    "direct_base_url",
+                    "anthropic_compat protocols must declare their Anthropic-compatible base URL",
+                ));
+            }
+        }
+        Protocol::OpenAiOnly => {
+            if t.direct_base_url.is_some() {
+                return Err(field_err(
+                    "direct_base_url",
+                    "open_ai_only providers must not declare an Anthropic base URL (bridge owns the upstream URL)",
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -324,12 +348,42 @@ mod tests {
             "auth": "bearer_token",
             "protocol": "open_ai_only",
             "bridge": "not_required",
-            "direct_base_url": "https://integrate.api.nvidia.com",
+            "direct_base_url": null,
             "discovery": { "kind": "none" },
             "capability_status": { "status": "unknown" }
         }"#;
         let err = parse_template(json).expect_err("openai-only must require bridge");
         assert_eq!(err.field, "bridge");
+    }
+
+    #[test]
+    fn rejects_openai_only_with_anthropic_base_url() {
+        let json = r#"{
+            "schema_version": 1,
+            "id": "nim",
+            "name": "NVIDIA NIM",
+            "auth": "bearer_token",
+            "protocol": "open_ai_only",
+            "bridge": "required_for_open_ai_only",
+            "direct_base_url": "https://integrate.api.nvidia.com",
+            "discovery": { "kind": "none" },
+            "capability_status": { "status": "unknown" }
+        }"#;
+        let err = parse_template(json).expect_err("openai-only must not set Anthropic base URL");
+        assert_eq!(err.field, "direct_base_url");
+    }
+
+    #[test]
+    fn rejects_native_with_base_url_override() {
+        let json = VALID_COMPAT
+            .replace("anthropic_compat", "anthropic_native")
+            .replace("required_for_open_ai_only", "not_required")
+            .replace(
+                "\"direct_base_url\": \"https://openrouter.ai/api\",",
+                "\"direct_base_url\": \"https://evil.example.com\",",
+            );
+        let err = parse_template(&json).expect_err("native must not override base URL");
+        assert_eq!(err.field, "direct_base_url");
     }
 
     #[test]

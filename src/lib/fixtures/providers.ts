@@ -107,11 +107,35 @@ export const zaiPreset: ProviderTemplateFixture = {
   docs_url: "https://docs.z.ai/devpack/tool/claude",
 };
 
+/** T24: NVIDIA NIM preset — mirrors src-tauri/presets/nvidia-nim.json.
+ * OpenAI-only protocol: bridge required (ADR-001), no Anthropic base URL. */
+export const nvidiaNimPreset: ProviderTemplateFixture = {
+  schema_version: 1,
+  id: "nvidia-nim",
+  name: "NVIDIA NIM",
+  auth: "bearer_token",
+  protocol: "open_ai_only",
+  bridge: "required_for_open_ai_only",
+  direct_base_url: null,
+  discovery: {
+    kind: "endpoint",
+    url: "https://integrate.api.nvidia.com/v1/models",
+    requires_auth: false,
+    list_selector: "data",
+  },
+  capability_status: {
+    status: "verified",
+    source_url: "https://docs.nvidia.com/nim/large-language-models/latest/introduction.html",
+  },
+  docs_url: "https://docs.nvidia.com/nim/large-language-models/latest/introduction.html",
+};
+
 export const builtinPresetFixtures: ProviderTemplateFixture[] = [
   anthropicPreset,
   openRouterPreset,
   deepSeekPreset,
   zaiPreset,
+  nvidiaNimPreset,
 ];
 
 /** T18: the provider list the UI receives via `list_providers`, mirrored
@@ -160,5 +184,16 @@ export const providerSummaryFixtures: ProviderSummary[] = [
       source_url: "https://docs.z.ai/devpack/tool/claude",
     },
     docsUrl: "https://docs.z.ai/devpack/tool/claude",
+  },
+  {
+    id: "nvidia-nim",
+    name: "NVIDIA NIM",
+    protocol: "open_ai_only",
+    bridge: "required_for_open_ai_only",
+    capabilityStatus: {
+      status: "verified",
+      source_url: "https://docs.nvidia.com/nim/large-language-models/latest/introduction.html",
+    },
+    docsUrl: "https://docs.nvidia.com/nim/large-language-models/latest/introduction.html",
   },
 ];

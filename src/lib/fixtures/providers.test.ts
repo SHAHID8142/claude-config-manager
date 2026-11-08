@@ -3,6 +3,7 @@ import {
   anthropicPreset,
   builtinPresetFixtures,
   deepSeekPreset,
+  nvidiaNimPreset,
   openRouterPreset,
   zaiPreset,
 } from "./providers";
@@ -13,6 +14,7 @@ describe("builtin preset fixtures (T17)", () => {
     expect(builtinPresetFixtures[1].id).toBe("openrouter");
     expect(builtinPresetFixtures[2].id).toBe("deepseek");
     expect(builtinPresetFixtures[3].id).toBe("zai");
+    expect(builtinPresetFixtures[4].id).toBe("nvidia-nim");
   });
 
   it("anthropic preset is native protocol, direct mode, api_key auth", () => {
@@ -83,5 +85,23 @@ describe("zai preset fixture (T24)", () => {
     expect(zaiPreset.direct_base_url).toBe("https://api.z.ai/api/anthropic");
     // Honest absence: no verified catalog endpoint -> manual model entry.
     expect(zaiPreset.discovery).toEqual({ kind: "none" });
+  });
+});
+
+describe("nvidia-nim preset fixture (T24)", () => {
+  it("is open_ai_only requiring the bridge, no Anthropic base URL", () => {
+    expect(nvidiaNimPreset.protocol).toBe("open_ai_only");
+    expect(nvidiaNimPreset.bridge).toBe("required_for_open_ai_only");
+    expect(nvidiaNimPreset.auth).toBe("bearer_token");
+    expect(nvidiaNimPreset.direct_base_url).toBeNull();
+  });
+
+  it("declares the public documented models catalog", () => {
+    expect(nvidiaNimPreset.discovery).toEqual({
+      kind: "endpoint",
+      url: "https://integrate.api.nvidia.com/v1/models",
+      requires_auth: false,
+      list_selector: "data",
+    });
   });
 });

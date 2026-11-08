@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "nvidia-nim",
+  "name": "NVIDIA NIM",
+  "auth": "bearer_token",
+  "protocol": "open_ai_only",
+  "bridge": "required_for_open_ai_only",
+  "direct_base_url": null,
+  "discovery": {
+    "kind": "endpoint",
+    "url": "https://integrate.api.nvidia.com/v1/models",
+    "requires_auth": false,
+    "list_selector": "data"
+  },
+  "capability_status": {
+    "status": "verified",
+    "source_url": "https://docs.nvidia.com/nim/large-language-models/latest/introduction.html"
+  },
+  "docs_url": "https://docs.nvidia.com/nim/large-language-models/latest/introduction.html"
+}
