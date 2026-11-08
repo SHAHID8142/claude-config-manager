@@ -105,7 +105,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 | Task | Status | Date | Commit | Push | Notes |
 |------|--------|------|--------|------|-------|
-| T59 Malformed input regression suite | ✅ | 2026-11-08 | <hash> | ✓ | 14-case suite (tests/malformed_inputs.rs). Found+fixed 5 defects: credential-in-URL accepted, newline URL normalisation, non-http scheme misreported, provider id leading `-`, whitespace catalog ids. clippy --all-targets now clean. Rust 177 total |
+| T59 Malformed input regression suite | ✅ | 2026-11-08 | 062817c | ✓ | 14-case suite (tests/malformed_inputs.rs). Found+fixed 5 defects: credential-in-URL accepted, newline URL normalisation, non-http scheme misreported, provider id leading `-`, whitespace catalog ids. clippy --all-targets now clean. Rust 177 total |
 | T60 Localhost/tampering/secret-leak regression suite | ⬜ | — | — | — | — |
 | T61 Rollback + interrupted-write recovery tests | ⬜ | — | — | — | — |
 | T62 Keyboard/a11y/theme/small-window UX audit | ⬜ | — | — | — | — |
