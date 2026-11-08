@@ -273,14 +273,42 @@ pub enum EndpointCheck {
 
 /// Classify an endpoint for security feedback (threat T11).
 pub fn classify_endpoint(url: &str) -> EndpointCheck {
+    // T59: the URL parser silently strips tabs/newlines, so
+    // "example.com\n.evil.com" would become a different host than the one the
+    // user sees. Refuse such input before it can be normalised into something
+    // else.
+    if url.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return EndpointCheck::Invalid(
+            "URL must not contain whitespace or control characters".into(),
+        );
+    }
     let parsed = match url::Url::parse(url) {
         Ok(p) => p,
         Err(e) => return EndpointCheck::Invalid(e.to_string()),
     };
-    if parsed.scheme() != "https" {
-        // http:, ftp:, ws:, etc. — anything non-https is refused for
-        // credential-bearing endpoints.
-        return EndpointCheck::Insecure;
+    match parsed.scheme() {
+        "https" => {}
+        "http" => {
+            // Plaintext transport for a credential-bearing endpoint.
+            return EndpointCheck::Insecure;
+        }
+        // T59: `javascript:`, `data:`, `file:`, `ftp:` and friends are not
+        // "insecure http" — they are not endpoints at all. Reporting them as
+        // Insecure would tell the user "use https" for a value that can never
+        // work, so they are classified Invalid with the scheme named.
+        other => {
+            return EndpointCheck::Invalid(format!(
+                "unsupported URL scheme {other:?} — only https is accepted"
+            ));
+        }
+    }
+    // T59: a URL carrying `user:pass@` would write a live credential into
+    // settings.json (plaintext, and backed up). The app owns credentials via
+    // Keychain, so an endpoint that embeds one is refused outright.
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return EndpointCheck::Invalid(
+            "URL must not embed credentials (user:pass@) — the API key is stored separately".into(),
+        );
     }
     let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
     let is_local = matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1" | "[::1]")
@@ -437,7 +465,12 @@ mod tests {
             classify_endpoint("http://api.example.com"),
             EndpointCheck::Insecure
         );
-        assert_eq!(classify_endpoint("ftp://x"), EndpointCheck::Insecure);
+        // T59: non-http schemes are not "insecure transport", they are not
+        // endpoints at all — reporting Insecure would be misleading advice.
+        assert!(matches!(
+            classify_endpoint("ftp://x"),
+            EndpointCheck::Invalid(_)
+        ));
     }
 
     #[test]

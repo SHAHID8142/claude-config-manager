@@ -142,6 +142,9 @@ pub fn fetch_models(
         let Some(id) = obj.get("id").and_then(|v| v.as_str()) else {
             continue; // entries without an id are unusable
         };
+        // T59: whitespace-only ids are unusable — they would render as a blank
+        // row and then be rejected at apply time.
+        let id = id.trim();
         if id.is_empty() || id.len() > 256 || id.chars().any(|c| c.is_control()) {
             continue;
         }

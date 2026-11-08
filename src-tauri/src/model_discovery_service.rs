@@ -157,7 +157,7 @@ mod tests {
         // fetch; here we assert the credential-resolution branch by hitting
         // the real https URL shape — network refusals surface as Transport,
         // NOT CredentialRequired, proving resolution succeeded).
-        let mut store = MockSecretStore::new();
+        let store = MockSecretStore::new();
         store
             .set_secret("com.claude-config-manager.deepseek", "deepseek", "sk-fake")
             .expect("store");

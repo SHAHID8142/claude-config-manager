@@ -73,10 +73,10 @@ mod tests {
         let store = MockSecretStore::new();
         let svc = CredentialService::new(&store);
 
-        assert_eq!(svc.has_credential("anthropic").expect("status"), false);
+        assert!(!svc.has_credential("anthropic").expect("status"));
         svc.set_credential("anthropic", "sk-ant-api03-FAKE-0001")
             .expect("set");
-        assert_eq!(svc.has_credential("anthropic").expect("status"), true);
+        assert!(svc.has_credential("anthropic").expect("status"));
 
         // Replace in place (no duplicate items).
         svc.set_credential("anthropic", "sk-ant-api03-FAKE-0002")
@@ -90,7 +90,7 @@ mod tests {
         );
 
         svc.delete_credential("anthropic").expect("delete");
-        assert_eq!(svc.has_credential("anthropic").expect("status"), false);
+        assert!(!svc.has_credential("anthropic").expect("status"));
         // Idempotent second delete.
         svc.delete_credential("anthropic").expect("delete again");
     }
@@ -111,12 +111,11 @@ mod tests {
         svc.set_credential("anthropic", "sk-ant-api03-A")
             .expect("a");
         svc.set_credential("openrouter", "sk-or-v1-B").expect("b");
-        assert_eq!(svc.has_credential("anthropic").expect("a?"), true);
-        assert_eq!(svc.has_credential("openrouter").expect("b?"), true);
+        assert!(svc.has_credential("anthropic").expect("a?"));
+        assert!(svc.has_credential("openrouter").expect("b?"));
         svc.delete_credential("anthropic").expect("del a");
-        assert_eq!(
+        assert!(
             svc.has_credential("openrouter").expect("b?"),
-            true,
             "other provider untouched"
         );
     }

@@ -172,7 +172,7 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
-    use super::*;
+    use super::EffectiveStatus;
     use std::fs;
     use std::path::PathBuf;
 
@@ -229,9 +229,7 @@ mod tests {
             }"#,
         );
         assert!(
-            s.warnings
-                .iter()
-                .any(|w| *w == StatusWarning::HelperShadowedByEnv),
+            s.warnings.contains(&StatusWarning::HelperShadowedByEnv),
             "shadowing must be flagged: {s:?}"
         );
         // Plaintext presence flagged too — with the key NAME, never the value.

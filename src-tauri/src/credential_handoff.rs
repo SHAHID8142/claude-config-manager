@@ -29,8 +29,16 @@ use std::path::{Path, PathBuf};
 
 /// Strict provider-id validation shared with the catalog ([a-z0-9-]{1,64}).
 pub fn validate_provider_id(provider_id: &str) -> Result<(), SecretError> {
+    // T59: must start with a letter/digit. A leading '-' would make the id
+    // look like a command-line flag to any consumer that forwards it, even
+    // though our own `security` invocation quotes it as a value.
+    let mut chars = provider_id.chars();
+    let starts_safely = chars
+        .next()
+        .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit());
     let ok = !provider_id.is_empty()
         && provider_id.len() <= 64
+        && starts_safely
         && provider_id
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
