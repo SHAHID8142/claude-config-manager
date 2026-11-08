@@ -34,7 +34,7 @@ export function CapabilityBadge({ status, sourceUrl }: CapabilityBadgeProps) {
   }
   return (
     <span
-      className={`${base} border-zinc-300 bg-zinc-100 text-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300`}
+      className={`${base} border-line bg-surface-sunken text-ink-muted dark:border-line dark:bg-surface-raised `}
     >
       capabilities unknown
     </span>

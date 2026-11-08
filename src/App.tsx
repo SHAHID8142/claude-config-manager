@@ -40,7 +40,7 @@ import { classifyEndpoint, endpointCheckMessage } from "./lib/endpoint";
 import { validateModelId } from "./lib/modelId";
 import { focusRing } from "./lib/focus";
 
-const inputClass = `w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 placeholder-zinc-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 ${focusRing}`;
+const inputClass = `w-full rounded-md border border-line bg-surface-raised px-3 py-2 text-sm text-ink-muted placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:opacity-50 dark:border-line dark:bg-surface-raised dark:text-ink ${focusRing}`;
 
 /** Sentinels for the provider selector: presets use their real ids;
  * custom entry and the empty state use dedicated sentinels. */
@@ -443,7 +443,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                       <p
                         aria-live="polite"
                         id="custom-endpoint-check"
-                        className={`mb-2 text-xs ${isError ? "font-medium text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}
+                        className={`mb-2 text-xs ${isError ? "font-medium text-danger" : "text-ink-muted"}`}
                       >
                         {msg}
                       </p>
@@ -526,7 +526,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                   />
                 </div>
               ) : (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="text-xs text-ink-muted">
                   Catalog returned no models — use manual Model ID entry below.
                 </p>
               ))}
@@ -551,7 +551,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
               <p
                 aria-live="polite"
                 id="model-input-error"
-                className="text-xs font-medium text-red-600 dark:text-red-400"
+                className="text-xs font-medium text-danger"
               >
                 {modelValidation.message} Save &amp; Apply is disabled until this is fixed.
               </p>
@@ -575,7 +575,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             {selectedModel !== null &&
               selectedModel.trim() !== "" &&
               (models === null || models.length === 0) && (
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="text-xs text-ink-muted">
                   Source: manual entry · capability data unverified (unknown).
                 </p>
               )}
@@ -594,10 +594,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
               currentContextWindow={status?.envMaxContextTokens ?? null}
             />
             {roleInvalid && (
-              <p
-                aria-live="polite"
-                className="mt-2 text-xs font-medium text-red-600 dark:text-red-400"
-              >
+              <p aria-live="polite" className="mt-2 text-xs font-medium text-danger">
                 A role override is invalid. Save &amp; Apply is disabled until it is fixed.
               </p>
             )}
@@ -746,7 +743,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
               </div>
             </div>
             {selected !== null && (
-              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="mt-2 text-xs text-ink-muted">
                 The API key is stored in an owner-only file (0600) and handed to Claude Code via an
                 apiKeyHelper script — it is never written into settings.json.
               </p>
@@ -755,13 +752,13 @@ export default function App({ ipc = defaultIpc }: AppProps) {
         </div>
       </div>
 
-      <details className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+      <details className="rounded-lg border border-line bg-surface-raised p-4 dark:border-line dark:bg-surface">
         <summary
-          className={`cursor-pointer rounded-md text-sm font-semibold text-zinc-700 dark:text-zinc-200 ${focusRing}`}
+          className={`cursor-pointer rounded-md text-sm font-semibold text-ink ${focusRing}`}
         >
           Advanced
         </summary>
-        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="mt-2 text-sm text-ink-muted">
           Advanced overrides arrive in a later task and default to OFF.
         </p>
       </details>

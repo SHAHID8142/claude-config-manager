@@ -32,21 +32,19 @@ export class ErrorBoundary extends Component<Props, State> {
     const { error } = this.state;
     if (error === null) return this.props.children;
     return (
-      <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 bg-zinc-50 p-6 dark:bg-zinc-950">
-        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-          Something went wrong
-        </h1>
-        <p className="text-sm text-zinc-700 dark:text-zinc-300">
+      <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 bg-surface-sunken p-6 bg-surface">
+        <h1 className="text-lg font-semibold text-ink ">Something went wrong</h1>
+        <p className="text-sm text-ink-muted">
           The interface hit an unexpected error and stopped. Your settings file was not changed by
           this.
         </p>
-        <pre className="max-w-full overflow-x-auto rounded border border-zinc-300 p-3 text-xs text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+        <pre className="max-w-full overflow-x-auto rounded border border-line p-3 text-xs text-ink-muted dark:border-line ">
           {error.message}
         </pre>
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="self-start rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+          className="self-start rounded-md bg-surface px-3 py-1.5 text-sm font-medium text-white dark:bg-surface-sunken dark:text-ink"
         >
           Reload
         </button>

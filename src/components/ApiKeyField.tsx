@@ -67,7 +67,7 @@ export function ApiKeyField({
         spellCheck={false}
         placeholder="••••••••••••"
         aria-describedby={describedBy}
-        className={`w-full rounded-md border border-zinc-300 bg-white px-3 py-2 font-mono text-sm text-zinc-700 placeholder-zinc-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 ${focusRing}`}
+        className={`w-full rounded-md border border-line bg-surface-raised px-3 py-2 font-mono text-sm text-ink-muted placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:opacity-50 dark:border-line dark:bg-surface-raised dark:text-ink ${focusRing}`}
       />
       <button
         type="button"
@@ -75,7 +75,7 @@ export function ApiKeyField({
         disabled={disabled}
         aria-pressed={revealed}
         aria-controls={id}
-        className={`shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-xs font-medium text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 ${focusRing}`}
+        className={`shrink-0 rounded-md border border-line px-2 py-2 text-xs font-medium text-ink-muted disabled:cursor-not-allowed disabled:opacity-50 dark:border-line dark:text-ink ${focusRing}`}
       >
         {revealed ? "Hide" : "Show"}
       </button>

@@ -33,13 +33,13 @@ export function AdvancedSettings({
 }: AdvancedSettingsProps) {
   const checks = roleChecks(roles);
   return (
-    <div className="mt-3 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+    <div className="mt-3 border-t border-line pt-3 dark:border-line">
       <button
         type="button"
         aria-expanded={open}
         aria-controls="advanced-panel"
         onClick={onToggle}
-        className="text-sm font-medium text-zinc-700 underline-offset-2 hover:underline dark:text-zinc-300"
+        className="text-sm font-medium text-ink-muted underline-offset-2 hover:underline "
       >
         Advanced settings (model roles) <span aria-hidden="true">{open ? "▾" : "▸"}</span>
       </button>
@@ -97,10 +97,10 @@ export function AdvancedSettings({
                     placeholder="No override (Claude Code default)"
                     aria-invalid={invalid}
                     aria-describedby={invalid ? `role-${key}-error` : undefined}
-                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 placeholder-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200"
+                    className="w-full rounded-md border border-line bg-surface-raised px-3 py-2 text-sm text-ink-muted placeholder:text-ink-subtle dark:border-line dark:bg-surface-raised dark:text-ink"
                   />
                 </FieldRow>
-                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                <p className="text-xs text-ink-muted">
                   Current:{" "}
                   {effective === null ? (
                     <span>no override (Claude Code default)</span>
@@ -112,7 +112,7 @@ export function AdvancedSettings({
                   <p
                     id={`role-${key}-error`}
                     aria-live="polite"
-                    className="text-xs font-medium text-red-600 dark:text-red-400"
+                    className="text-xs font-medium text-danger"
                   >
                     {check.message}
                   </p>

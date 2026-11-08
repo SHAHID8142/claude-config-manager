@@ -13,7 +13,7 @@ export interface LoadingButtonProps {
 
 const variants = {
   primary: "bg-blue-600 text-white",
-  secondary: "border border-zinc-300 text-zinc-700 dark:border-zinc-600 dark:text-zinc-200",
+  secondary: "border border-line text-ink-muted dark:border-line dark:text-ink",
 };
 
 export function LoadingButton({
