@@ -4,6 +4,14 @@ import { BridgeBadge, CapabilityBadge } from "./components/CapabilityBadge";
 import { FieldRow } from "./components/FieldRow";
 import { LoadingButton } from "./components/LoadingButton";
 import { ModelList } from "./components/ModelList";
+import { AdvancedSettings } from "./components/AdvancedSettings";
+import {
+  EMPTY_ROLES,
+  hasInvalidRole,
+  rolesToSend,
+  type RoleKey,
+  type RoleState,
+} from "./lib/roles";
 import { Section } from "./components/Section";
 import { StatusBanner } from "./components/StatusBanner";
 import {
@@ -90,6 +98,9 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [modelsFetchedFor, setModelsFetchedFor] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  // T45: role overrides start empty = "no override" and stay collapsed.
+  const [roles, setRoles] = useState<RoleState>(EMPTY_ROLES);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   async function handleFetchModels() {
     if (selected === null || isCustom) return;
@@ -164,11 +175,13 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   // Save & Apply gate, so the UI can never offer an apply we would reject.
   const modelValidation = selectedModel === null ? null : validateModelId(selectedModel);
   const modelInvalid = modelValidation !== null && !modelValidation.ok;
+  const roleInvalid = hasInvalidRole(roles);
 
   const canApply =
     (selected !== null || (isCustom && customEndpoint.trim() !== "")) &&
     apiKey.trim() !== "" &&
     !modelInvalid &&
+    !roleInvalid &&
     !applying;
 
   async function handleApply() {
@@ -184,6 +197,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           baseUrl,
           // Only a validated (trimmed) id is ever sent; blank means "no model".
           model: modelValidation?.ok ? modelValidation.value : undefined,
+          // T45: only filled-in roles are sent; the rest stay untouched.
+          roleModels: rolesToSend(roles),
           apiKey: apiKey.trim(),
         },
         ipc,
@@ -505,6 +520,22 @@ export default function App({ ipc = defaultIpc }: AppProps) {
               Source: manual entry · capability data unverified (unknown).
             </p>
           )}
+        <AdvancedSettings
+          open={advancedOpen}
+          onToggle={() => setAdvancedOpen((v) => !v)}
+          roles={roles}
+          onChange={(key: RoleKey, value: string) => setRoles((r) => ({ ...r, [key]: value }))}
+          current={{
+            haiku: status?.envDefaultHaiku ?? null,
+            sonnet: status?.envDefaultSonnet ?? null,
+            opus: status?.envDefaultOpus ?? null,
+          }}
+        />
+        {roleInvalid && (
+          <p aria-live="polite" className="mt-2 text-xs font-medium text-red-600 dark:text-red-400">
+            A role override is invalid. Save &amp; Apply is disabled until it is fixed.
+          </p>
+        )}
       </Section>
 
       <Section title="Actions">
@@ -548,7 +579,9 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             label="Save & Apply"
             pendingLabel="Applying…"
             pending={applying}
-            disabled={(selected === null && !isCustom) || apiKey.trim() === "" || modelInvalid}
+            // One gate, one source of truth: `canApply` covers provider, key,
+            // model validity and role-override validity (T43/T45).
+            disabled={!canApply}
             variant="primary"
             onClick={() => {
               void handleApply();

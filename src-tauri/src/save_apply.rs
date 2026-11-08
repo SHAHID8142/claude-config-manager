@@ -57,6 +57,30 @@ impl std::fmt::Display for ApplyError {
 }
 
 /// Injectable orchestration service (production wiring reads $HOME and the
+/// Optional Claude Code model-role overrides (T45, PRD F05).
+///
+/// Every field defaults to `None`, which means **no override**: the existing
+/// managed env key is left exactly as it is. Claude Code has documented
+/// defaults for each role, so the app never invents a mapping — it only
+/// writes what the user explicitly typed.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RoleOverrides {
+    pub haiku: Option<String>,
+    pub sonnet: Option<String>,
+    pub opus: Option<String>,
+}
+
+/// Trim, treat blank as "no override", and validate the exact value written.
+fn normalize_role_model(value: Option<&str>) -> Result<Option<String>, ApplyError> {
+    let value = value.map(str::trim).filter(|v| !v.is_empty());
+    if let Some(m) = value {
+        crate::config_merge::validate_model_id(m).map_err(|e| {
+            ApplyError::InvalidInput(format!("role model override is invalid: {e}"))
+        })?;
+    }
+    Ok(value.map(|v| v.to_string()))
+}
+
 /// macOS Keychain; tests inject fixtures).
 pub struct SaveApplyService {
     pub home: PathBuf,
@@ -87,6 +111,26 @@ impl SaveApplyService {
         base_url: Option<&str>,
         api_key: Option<&str>,
     ) -> Result<ApplyOutcome, ApplyError> {
+        self.apply_with_roles(
+            provider_id,
+            model,
+            base_url,
+            api_key,
+            &RoleOverrides::default(),
+        )
+    }
+
+    /// Same pipeline as [`Self::apply`], plus explicit model-role overrides
+    /// (T45). An empty/absent role leaves the corresponding managed env key
+    /// untouched — the "default-no-override" behaviour PRD F05 requires.
+    pub fn apply_with_roles(
+        &self,
+        provider_id: &str,
+        model: Option<&str>,
+        base_url: Option<&str>,
+        api_key: Option<&str>,
+        roles: &RoleOverrides,
+    ) -> Result<ApplyOutcome, ApplyError> {
         // --- Input validation (nothing touched yet) ---
         crate::credential_handoff::validate_provider_id(provider_id)
             .map_err(|_| ApplyError::InvalidInput("invalid provider id".into()))?;
@@ -99,6 +143,12 @@ impl SaveApplyService {
             crate::config_merge::validate_model_id(m)
                 .map_err(|e| ApplyError::InvalidInput(e.to_string()))?;
         }
+        // T45: role overrides are validated with the same rules as `model`.
+        let roles = RoleOverrides {
+            haiku: normalize_role_model(roles.haiku.as_deref())?,
+            sonnet: normalize_role_model(roles.sonnet.as_deref())?,
+            opus: normalize_role_model(roles.opus.as_deref())?,
+        };
         if let Some(url) = base_url {
             let bad = matches!(
                 crate::provider_catalog::classify_endpoint(url),
@@ -175,6 +225,9 @@ impl SaveApplyService {
             model: model.map(|m| m.to_string()),
             env_base_url: base_url.map(|b| b.to_string()),
             api_key_helper: Some(helper_path.to_string_lossy().to_string()),
+            env_default_haiku: roles.haiku,
+            env_default_sonnet: roles.sonnet,
+            env_default_opus: roles.opus,
             ..Default::default()
         };
         let next = apply_desired(&current, &desired).map_err(|e| redact(ApplyError::Config(e)))?;
@@ -366,6 +419,82 @@ mod tests {
         // Helper was not installed.
         assert!(!home.join("helpers").join("anthropic.sh").exists());
         let _ = fs::remove_dir_all(&home);
+    }
+
+    fn read_env(home: &Path) -> Value {
+        let text = fs::read_to_string(home.join(".claude/settings.json")).expect("read settings");
+        let doc: Value = serde_json::from_str(&text).expect("valid json");
+        doc.get("env").cloned().unwrap_or(Value::Null)
+    }
+
+    #[test]
+    fn role_overrides_are_written_when_the_user_sets_them() {
+        let (home, store) = fixture("roles");
+        let svc = service(&home, store);
+        let roles = RoleOverrides {
+            haiku: Some("  fast-model  ".into()),
+            sonnet: Some("main-model".into()),
+            opus: None,
+        };
+        svc.apply_with_roles("deepseek", None, None, Some(FAKE_KEY), &roles)
+            .expect("apply with roles");
+
+        let env = read_env(&home);
+        assert_eq!(env["ANTHROPIC_DEFAULT_HAIKU_MODEL"], "fast-model");
+        assert_eq!(env["ANTHROPIC_DEFAULT_SONNET_MODEL"], "main-model");
+        assert_eq!(
+            env.get("ANTHROPIC_DEFAULT_OPUS_MODEL"),
+            None,
+            "absent role must not be invented"
+        );
+        // Unrelated pre-existing env survives the merge.
+        assert_eq!(env["CLAUDE_CODE_X"], "1");
+    }
+
+    #[test]
+    fn absent_or_blank_role_overrides_leave_existing_values_untouched() {
+        let (home, store) = fixture("roles-noop");
+        fs::write(
+            home.join(".claude/settings.json"),
+            r#"{"model":"old-model","env":{"ANTHROPIC_DEFAULT_OPUS_MODEL":"preexisting-opus"}}"#,
+        )
+        .expect("seed");
+        let svc = service(&home, store);
+
+        // All blank/absent → default-no-override: nothing about roles changes.
+        let blank = RoleOverrides {
+            haiku: Some("   ".into()),
+            sonnet: None,
+            opus: Some("".into()),
+        };
+        svc.apply_with_roles("deepseek", None, None, Some(FAKE_KEY), &blank)
+            .expect("apply");
+
+        let env = read_env(&home);
+        assert_eq!(env["ANTHROPIC_DEFAULT_OPUS_MODEL"], "preexisting-opus");
+        assert_eq!(env.get("ANTHROPIC_DEFAULT_HAIKU_MODEL"), None);
+        assert_eq!(env.get("ANTHROPIC_DEFAULT_SONNET_MODEL"), None);
+    }
+
+    #[test]
+    fn invalid_role_override_is_rejected_before_any_write() {
+        let (home, store) = fixture("roles-bad");
+        let before = fs::read(home.join(".claude/settings.json")).expect("read");
+        let svc = service(&home, store);
+        let roles = RoleOverrides {
+            haiku: None,
+            sonnet: Some("bad model with spaces".into()),
+            opus: None,
+        };
+        let err = svc
+            .apply_with_roles("deepseek", None, None, Some(FAKE_KEY), &roles)
+            .expect_err("invalid role must be rejected");
+        assert!(matches!(err, ApplyError::InvalidInput(ref m) if m.contains("role model")));
+        let after = fs::read(home.join(".claude/settings.json")).expect("read");
+        assert_eq!(
+            before, after,
+            "settings must be byte-identical after a rejection"
+        );
     }
 
     #[test]

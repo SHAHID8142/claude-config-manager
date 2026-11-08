@@ -80,17 +80,28 @@ fn save_and_apply(
     model: Option<String>,
     base_url: Option<String>,
     api_key: Option<String>,
+    role_haiku: Option<String>,
+    role_sonnet: Option<String>,
+    role_opus: Option<String>,
 ) -> Result<save_apply::ApplyOutcome, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
     let store: Arc<dyn secret_store::SecretStore> = Arc::new(keychain_store::KeychainStore::new());
     let svc = save_apply::SaveApplyService::for_production(&home, store);
-    svc.apply(
+    // T45: role overrides are optional; absent = leave the managed env key
+    // untouched (never invent a mapping).
+    let roles = save_apply::RoleOverrides {
+        haiku: role_haiku,
+        sonnet: role_sonnet,
+        opus: role_opus,
+    };
+    svc.apply_with_roles(
         &provider_id,
         model.as_deref(),
         base_url.as_deref(),
         api_key.as_deref(),
+        &roles,
     )
     .map_err(|e| match e {
         save_apply::ApplyError::InvalidInput(m) => CommandError::invalid_input(m),

@@ -81,7 +81,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T42 Model metadata with source/unknown labels | ✅ | 2026-11-08 | f83d4dc | ✓ | Provenance = verified template URL (payload cannot set it); fixed 4-field wire shape; manual-entry label; Rust 143+7, TS 87/87 |
 | T43 Model selection validation + Save&Apply integration | ✅ | 2026-11-08 | (T43 commit) | ✓ | TS mirror of validate_model_id gates apply; model sent trimmed/null; fixed Rust raw-vs-trimmed write defect; Rust 144+7, TS 98/98 |
 | T44 Additional discovery adapters, one per commit | ✅ | 2026-11-08 | T44a 64dcd92, T44b a0391fa | ✓ | T44a NVIDIA NIM live-verified (84 models). T44b found+fixed **DeepSeek adapter bug** (`/models` needs Bearer, we sent x-api-key → 401 for everyone); added optional `discovery_auth`. Rust 150+7, TS 98/98. Limits: DeepSeek/Anthropic not live-verified (no keys, rule 15); Z.AI manual entry |
-| T45 Advanced settings panel, default-no-override | ⬜ | — | — | — | — |
+| T45 Advanced settings panel, default-no-override | ✅ | 2026-11-08 | <hash> | ✓ | 3 role overrides (haiku/sonnet/opus) collapsed by default; blank = untouched; current values surfaced from read_status; validation blocks apply; fixed duplicate gate on Save&Apply button. Rust 154+7, TS 110/110 |
 | T46 Verified model-role mapping if needed | ⬜ | — | — | — | — |
 
 ## Bridge setup and lifecycle
@@ -120,4 +120,4 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 ## Blockers / open items
 
-None currently. Next task: **T45**.
+None currently. Next task: **T46**.

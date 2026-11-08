@@ -85,6 +85,11 @@ export interface SaveApplyArgs {
   model?: string;
   baseUrl?: string;
   apiKey?: string;
+  /**
+   * Optional model-role overrides (T45). A missing key means "no override":
+   * the managed env var is left untouched, never guessed.
+   */
+  roleModels?: { haiku?: string; sonnet?: string; opus?: string };
 }
 
 export async function saveAndApply(
@@ -96,6 +101,9 @@ export async function saveAndApply(
     model: args.model ?? null,
     baseUrl: args.baseUrl ?? null,
     apiKey: args.apiKey ?? null,
+    roleHaiku: args.roleModels?.haiku ?? null,
+    roleSonnet: args.roleModels?.sonnet ?? null,
+    roleOpus: args.roleModels?.opus ?? null,
   });
 }
 
@@ -116,6 +124,10 @@ export interface EffectiveStatus {
   authTokenPresent: boolean;
   apiKeyPresent: boolean;
   apiKeyHelper: string | null;
+  /** T45: configured role overrides; null = Claude Code default applies. */
+  envDefaultHaiku: string | null;
+  envDefaultSonnet: string | null;
+  envDefaultOpus: string | null;
   warnings: StatusWarning[];
 }
 

@@ -37,6 +37,11 @@ pub struct EffectiveStatus {
     pub auth_token_present: bool,
     pub api_key_present: bool,
     pub api_key_helper: Option<String>,
+    /// Configured model-role overrides (T45). `None` = no override, which is
+    /// the default: Claude Code's own role defaults apply.
+    pub env_default_haiku: Option<String>,
+    pub env_default_sonnet: Option<String>,
+    pub env_default_opus: Option<String>,
     pub warnings: Vec<StatusWarning>,
 }
 
@@ -54,6 +59,9 @@ pub fn read_effective_status(path: &Path) -> Result<EffectiveStatus, ConfigError
                 auth_token_present: false,
                 api_key_present: false,
                 api_key_helper: None,
+                env_default_haiku: None,
+                env_default_sonnet: None,
+                env_default_opus: None,
                 warnings: Vec::new(),
             });
         }
@@ -74,6 +82,9 @@ pub fn read_effective_status(path: &Path) -> Result<EffectiveStatus, ConfigError
 
     let env_model = get_env("ANTHROPIC_MODEL");
     let env_base_url = get_env("ANTHROPIC_BASE_URL");
+    let env_default_haiku = get_env("ANTHROPIC_DEFAULT_HAIKU_MODEL");
+    let env_default_sonnet = get_env("ANTHROPIC_DEFAULT_SONNET_MODEL");
+    let env_default_opus = get_env("ANTHROPIC_DEFAULT_OPUS_MODEL");
     let auth_token_present = get_env("ANTHROPIC_AUTH_TOKEN").is_some();
     let api_key_present = get_env("ANTHROPIC_API_KEY").is_some();
     let api_key_helper = doc
@@ -112,12 +123,55 @@ pub fn read_effective_status(path: &Path) -> Result<EffectiveStatus, ConfigError
         auth_token_present,
         api_key_present,
         api_key_helper,
+        env_default_haiku,
+        env_default_sonnet,
+        env_default_opus,
         warnings,
     })
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    fn temp(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "ccm-status-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).expect("dir");
+        dir
+    }
+
+    #[test]
+    fn role_overrides_are_reported_and_default_to_none() {
+        // T45: the advanced panel must be able to show what is really set,
+        // so "no override" is never misreported as an override.
+        let dir = temp("roles");
+        let path = dir.join("settings.json");
+        fs::write(
+            &path,
+            r#"{"env":{"ANTHROPIC_DEFAULT_SONNET_MODEL":"main-model"}}"#,
+        )
+        .expect("seed");
+
+        let status = read_effective_status(&path).expect("status");
+        assert_eq!(status.env_default_sonnet.as_deref(), Some("main-model"));
+        assert_eq!(status.env_default_haiku, None);
+        assert_eq!(status.env_default_opus, None);
+
+        let missing = read_effective_status(&dir.join("absent.json")).expect("missing ok");
+        assert!(!missing.settings_found);
+        assert_eq!(missing.env_default_haiku, None);
+        assert_eq!(missing.env_default_sonnet, None);
+        assert_eq!(missing.env_default_opus, None);
+        fs::remove_dir_all(&dir).ok();
+    }
+
     use super::*;
     use std::fs;
     use std::path::PathBuf;

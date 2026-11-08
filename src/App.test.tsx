@@ -14,6 +14,9 @@ const statusFixture: EffectiveStatus = {
   authTokenPresent: false,
   apiKeyPresent: false,
   apiKeyHelper: "/app/helpers/anthropic.sh",
+  envDefaultHaiku: null,
+  envDefaultSonnet: null,
+  envDefaultOpus: null,
   warnings: [],
 };
 
@@ -848,5 +851,99 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0].model).toBe("anthropic/claude-x");
     expect(calls[0].baseUrl).toBe("https://openrouter.ai/api");
+  });
+});
+
+describe("Advanced role overrides + Save & Apply (T45)", () => {
+  const outcomeFixture = {
+    settingsPath: "/tmp/fixture/.claude/settings.json",
+    backupFileName: "settings-backup-1700000000000000000.json",
+    helperPath: "/tmp/fixture/helpers/anthropic.sh",
+    appliedKeys: ["env", "apiKeyHelper"],
+  };
+
+  function mockCapturing() {
+    const calls: Array<Record<string, unknown>> = [];
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        save_and_apply: (args) => {
+          calls.push(args ?? {});
+          return Promise.resolve(outcomeFixture);
+        },
+      },
+    });
+    return { ipc, calls };
+  }
+
+  async function ready() {
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "anthropic");
+    await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-test-key");
+  }
+
+  it("keeps the panel collapsed and sends no role overrides by default", async () => {
+    const { ipc, calls } = mockCapturing();
+    render(<App ipc={ipc} />);
+    await ready();
+
+    expect(screen.getByRole("button", { name: /advanced settings/i })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].roleHaiku).toBeNull();
+    expect(calls[0].roleSonnet).toBeNull();
+    expect(calls[0].roleOpus).toBeNull();
+  });
+
+  it("sends only the role overrides the user filled in, trimmed", async () => {
+    const { ipc, calls } = mockCapturing();
+    render(<App ipc={ipc} />);
+    await ready();
+    await userEvent.click(screen.getByRole("button", { name: /advanced settings/i }));
+    await userEvent.type(screen.getByLabelText("Haiku role"), "  fast-model  ");
+    await userEvent.type(screen.getByLabelText("Opus role"), "big-model");
+
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].roleHaiku).toBe("fast-model");
+    expect(calls[0].roleSonnet).toBeNull();
+    expect(calls[0].roleOpus).toBe("big-model");
+  });
+
+  it("blocks apply while a role override is invalid and recovers when fixed", async () => {
+    const { ipc, calls } = mockCapturing();
+    render(<App ipc={ipc} />);
+    await ready();
+    await userEvent.click(screen.getByRole("button", { name: /advanced settings/i }));
+
+    const sonnet = screen.getByLabelText("Sonnet role");
+    await userEvent.type(sonnet, "bad model");
+    expect(sonnet).toHaveAttribute("aria-invalid", "true");
+    const apply = screen.getByRole("button", { name: "Save & Apply" });
+    expect(apply).toBeDisabled();
+    expect(screen.getByText(/a role override is invalid/i)).toBeInTheDocument();
+
+    await userEvent.clear(sonnet);
+    await userEvent.type(sonnet, "good-model");
+    expect(apply).toBeEnabled();
+
+    await userEvent.click(apply);
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].roleSonnet).toBe("good-model");
+  });
+
+  it("shows the currently configured role value from read_status", async () => {
+    const { ipc } = mockCapturing();
+    render(<App ipc={ipc} />);
+    await ready();
+    await userEvent.click(screen.getByRole("button", { name: /advanced settings/i }));
+    // Default fixture has no overrides → honest "no override" text, never blank.
+    expect(
+      screen.getAllByText(/no override \(Claude Code default\)/).length,
+    ).toBeGreaterThanOrEqual(3);
   });
 });
