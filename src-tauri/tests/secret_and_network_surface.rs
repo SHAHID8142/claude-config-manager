@@ -187,7 +187,8 @@ fn helper_script_never_contains_the_api_key() {
     let script = generate_helper_script("deepseek").expect("script");
     assert!(!script.contains(FAKE_KEY));
     // It must read the credential file at run time instead of embedding anything.
-    assert!(script.contains("ClaudeConfigManager/secrets/deepseek.secret"));
+    // G16 moved secrets to a space-free path; keep this pinned to the real one.
+    assert!(script.contains(".claude-config-manager/secrets/deepseek.secret"));
     assert!(!script.contains("sk-ant"));
     // Only the validated provider id may be interpolated.
     assert!(script.contains("deepseek"));

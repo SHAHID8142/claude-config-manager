@@ -25,6 +25,8 @@ function mockWithProviders(status = statusFixture) {
   return createMockIpc({
     handlers: {
       list_providers: () => Promise.resolve(providerSummaryFixtures),
+      // V2-21: the credentials panel always asks once per provider switch.
+      list_credentials: () => Promise.resolve([]),
       read_status: () => Promise.resolve(status),
       check_environment: () =>
         Promise.resolve({
@@ -104,6 +106,7 @@ describe("Provider selector (T18)", () => {
     expect(ipc.calls.map((c) => c.cmd).sort()).toEqual([
       "check_environment",
       "has_credential",
+      "list_credentials",
       "list_providers",
       "read_status",
     ]);
@@ -125,7 +128,7 @@ describe("Provider selector (T18)", () => {
     const save = await screen.findByRole("button", { name: /save & apply/i });
     await waitFor(() => expect(save).toBeEnabled());
     expect(screen.getByText(/leave this blank to keep it/i)).toBeInTheDocument();
-    const key = screen.getByLabelText(/api key/i);
+    const key = screen.getByLabelText("API key", { selector: "input" });
     expect(key).toHaveValue("");
   });
 
@@ -209,6 +212,7 @@ describe("Provider selector (T18)", () => {
 
   it("shows an error banner when the catalog fails to load", async () => {
     const ipc = createMockIpc({
+      handlers: { list_credentials: () => Promise.resolve([]) },
       failures: { list_providers: { kind: "not_available", message: "backend offline" } },
     });
     render(<App ipc={ipc} />);
@@ -1147,5 +1151,73 @@ describe("Advanced role overrides + Save & Apply (T45)", () => {
     expect(
       screen.getAllByText(/no override \(Claude Code default\)/).length,
     ).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("Credentials panel (V2-21)", () => {
+  const one = {
+    id: "openrouter-1",
+    providerId: "openrouter",
+    label: "work",
+    last4: "9z9z",
+    priority: 0,
+    enabled: true,
+    legacy: false,
+  };
+
+  function mockWithCredential(list = [one]) {
+    return createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        check_environment: () => Promise.resolve(null),
+        has_credential: () => Promise.resolve(true),
+        list_credentials: () => Promise.resolve(list),
+        add_credential: () =>
+          Promise.resolve({ ...one, id: "openrouter-2", label: "second", last4: "abcd" }),
+        save_and_apply: () =>
+          Promise.resolve({
+            settingsPath: "/Users/x/.claude/settings.json",
+            backupFileName: "settings-backup-1.json",
+            helperPath: "/Users/x/.claude-config-manager/helpers/openrouter.sh",
+            appliedKeys: ["apiKeyHelper"],
+          }),
+      },
+    });
+  }
+
+  it("shows stored keys masked and adds a new one", async () => {
+    const ipc = mockWithCredential();
+    render(<App ipc={ipc} />);
+    await userEvent.selectOptions(
+      await screen.findByLabelText("Provider", { selector: "select" }),
+      "openrouter",
+    );
+    expect(await screen.findByText("•••• 9z9z")).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/label for the new key/i), "second");
+    await userEvent.type(screen.getByLabelText(/new api key/i), "sk-test-fixture-2");
+    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => {
+      expect(ipc.calls.find((c) => c.cmd === "add_credential")?.args).toMatchObject({
+        providerId: "openrouter",
+        label: "second",
+        secret: "sk-test-fixture-2",
+      });
+    });
+  });
+
+  it("saves through the selected credential id", async () => {
+    const ipc = mockWithCredential();
+    render(<App ipc={ipc} />);
+    await userEvent.selectOptions(
+      await screen.findByLabelText("Provider", { selector: "select" }),
+      "openrouter",
+    );
+    await screen.findByText("•••• 9z9z");
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(ipc.calls.some((c) => c.cmd === "save_and_apply")).toBe(true));
+    expect(ipc.calls.find((c) => c.cmd === "save_and_apply")?.args).toMatchObject({
+      credentialId: "openrouter-1",
+    });
   });
 });

@@ -27,7 +27,7 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-18 | Credential-ID + provider-profile schemas | done | `docs/V2/V2-18-credential-schema.md` |
 | V2-19 | Backward-compatible credential store migration | done | `docs/V2/V2-19-migration.md` |
 | V2-20 | Multiple credentials per provider (backend) | done | `docs/V2/V2-20-multi-credential-vault.md` |
-| V2-21 | Credential management + masked selection UI | todo | — |
+| V2-21 | Credential management + masked selection UI | done | `docs/V2/V2-21-credentials-ui.md` |
 | V2-22 | Credential priority + enable/disable | todo | — |
 | V2-23 | Multiple routing targets | todo | — |
 | V2-24 | Compact priority editor | todo | — |

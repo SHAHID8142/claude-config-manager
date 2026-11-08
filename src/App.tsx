@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ApiKeyField } from "./components/ApiKeyField";
 import { BridgeBadge, CapabilityBadge } from "./components/CapabilityBadge";
 import { FieldRow } from "./components/FieldRow";
@@ -14,6 +14,7 @@ import {
 } from "./lib/roles";
 import { Section } from "./components/Section";
 import { AppHeader } from "./components/AppHeader";
+import { CredentialsPanel } from "./components/CredentialsPanel";
 import { StatusBanner } from "./components/StatusBanner";
 import {
   checkEnvironment,
@@ -21,6 +22,11 @@ import {
   discoverModels,
   testConnection,
   hasCredential,
+  addCredential,
+  listCredentials,
+  promoteCredential,
+  removeCredential,
+  setCredentialEnabled,
   listProviders,
   readStatus,
   restoreLastBackup,
@@ -28,6 +34,7 @@ import {
   isCommandError,
   type ApplyOutcome,
   type ConnectionTestResult,
+  type CredentialView,
   type EffectiveStatus,
   type EnvironmentReport,
   type IpcLike,
@@ -122,6 +129,12 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     providerId: string;
     has: boolean;
   } | null>(null);
+  // V2-21: masked credential list for the selected provider.
+  const [credentials, setCredentials] = useState<{
+    providerId: string;
+    list: CredentialView[];
+  } | null>(null);
+  const [credentialsError, setCredentialsError] = useState<string | null>(null);
 
   async function handleFetchModels() {
     if (selected === null || isCustom) return;
@@ -208,6 +221,78 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     };
   }, [selectedId, ipc]);
 
+  // V2-21: reload the masked credential list whenever the provider changes or a
+  // mutation succeeded. A failure here must never block the rest of the screen.
+  const reloadCredentials = useCallback(async () => {
+    if (selectedId === "" || selectedId === CUSTOM_ID) return;
+    try {
+      const list = await listCredentials(selectedId, ipc);
+      setCredentials({ providerId: selectedId, list });
+      setCredentialsError(null);
+    } catch (err: unknown) {
+      setCredentials(null);
+      setCredentialsError(isCommandError(err) ? err.message : "Could not read stored keys.");
+    }
+  }, [selectedId, ipc]);
+
+  useEffect(() => {
+    if (selectedId === "" || selectedId === CUSTOM_ID) return;
+    let cancelled = false;
+    listCredentials(selectedId, ipc)
+      .then((list) => {
+        if (cancelled) return;
+        setCredentials({ providerId: selectedId, list });
+        setCredentialsError(null);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setCredentials(null);
+        setCredentialsError(isCommandError(err) ? err.message : "Could not read stored keys.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, ipc]);
+
+  async function handleAddCredential(label: string, secret: string) {
+    if (selectedId === "" || selectedId === CUSTOM_ID) return;
+    try {
+      await addCredential(selectedId, label, secret, ipc);
+      setCredentialsError(null);
+      await reloadCredentials();
+      setCredentialCheck({ providerId: selectedId, has: true });
+    } catch (err: unknown) {
+      setCredentialsError(isCommandError(err) ? err.message : "Could not store the key.");
+    }
+  }
+
+  async function handleRemoveCredential(id: string) {
+    try {
+      await removeCredential(id, ipc);
+      await reloadCredentials();
+    } catch (err: unknown) {
+      setCredentialsError(isCommandError(err) ? err.message : "Could not delete the key.");
+    }
+  }
+
+  async function handleToggleCredential(id: string, enabled: boolean) {
+    try {
+      await setCredentialEnabled(id, enabled, ipc);
+      await reloadCredentials();
+    } catch (err: unknown) {
+      setCredentialsError(isCommandError(err) ? err.message : "Could not update the key.");
+    }
+  }
+
+  async function handlePromoteCredential(id: string) {
+    try {
+      await promoteCredential(id, ipc);
+      await reloadCredentials();
+    } catch (err: unknown) {
+      setCredentialsError(isCommandError(err) ? err.message : "Could not reorder the keys.");
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     listProviders(ipc)
@@ -246,6 +331,13 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   // previous selection must never enable Save.
   const storedCredential = credentialCheck?.providerId === selectedId && credentialCheck.has;
 
+  // Only a list loaded for THIS provider counts; a stale list must never be
+  // shown against a different provider.
+  const credentialList = credentials?.providerId === selectedId ? credentials.list : [];
+
+  // V2-21: the first enabled credential is the one the helper will read.
+  const activeCredential = credentialList.find((c) => c.enabled) ?? null;
+
   const contextWindowDigits = contextWindow.trim();
   const contextWindowInvalid =
     contextWindowDigits !== "" &&
@@ -282,6 +374,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           model: modelValidation?.ok ? modelValidation.value : undefined,
           // T45: only filled-in roles are sent; the rest stay untouched.
           roleModels: rolesToSend(roles),
+          // The helper must read the selected credential, not a provider default.
+          credentialId: activeCredential?.id,
           // Blank means "leave the managed key as it is"; the reset flag is
           // only sent when an effective value exists and the field was cleared.
           maxContextTokens: contextWindowDigits === "" ? undefined : Number(contextWindowDigits),
@@ -489,6 +583,25 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                 disabled={selected === null && !isCustom}
               />
             </FieldRow>
+          </Section>
+          <Section title="Credentials">
+            <CredentialsPanel
+              credentials={credentialList}
+              addDisabled={selected === null && !isCustom}
+              onAdd={(label, secret) => {
+                void handleAddCredential(label, secret);
+              }}
+              onRemove={(id) => {
+                void handleRemoveCredential(id);
+              }}
+              onToggle={(id, enabled) => {
+                void handleToggleCredential(id, enabled);
+              }}
+              onPromote={(id) => {
+                void handlePromoteCredential(id);
+              }}
+              error={credentialsError}
+            />
           </Section>
           <Section title="Model">
             {modelsError !== null && (

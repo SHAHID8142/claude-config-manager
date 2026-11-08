@@ -96,6 +96,9 @@ fn save_and_apply(
     // the managed key instead of writing a value.
     max_context_tokens: Option<u32>,
     reset_context_window: Option<bool>,
+    // V2-21: which stored credential the helper must read. Absent keeps the
+    // pre-V2 behaviour (`secrets/<provider>.secret`).
+    credential_id: Option<String>,
 ) -> Result<save_apply::ApplyOutcome, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
@@ -114,6 +117,29 @@ fn save_and_apply(
         sonnet: role_sonnet,
         opus: role_opus,
     };
+    // The account must be a credential this install actually knows: either the
+    // provider's legacy file or a record in the index. Anything else is refused
+    // before a helper is written (a helper pointing at a missing file fails
+    // closed at request time, which would look like "connection failed").
+    let account = match credential_id {
+        Some(id) => {
+            credential_index::validate_credential_id(&id)
+                .map_err(|_| CommandError::invalid_input("invalid credential id"))?;
+            let vault = credential_vault::CredentialVault::for_home(&home);
+            let known = vault
+                .load()
+                .map_err(|e| CommandError::io(e.to_string()))?
+                .get(&id)
+                .is_some();
+            if !known {
+                return Err(CommandError::invalid_input(
+                    "no stored credential with that id — add it first",
+                ));
+            }
+            Some(id)
+        }
+        None => None,
+    };
     svc.apply_with_window(
         &provider_id,
         model.as_deref(),
@@ -122,6 +148,7 @@ fn save_and_apply(
         &roles,
         max_context_tokens,
         reset_context_window.unwrap_or(false),
+        account.as_deref(),
     )
     .map_err(|e| match e {
         save_apply::ApplyError::InvalidInput(m) => CommandError::invalid_input(m),
@@ -246,6 +273,89 @@ fn has_credential(provider_id: String) -> Result<bool, CommandError> {
         .map_err(|e| CommandError::io(e.to_string()))
 }
 
+/// V2-21: masked credential metadata for the UI. Never includes the key.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialView {
+    pub id: String,
+    pub provider_id: String,
+    pub label: String,
+    pub last4: String,
+    pub priority: u32,
+    pub enabled: bool,
+    /// True for a migrated pre-V2 key: it lives in `secrets/<provider>.secret`
+    /// and cannot be deleted from here without deleting that file, so the UI
+    /// labels it and keeps it undeletable.
+    pub legacy: bool,
+}
+
+impl CredentialView {
+    fn from_record(r: &credential_index::CredentialRecord) -> Self {
+        Self {
+            id: r.id.clone(),
+            provider_id: r.provider_id.clone(),
+            label: r.label.clone(),
+            last4: r.last4.clone(),
+            priority: r.priority,
+            enabled: r.enabled,
+            legacy: r.id == credential_migration::legacy_credential_id(&r.provider_id),
+        }
+    }
+}
+
+fn vault() -> Result<credential_vault::CredentialVault, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    Ok(credential_vault::CredentialVault::for_home(&home))
+}
+
+fn vault_error(e: credential_vault::VaultError) -> CommandError {
+    match e {
+        credential_vault::VaultError::Invalid(m) | credential_vault::VaultError::Index(
+            credential_index::IndexError::Invalid(m),
+        ) => CommandError::invalid_input(m),
+        other => CommandError::io(other.to_string()),
+    }
+}
+
+#[tauri::command]
+fn list_credentials(provider_id: String) -> Result<Vec<CredentialView>, CommandError> {
+    credential_handoff::validate_provider_id(&provider_id)
+        .map_err(|_| CommandError::invalid_input("invalid provider id"))?;
+    let list = vault()?.list(&provider_id).map_err(vault_error)?;
+    Ok(list.iter().map(CredentialView::from_record).collect())
+}
+
+#[tauri::command]
+fn add_credential(
+    provider_id: String,
+    label: String,
+    secret: String,
+) -> Result<CredentialView, CommandError> {
+    let record = vault()?
+        .add(&provider_id, &label, &secret)
+        .map_err(vault_error)?;
+    Ok(CredentialView::from_record(&record))
+}
+
+#[tauri::command]
+fn remove_credential(credential_id: String) -> Result<bool, CommandError> {
+    vault()?.remove(&credential_id).map_err(vault_error)
+}
+
+#[tauri::command]
+fn set_credential_enabled(credential_id: String, enabled: bool) -> Result<bool, CommandError> {
+    vault()?
+        .set_enabled(&credential_id, enabled)
+        .map_err(vault_error)
+}
+
+#[tauri::command]
+fn promote_credential(credential_id: String) -> Result<bool, CommandError> {
+    vault()?.promote(&credential_id).map_err(vault_error)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -258,7 +368,12 @@ pub fn run() {
             check_environment,
             discover_models,
             test_connection,
-            has_credential
+            has_credential,
+            list_credentials,
+            add_credential,
+            remove_credential,
+            set_credential_enabled,
+            promote_credential
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

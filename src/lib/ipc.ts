@@ -96,6 +96,11 @@ export interface SaveApplyArgs {
    * the model really supports 1M. Omit to leave the managed key untouched.
    */
   maxContextTokens?: number;
+  /**
+   * Which stored credential the generated helper must read (V2-21). Absent
+   * keeps the pre-V2 provider-level file.
+   */
+  credentialId?: string;
   /** Remove `CLAUDE_CODE_MAX_CONTEXT_TOKENS` instead of writing a value. */
   resetContextWindow?: boolean;
 }
@@ -112,6 +117,7 @@ export async function saveAndApply(
     roleHaiku: args.roleModels?.haiku ?? null,
     roleSonnet: args.roleModels?.sonnet ?? null,
     roleOpus: args.roleModels?.opus ?? null,
+    credentialId: args.credentialId ?? null,
     maxContextTokens: args.maxContextTokens ?? null,
     resetContextWindow: args.resetContextWindow ?? false,
   });
@@ -219,6 +225,61 @@ export async function testConnection(
     providerId,
     credential: credential ?? null,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Credentials (V2-21) — masked metadata only; the key itself never round-trips
+// back to the UI.
+// ---------------------------------------------------------------------------
+
+export interface CredentialView {
+  id: string;
+  providerId: string;
+  label: string;
+  /** Last four characters, or "" when unknown (migrated legacy keys). */
+  last4: string;
+  priority: number;
+  enabled: boolean;
+  /** Pre-V2 key at secrets/<provider>.secret — labelled, never deletable here. */
+  legacy: boolean;
+}
+
+export async function listCredentials(
+  providerId: string,
+  ipc: IpcLike = defaultIpc,
+): Promise<CredentialView[]> {
+  return ipc.invoke<CredentialView[]>("list_credentials", { providerId });
+}
+
+export async function addCredential(
+  providerId: string,
+  label: string,
+  secret: string,
+  ipc: IpcLike = defaultIpc,
+): Promise<CredentialView> {
+  return ipc.invoke<CredentialView>("add_credential", { providerId, label, secret });
+}
+
+export async function removeCredential(
+  credentialId: string,
+  ipc: IpcLike = defaultIpc,
+): Promise<boolean> {
+  return ipc.invoke<boolean>("remove_credential", { credentialId });
+}
+
+export async function setCredentialEnabled(
+  credentialId: string,
+  enabled: boolean,
+  ipc: IpcLike = defaultIpc,
+): Promise<boolean> {
+  return ipc.invoke<boolean>("set_credential_enabled", { credentialId, enabled });
+}
+
+export async function promoteCredential(
+  credentialId: string,
+  ipc: IpcLike = defaultIpc,
+): Promise<boolean> {
+  return ipc.invoke<boolean>("promote_credential", { credentialId });
 }
 
 /** V2-12a: is a credential already stored for this provider? Lets the UI keep

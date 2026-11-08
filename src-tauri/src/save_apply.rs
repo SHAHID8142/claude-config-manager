@@ -13,7 +13,7 @@ use crate::config_merge::{DesiredSettings, apply_desired};
 use crate::config_reader::ConfigError;
 use crate::config_writer::{snapshot_mtime, write_settings_atomic};
 use crate::credential_handoff::{
-    default_helpers_dir, generate_helper_script, install_helper_script,
+    default_helpers_dir, generate_helper_script_for, install_helper_script,
 };
 use crate::credential_service::CredentialService;
 use crate::redact::redact_secrets;
@@ -140,7 +140,7 @@ impl SaveApplyService {
         api_key: Option<&str>,
         roles: &RoleOverrides,
     ) -> Result<ApplyOutcome, ApplyError> {
-        self.apply_with_window(provider_id, model, base_url, api_key, roles, None, false)
+        self.apply_with_window(provider_id, model, base_url, api_key, roles, None, false, None)
     }
 
     /// [`Self::apply_with_roles`] plus the declared context window
@@ -157,6 +157,7 @@ impl SaveApplyService {
         roles: &RoleOverrides,
         context_window: Option<u32>,
         reset_window: bool,
+        credential_account: Option<&str>,
     ) -> Result<ApplyOutcome, ApplyError> {
         // --- Mutual exclusion (G4): one apply at a time, process-wide ---
         // Acquired before anything is read so two windows cannot interleave a
@@ -218,14 +219,17 @@ impl SaveApplyService {
         }
 
         // --- Helper script (helper mode is the only mode in T33) ---
+        // V2-21: with several credentials per provider the helper must read the
+        // one the owner selected, not a provider-wide default file.
+        let account = credential_account.unwrap_or(provider_id);
         let stored = creds
-            .has_credential(provider_id)
+            .has_credential(account)
             .map_err(|e| ApplyError::Io(e.to_string()))?;
         if !stored {
             return Err(ApplyError::NoCredential);
         }
-        let script =
-            generate_helper_script(provider_id).map_err(|e| ApplyError::Io(e.to_string()))?;
+        let script = generate_helper_script_for(provider_id, account)
+            .map_err(|e| ApplyError::Io(e.to_string()))?;
         let helper_path = install_helper_script(&self.helpers_dir, provider_id, &script)
             .map_err(|e| ApplyError::Backup(e.to_string()))?;
         applied_keys.push("apiKeyHelper".to_string());
