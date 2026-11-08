@@ -48,7 +48,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T19 Validated Base URL field + protocol warnings | ✅ | 2026-11-08 | (T19 commit) | ✓ | classify_endpoint Rust authority + TS mirror; live insecure/local warnings; 23+36 tests |
 | T20 Masked API key entry + reveal/hide | ✅ | 2026-11-08 | (T20 commit) | ✓ | 30s auto-rehide + blur rehide; aria-pressed; no echo test; 44/44 |
 | T21 OS credential vault interface + mock tests | ✅ | 2026-11-08 | (T21 commit) | ✓ | SecretStore trait + MockSecretStore; 8 tests incl. concurrency + no-secret-in-errors |
-| T22 macOS Keychain-backed vault | ⬜ | — | — | — | — |
+| T22 macOS Keychain-backed vault | ✅ | 2026-11-08 | (T22 commit) | ✓ | keyring v3→v4 fix (legacy API no-ops on macOS 26); real round-trip verified; ACL-prompt behavior documented, never bypassed |
 | T23 Secret lifecycle + redaction tests | ⬜ | — | — | — | — |
 | T24 Additional provider presets, one per commit | ⬜ | — | — | — | — |
 | T25 Capability/compatibility labels | ⬜ | — | — | — | — |
