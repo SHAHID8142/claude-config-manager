@@ -83,7 +83,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T44 Additional discovery adapters, one per commit | ✅ | 2026-11-08 | T44a 64dcd92, T44b a0391fa | ✓ | T44a NVIDIA NIM live-verified (84 models). T44b found+fixed **DeepSeek adapter bug** (`/models` needs Bearer, we sent x-api-key → 401 for everyone); added optional `discovery_auth`. Rust 150+7, TS 98/98. Limits: DeepSeek/Anthropic not live-verified (no keys, rule 15); Z.AI manual entry |
 | T45 Advanced settings panel, default-no-override | ✅ | 2026-11-08 | 0ce3297 | ✓ | 3 role overrides (haiku/sonnet/opus) collapsed by default; blank = untouched; current values surfaced from read_status; validation blocks apply; fixed duplicate gate on Save&Apply button. Rust 154+7, TS 110/110 |
 | T46 Verified role mapping only; no failover | ✅ | 2026-11-08 | c300208 | ✓ | Docs verify DEFAULT_* vars pin aliases with moving defaults → no mapping shipped; ADR-002 + 2 guard tests (env.ANTHROPIC_MODEL never written, rejected apply byte-identical). Rust 156+7 |
-| T69a M1 fix: clear stale endpoint on provider switch | ✅ | 2026-11-08 | <hash> | ✓ | **Critical**: switching compat→native inherited old `ANTHROPIC_BASE_URL`, sending the Anthropic key to the previous provider. Added `clear_env_base_url` removal path; 2 regression tests. Rust 203 total |
+| T69a M1 fix: clear stale endpoint on provider switch | ✅ | 2026-11-08 | 21f3b93 | ✓ | **Critical**: switching compat→native inherited old `ANTHROPIC_BASE_URL`, sending the Anthropic key to the previous provider. Added `clear_env_base_url` removal path; 2 regression tests. Rust 203 total |
 
 ## Bridge setup and lifecycle
 
