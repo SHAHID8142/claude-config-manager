@@ -18,7 +18,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | Task | Status | Date | Commit | Push | Notes |
 |------|--------|------|--------|------|-------|
 | T01 Audit repo/workspace/remote/toolchain; record baseline | ✅ | 2026-11-08 | 8c2946a (baseline) + audit commit | ✓ | Baseline docs committed `8c2946a`; remote created & pushed on user authorization; toolchain audit in `docs/audits/T01-baseline.md` |
-| T02 Verify Claude Code global config paths/keys/precedence/auth; document matrix | ⬜ | — | — | — | Next task |
+| T02 Verify Claude Code global config paths/keys/precedence/auth; document matrix | ✅ | 2026-11-08 | (T02 commit) | ✓ | `docs/research/claude-code-config-matrix.md`; official docs verified + local cross-check; plaintext/env tradeoffs routed to T32/T34 |
 | T03 Evaluate open-source bridges (protocol translation) | ⬜ | — | — | — | — |
 | T04 Select bridge with evidence; write ADR; STOP if no safe candidate | ⬜ | — | — | — | — |
 | T05 Threat model | ⬜ | — | — | — | — |
