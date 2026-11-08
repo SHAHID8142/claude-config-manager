@@ -67,7 +67,33 @@ export const openRouterPreset: ProviderTemplateFixture = {
   docs_url: "https://openrouter.ai/docs/cookbook/coding-agents/claude-code-integration",
 };
 
-export const builtinPresetFixtures: ProviderTemplateFixture[] = [anthropicPreset, openRouterPreset];
+/** T24: DeepSeek preset — mirrors src-tauri/presets/deepseek.json. */
+export const deepSeekPreset: ProviderTemplateFixture = {
+  schema_version: 1,
+  id: "deepseek",
+  name: "DeepSeek",
+  auth: "api_key",
+  protocol: "anthropic_compat",
+  bridge: "not_required",
+  direct_base_url: "https://api.deepseek.com/anthropic",
+  discovery: {
+    kind: "endpoint",
+    url: "https://api.deepseek.com/models",
+    requires_auth: true,
+    list_selector: "data",
+  },
+  capability_status: {
+    status: "verified",
+    source_url: "https://api-docs.deepseek.com/guides/anthropic_api",
+  },
+  docs_url: "https://api-docs.deepseek.com/guides/anthropic_api",
+};
+
+export const builtinPresetFixtures: ProviderTemplateFixture[] = [
+  anthropicPreset,
+  openRouterPreset,
+  deepSeekPreset,
+];
 
 /** T18: the provider list the UI receives via `list_providers`, mirrored
  * from the Rust `ProviderSummary` wire shape (camelCase). */
@@ -93,5 +119,16 @@ export const providerSummaryFixtures: ProviderSummary[] = [
       source_url: "https://openrouter.ai/docs/api-reference/messages",
     },
     docsUrl: "https://openrouter.ai/docs/cookbook/coding-agents/claude-code-integration",
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    protocol: "anthropic_compat",
+    bridge: "not_required",
+    capabilityStatus: {
+      status: "verified",
+      source_url: "https://api-docs.deepseek.com/guides/anthropic_api",
+    },
+    docsUrl: "https://api-docs.deepseek.com/guides/anthropic_api",
   },
 ];

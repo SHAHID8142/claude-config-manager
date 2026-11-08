@@ -10,6 +10,7 @@ use crate::provider_catalog::{ProviderTemplate, parse_template};
 
 const ANTHROPIC_PRESET: &str = include_str!("../presets/anthropic.json");
 const OPENROUTER_PRESET: &str = include_str!("../presets/openrouter.json");
+const DEEPSEEK_PRESET: &str = include_str!("../presets/deepseek.json");
 
 /// All bundled provider templates, in display order.
 pub fn load_builtin_presets() -> Vec<ProviderTemplate> {
@@ -18,6 +19,8 @@ pub fn load_builtin_presets() -> Vec<ProviderTemplate> {
             .expect("bundled anthropic preset must be valid (checked by tests)"),
         parse_template(OPENROUTER_PRESET)
             .expect("bundled openrouter preset must be valid (checked by tests)"),
+        parse_template(DEEPSEEK_PRESET)
+            .expect("bundled deepseek preset must be valid (checked by tests)"),
     ]
 }
 
@@ -104,6 +107,37 @@ mod tests {
                 assert!(
                     !requires_auth,
                     "models endpoint is public (live-verified HTTP 200)"
+                );
+                assert_eq!(list_selector, "data");
+            }
+            other => panic!("expected endpoint discovery, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn deepseek_preset_is_direct_compat_with_authenticated_discovery() {
+        let presets = load_builtin_presets();
+        let t = presets
+            .iter()
+            .find(|p| p.id == "deepseek")
+            .expect("deepseek preset present");
+        assert_eq!(t.protocol, Protocol::AnthropicCompat);
+        assert_eq!(t.bridge, BridgeRequirement::NotRequired);
+        assert_eq!(t.auth, crate::provider_catalog::AuthStyle::ApiKey);
+        assert_eq!(
+            t.direct_base_url.as_deref(),
+            Some("https://api.deepseek.com/anthropic")
+        );
+        match &t.discovery {
+            DiscoverySpec::Endpoint {
+                url,
+                requires_auth,
+                list_selector,
+            } => {
+                assert_eq!(url, "https://api.deepseek.com/models");
+                assert!(
+                    requires_auth,
+                    "DeepSeek /models requires credentials per docs"
                 );
                 assert_eq!(list_selector, "data");
             }

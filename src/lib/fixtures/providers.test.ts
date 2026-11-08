@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { anthropicPreset, builtinPresetFixtures, openRouterPreset } from "./providers";
+import {
+  anthropicPreset,
+  builtinPresetFixtures,
+  deepSeekPreset,
+  openRouterPreset,
+} from "./providers";
 
 describe("builtin preset fixtures (T17)", () => {
   it("contains anthropic first, then verified presets in order", () => {
     expect(builtinPresetFixtures[0].id).toBe("anthropic");
     expect(builtinPresetFixtures[1].id).toBe("openrouter");
+    expect(builtinPresetFixtures[2].id).toBe("deepseek");
   });
 
   it("anthropic preset is native protocol, direct mode, api_key auth", () => {
@@ -44,6 +50,24 @@ describe("openrouter preset fixture (T24)", () => {
       kind: "endpoint",
       url: "https://openrouter.ai/api/v1/models",
       requires_auth: false,
+      list_selector: "data",
+    });
+  });
+});
+
+describe("deepseek preset fixture (T24)", () => {
+  it("is direct anthropic_compat with api_key auth", () => {
+    expect(deepSeekPreset.protocol).toBe("anthropic_compat");
+    expect(deepSeekPreset.bridge).toBe("not_required");
+    expect(deepSeekPreset.auth).toBe("api_key");
+    expect(deepSeekPreset.direct_base_url).toBe("https://api.deepseek.com/anthropic");
+  });
+
+  it("declares the authenticated documented models endpoint", () => {
+    expect(deepSeekPreset.discovery).toEqual({
+      kind: "endpoint",
+      url: "https://api.deepseek.com/models",
+      requires_auth: true,
       list_selector: "data",
     });
   });

@@ -62,7 +62,13 @@ describe("Provider selector (T18)", () => {
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await waitFor(() => expect(select).toBeEnabled());
     const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
-    expect(options).toEqual(["Select a provider", "Anthropic", "OpenRouter", "Custom…"]);
+    expect(options).toEqual([
+      "Select a provider",
+      "Anthropic",
+      "OpenRouter",
+      "DeepSeek",
+      "Custom…",
+    ]);
     expect(ipc.calls.map((c) => c.cmd)).toEqual(["list_providers"]);
   });
 
