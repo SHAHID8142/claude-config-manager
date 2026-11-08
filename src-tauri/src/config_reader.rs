@@ -31,6 +31,9 @@ pub enum ConfigError {
         size: u64,
         limit: u64,
     },
+    /// Invalid JSON whose cause can be named safely (G6): comments or a trailing
+    /// comma. `hint` is a fixed string, never file content.
+    MalformedJsonHint(&'static str),
     /// A value failed schema validation before any write (T28 gate).
     ValidationFailed(String),
     /// The file changed between snapshot and write — another process edited it.
@@ -50,6 +53,10 @@ impl std::fmt::Display for ConfigError {
                     "settings file contains invalid JSON — not overwritten; fix it manually first"
                 )
             }
+            ConfigError::MalformedJsonHint(hint) => write!(
+                f,
+                "settings file contains invalid JSON ({hint}) — not overwritten; fix it manually first"
+            ),
             ConfigError::TooLarge { size, limit } => write!(
                 f,
                 "the settings file is {size} bytes, larger than the {limit} byte limit — refusing to touch it"
@@ -115,14 +122,67 @@ pub fn read_settings(path: &Path) -> Result<Value, ConfigError> {
     })?;
 
     let value: Value = serde_json::from_str(&raw).map_err(|e| {
-        // Content snippets are never included — position info only.
-        ConfigError::MalformedJson(format!("line {} column {}", e.line(), e.column()))
+        // G6: name the most likely cause when we can do so safely. Claude Code
+        // does not accept comments in settings.json (code.claude.com/docs/en/
+        // settings-example), so a "helpful" lenient parser here would silently
+        // normalise a file Claude Code itself then rejects.
+        if let Some(hint) = dialect_hint(&raw) {
+            ConfigError::MalformedJsonHint(hint)
+        } else {
+            // Content snippets are never included — position info only.
+            ConfigError::MalformedJson(format!("line {} column {}", e.line(), e.column()))
+        }
     })?;
 
     match value {
         Value::Object(_) => Ok(value),
         other => Err(ConfigError::MalformedShape(shape_name(&other))),
     }
+}
+
+/// Identify a JSON dialect mistake without quoting file content.
+///
+/// Scans outside strings only, so `"https://x"` never looks like a comment.
+/// Returns a fixed description or `None`.
+pub fn dialect_hint(raw: &str) -> Option<&'static str> {
+    let bytes = raw.as_bytes();
+    let mut in_string = false;
+    let mut escaped = false;
+    let mut last_significant: Option<u8> = None;
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if c == b'\\' {
+                escaped = true;
+            } else if c == b'"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+        match c {
+            b'"' => {
+                in_string = true;
+                last_significant = Some(c);
+            }
+            b'/' if i + 1 < bytes.len() && (bytes[i + 1] == b'/' || bytes[i + 1] == b'*') => {
+                return Some("comments are not allowed in settings.json");
+            }
+            b' ' | b'\t' | b'\r' | b'\n' => {}
+            b'}' | b']' => {
+                if last_significant == Some(b',') {
+                    return Some("trailing comma");
+                }
+                last_significant = Some(c);
+            }
+            _ => last_significant = Some(c),
+        }
+        i += 1;
+    }
+    None
 }
 
 fn shape_name(v: &Value) -> &'static str {
@@ -183,6 +243,72 @@ mod tests {
         assert_eq!(doc["model"], "claude-x");
         assert_eq!(doc["customKey"]["nested"], true);
         fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    /// G6: Claude Code rejects comments in settings.json (official docs), so we
+    /// must not "helpfully" accept them — but the error should name the cause.
+    #[test]
+    fn comments_are_refused_with_a_cause_not_a_generic_error() {
+        let dir = std::env::temp_dir().join(format!(
+            "ccm-g6-comment-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("settings.json");
+        fs::write(
+            &path,
+            "{\n  // why: needed for the proxy\n  \"model\": \"claude-sonnet-4-5\"\n}",
+        )
+        .expect("write");
+
+        let err = read_settings(&path).expect_err("comments must be refused");
+        assert!(
+            matches!(err, ConfigError::MalformedJsonHint(h) if h.contains("comments")),
+            "expected a comment hint, got {err:?}"
+        );
+        assert!(err.to_string().contains("fix it manually"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn trailing_comma_is_refused_and_named() {
+        let dir = std::env::temp_dir().join(format!(
+            "ccm-g6-comma-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("settings.json");
+        fs::write(&path, r#"{"model":"x","env":{"A":"1",},}"#).expect("write");
+
+        let err = read_settings(&path).expect_err("trailing comma must be refused");
+        assert!(
+            matches!(err, ConfigError::MalformedJsonHint(h) if h.contains("trailing comma")),
+            "expected a trailing-comma hint, got {err:?}"
+        );
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The hint must never fire on content inside strings — URLs contain `//`.
+    #[test]
+    fn comment_markers_inside_strings_are_not_mistaken_for_comments() {
+        assert_eq!(
+            dialect_hint(r#"{"a":"https://example.com/x","b":"/* not a comment */"}"#),
+            None
+        );
+        assert_eq!(dialect_hint(r#"{"a":1}"#), None);
+        assert_eq!(dialect_hint(r#"{"a":1,}"#), Some("trailing comma"));
+        assert_eq!(
+            dialect_hint(r#"{"a":1} // tail"#),
+            Some("comments are not allowed in settings.json")
+        );
     }
 
     /// G5: an oversized document is refused before it is read into memory.
@@ -271,8 +397,10 @@ mod tests {
     fn malformed_json_reports_position_without_content_leak() {
         let dir = temp_dir("malformed");
         let path = dir.join("settings.json");
-        fs::write(&path, "{\n  \"model\": \"x\",\n}").expect("write trailing comma");
-        let err = read_settings(&path).expect_err("trailing comma is an error");
+        // A genuine syntax error, not one of the named dialects (those get a
+        // dedicated hint since G6) — `:` where a value is required.
+        fs::write(&path, "{\n  \"model\": : \"x\"\n}").expect("write malformed");
+        let err = read_settings(&path).expect_err("malformed JSON is an error");
         match err {
             ConfigError::MalformedJson(pos) => {
                 assert!(pos.contains("line"), "position info: {pos}");
@@ -288,9 +416,10 @@ mod tests {
         let dir = temp_dir("comments");
         let path = dir.join("settings.json");
         fs::write(&path, "{\n  // not allowed\n  \"model\": \"x\"\n}").expect("write");
+        // Rejection is the contract; since G6 the error names the cause.
         assert!(matches!(
             read_settings(&path),
-            Err(ConfigError::MalformedJson(_))
+            Err(ConfigError::MalformedJson(_)) | Err(ConfigError::MalformedJsonHint(_))
         ));
         fs::remove_dir_all(&dir).expect("cleanup");
     }

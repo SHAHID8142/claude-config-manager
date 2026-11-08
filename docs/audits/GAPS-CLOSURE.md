@@ -11,7 +11,7 @@ the reason — never silently dropped.
 | G3 | No property-based testing of the merge contract | ✅ closed |
 | G4 | No single-instance lock: two applies can race | ✅ closed |
 | G5 | No size/scale limits (huge settings file, huge catalog body) | ✅ closed |
-| G6 | Settings JSON dialect assumed strict (JSON5/comments would be refused) | pending |
+| G6 | Settings JSON dialect assumed strict (JSON5/comments would be refused) | ✅ closed (verified, not changed) |
 | G7 | Real GUI / VoiceOver / contrast / clean-Mac launch | **BLOCKED** (no signed build, no machine evidence) |
 | G8 | Bridge mode fidelity (streaming, tools, vision, reasoning) | **BLOCKED** (feature absent, T47–T58) |
 | G9 | CI pipeline itself never executed | **BLOCKED** (GitHub billing) |
@@ -154,3 +154,32 @@ JSON". That is why the dedicated variant exists; the test asserts the structured
 
 **Residual:** 8 MiB is a judgement call; a legitimate file that big would be refused (with a clear message)
 rather than silently truncated. The limit is a constant, not user-tunable.
+
+---
+
+## G6 — JSON dialect assumption
+
+**Gap class:** the reader assumed strict JSON. If Claude Code accepted comments or trailing commas, we would
+refuse to manage a perfectly valid file.
+
+**Resolution: the assumption is now *verified*, not assumed.** The official settings documentation says, of
+the annotated examples: *"Claude Code doesn't accept comments in a settings file, so copy from the first
+tab."* ([code.claude.com/docs/en/settings-example](https://code.claude.com/docs/en/settings-example); the
+JSONC feature request, [claude-code#17968](https://github.com/anthropics/claude-code/issues/17968), is still
+open). Strict parsing is therefore correct behaviour, and a lenient parser would have been a data-loss bug —
+we would have "accepted" a file Claude Code itself then rejects.
+
+**Change is UX, not semantics:** invalid JSON that is recognisably one of those dialects now produces
+`ConfigError::MalformedJsonHint` with a fixed hint ("comments are not allowed in settings.json", "trailing
+comma") instead of a bare "invalid JSON". The detector scans **outside string literals only**, so
+`"https://example.com/x"` never looks like a comment.
+
+**Evidence:** `comments_are_refused_with_a_cause_not_a_generic_error`,
+`trailing_comma_is_refused_and_named`,
+`comment_markers_inside_strings_are_not_mistaken_for_comments` (false-positive guard, including
+`// tail` and a `/* … */` inside a string).
+
+**Pre-existing tests updated, disclosed:** `malformed_json_reports_position_without_content_leak` used a
+trailing comma as its "malformed" sample, which now yields the named hint; it was switched to a genuine
+syntax error so it still tests position reporting, and `json_comments_are_rejected_strict` now accepts either
+variant. Neither test's intent was weakened — the rejection contract is unchanged.
