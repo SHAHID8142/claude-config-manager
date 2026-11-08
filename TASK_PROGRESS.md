@@ -1,0 +1,123 @@
+# TASK_PROGRESS.md
+
+Autonomous execution tracker for the complete backlog in `04-TASK-BACKLOG.md`.
+Rules of engagement: `03-AGENT-RULES.md` (v0.2 binding). On interruption, resume from the first ⬜ task; never redo completed work; never infer success without recorded evidence.
+
+- **Workspace:** `/Users/maryamahad/Desktop/claude-config-manager-autonomous-handoff-v0.2`
+- **Remote (confirmed by user 2026-11-08):** `https://github.com/SHAHID8142/claude-config-manager.git` (public, created via `gh` on user authorization)
+- **Branch:** `main`
+- **Git identity:** SHAHID8142 / shahiddesignhouse@gmail.com
+
+Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual recorded values at the time of completion; push status is verified by successful `git push` output.
+
+## Status legend
+✅ complete · 🔄 in progress · ⬜ pending · ⛔ blocked (with reason)
+
+## Discovery and risk control
+
+| Task | Status | Date | Commit | Push | Notes |
+|------|--------|------|--------|------|-------|
+| T01 Audit repo/workspace/remote/toolchain; record baseline | ✅ | 2026-11-08 | 8c2946a (baseline) + audit commit | ✓ | Baseline docs committed `8c2946a`; remote created & pushed on user authorization; toolchain audit in `docs/audits/T01-baseline.md` |
+| T02 Verify Claude Code global config paths/keys/precedence/auth; document matrix | ⬜ | — | — | — | Next task |
+| T03 Evaluate open-source bridges (protocol translation) | ⬜ | — | — | — | — |
+| T04 Select bridge with evidence; write ADR; STOP if no safe candidate | ⬜ | — | — | — | — |
+| T05 Threat model | ⬜ | — | — | — | — |
+| T06 Define module boundaries (documentation only) | ⬜ | — | — | — | — |
+| T07 Acceptance fixtures, test strategy, security checklist | ⬜ | — | — | — | — |
+
+## Foundation
+
+| Task | Status | Date | Commit | Push | Notes |
+|------|--------|------|--------|------|-------|
+| T08 Init minimal Tauri 2 + React + TS + Tailwind app | ⬜ | — | — | — | Note: Tauri CLI will be added as npm dev-dependency (not installed globally) |
+| T09 Formatting, lint, TS/Rust checks, test runners | ⬜ | — | — | — | — |
+| T10 CI workflow: checks, secret scan, dependency audit | ⬜ | — | — | — | — |
+| T11 Typed UI↔Rust command contracts with mocks | ⬜ | — | — | — | — |
+| T12 Minimal single-window layout | ⬜ | — | — | — | — |
+| T13 Light/dark system theme + responsive sizing | ⬜ | — | — | — | — |
+| T14 Accessible labels, keyboard nav, focus states | ⬜ | — | — | — | — |
+| T15 Loading/error/success feedback components | ⬜ | — | — | — | — |
+
+## Provider and credential UX
+
+| Task | Status | Date | Commit | Push | Notes |
+|------|--------|------|--------|------|-------|
+| T16 Versioned provider template schema | ⬜ | — | — | — | — |
+| T17 ONE verified provider preset + fixtures | ⬜ | — | — | — | — |
+| T18 Provider selector + custom provider entry | ⬜ | — | — | — | — |
+| T19 Validated Base URL field + protocol warnings | ⬜ | — | — | — | — |
+| T20 Masked API key entry + reveal/hide | ⬜ | — | — | — | — |
+| T21 OS credential vault interface + mock tests | ⬜ | — | — | — | — |
+| T22 macOS Keychain-backed vault | ⬜ | — | — | — | — |
+| T23 Secret lifecycle + redaction tests | ⬜ | — | — | — | — |
+| T24 Additional provider presets, one per commit | ⬜ | — | — | — | — |
+| T25 Capability/compatibility labels | ⬜ | — | — | — | — |
+
+## Global configuration safety
+
+| Task | Status | Date | Commit | Push | Notes |
+|------|--------|------|--------|------|-------|
+| T26 Read-only global config locator | ⬜ | — | — | — | — |
+| T27 Parse + preserve unrelated settings | ⬜ | — | — | — | — |
+| T28 Targeted merge + schema validation | ⬜ | — | — | — | — |
+| T29 Secure backup + permissions + redaction | ⬜ | — | — | — | — |
+| T30 Atomic writes, concurrent detection, rollback | ⬜ | — | — | — | — |
+| T31 Symlink/traversal/permission negative tests | ⬜ | — | — | — | — |
+| T32 Credential handoff per verified docs | ⬜ | — | — | — | STOP condition: unresolved secure persistent handoff |
+| T33 Save & Apply for ONE verified direct provider | ⬜ | — | — | — | — |
+| T34 Read-back status + override warnings | ⬜ | — | — | — | — |
+| T35 Restore-last-backup operation | ⬜ | — | — | — | — |
+| T36 Failure handling: missing CLI, versions, invalid settings | ⬜ | — | — | — | — |
+
+## Model selection
+
+| Task | Status | Date | Commit | Push | Notes |
+|------|--------|------|--------|------|-------|
+| T37 Model discovery interface + mock API | ⬜ | — | — | — | — |
+| T38 Discovery for one documented provider | ⬜ | — | — | — | — |
+| T39 Refresh, loading, timeout, error states | ⬜ | — | — | — | — |
+| T40 Searchable model list, NEVER auto-select | ⬜ | — | — | — | — |
+| T41 Manual Model ID entry | ⬜ | — | — | — | — |
+| T42 Model metadata with source/unknown labels | ⬜ | — | — | — | — |
+| T43 Model selection validation + Save&Apply integration | ⬜ | — | — | — | — |
+| T44 Additional discovery adapters, one per commit | ⬜ | — | — | — | — |
+| T45 Advanced settings panel, default-no-override | ⬜ | — | — | — | — |
+| T46 Verified model-role mapping if needed | ⬜ | — | — | — | — |
+
+## Bridge setup and lifecycle
+
+| Task | Status | Date | Commit | Push | Notes |
+|------|--------|------|--------|------|-------|
+| T47 Bridge features & known losses per provider | ⬜ | — | — | — | — |
+| T48 First-run install-consent UI | ⬜ | — | — | — | — |
+| T49 Pinned download + integrity verification | ⬜ | — | — | — | — |
+| T50 Secure install/update/rollback in app dir | ⬜ | — | — | — | — |
+| T51 Loopback-only config + health checks | ⬜ | — | — | — | — |
+| T52 Helper start/stop/status + failure recovery | ⬜ | — | — | — | — |
+| T53 GUI-closed lifecycle strategy | ⬜ | — | — | — | STOP condition: untested lifecycle strategy |
+| T54 Bridge mode ↔ global config integration | ⬜ | — | — | — | — |
+| T55 Streaming & tool calling tests (local fixtures) | ⬜ | — | — | — | — |
+| T56 Vision/reasoning capability paths | ⬜ | — | — | — | — |
+| T57 Error classification + safe diagnostics | ⬜ | — | — | — | — |
+| T58 Bridge uninstall + clean direct-mode switch | ⬜ | — | — | — | — |
+
+## Hardening and release
+
+| Task | Status | Date | Commit | Push | Notes |
+|------|--------|------|--------|------|-------|
+| T59 Malformed URL/JSON/metadata/injection regression suite | ⬜ | — | — | — | — |
+| T60 Localhost/tampering/secret-leak regression suite | ⬜ | — | — | — | — |
+| T61 Rollback + interrupted-write recovery tests | ⬜ | — | — | — | — |
+| T62 Keyboard/a11y/theme/small-window UX audit | ⬜ | — | — | — | — |
+| T63 Dependency/license/vulnerability audit | ⬜ | — | — | — | — |
+| T64 macOS package | ⬜ | — | — | — | Unsigned test build + documented limitation if no signing creds |
+| T65 Real macOS clean-install + smoke tests | ⬜ | — | — | — | Request user evidence if machine unavailable; report NOT VERIFIED otherwise |
+| T66 Helper restart/GUI closure/uninstall/restore tests | ⬜ | — | — | — | — |
+| T67 Full regression + acceptance review | ⬜ | — | — | — | — |
+| T68 User guide, troubleshooting, Windows notes | ⬜ | — | — | — | — |
+| T69 FINAL_AUDIT.md | ⬜ | — | — | — | — |
+| T70 Final push + clean state verification | ⬜ | — | — | — | — |
+
+## Blockers / open items
+
+None currently. Next task: **T02**.
