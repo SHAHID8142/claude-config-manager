@@ -1,0 +1,10 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 66f7a047e28f715581a821658f3148440f21ef6c2c0e4dd4b8174ef6ad8eee19 # shrinks to prefix = "", tail = ""
+cc b2111c5df9c0b44654b995b7ea2dfe8980f23c5962a0d3ed61a7f858a3c29215 # shrinks to current = Object {"env": Object {"ANTHROPIC_AUTH_TOKEN": Array []}}, d = DesiredSettings { model: None, env_base_url: None, env_auth_token: None, env_api_key: None, env_model: None, env_default_haiku: None, env_default_sonnet: None, env_default_opus: None, api_key_helper: None, clear_env_base_url: false }
+cc 22940ba1ffcd92dd11dd671bae083459434751f9368a7ad0dd5c6126266e5482 # shrinks to current = Object {"env": Object {"a": Object {"a": Number(3.942350228396264e+268)}}}, d = DesiredSettings { model: None, env_base_url: None, env_auth_token: None, env_api_key: None, env_model: None, env_default_haiku: None, env_default_sonnet: None, env_default_opus: None, api_key_helper: None, clear_env_base_url: false }
+cc d88bb3f2b3e37e776e8bc2a8cd54732d3d22827d610f7f805681b4ae5a4a3047 # shrinks to prefix = "", tail = "AAaAaa0a"

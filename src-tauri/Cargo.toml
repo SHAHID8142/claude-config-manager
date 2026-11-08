@@ -23,6 +23,10 @@ url = "2.5.8"
 keyring = "4"
 ureq = { version = "3", features = ["rustls"] }
 
+[dev-dependencies]
+# G3: property-based tests for the merge contract (no test cases hand-written).
+proptest = "1"
+
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

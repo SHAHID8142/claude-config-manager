@@ -57,3 +57,38 @@ forwarded request.
 **Residual:** a `302` is now a hard error, so a provider that legitimately redirects its catalog (e.g. an
 `http→https` upgrade) will show an error instead of "just working". That is the deliberate trade — an
 explicit error beats a credential that quietly travels somewhere else.
+
+---
+
+## G3 — property-based testing of the merge contract
+
+**Gap class:** every adversarial case was hand-written by me after reading the code — coverage limited by my
+own imagination. No fuzzing or property tests existed.
+
+**Change:** `proptest` added as a dev-dependency; `src-tauri/tests/merge_properties.rs` asserts six invariants
+over generated documents (400 cases per property in CI runs, verified up to 2 000 locally):
+
+| # | Invariant |
+|---|---|
+| P1 | `apply_desired` is total — arbitrary JSON in, `Ok`/`Err` out, never a panic |
+| P2 | idempotent — applying the same intent twice equals applying it once |
+| P3 | ownership — unmanaged top-level and `env` keys survive unchanged |
+| P4 | written env values are exactly the requested strings, never `null` |
+| P5 | credential-shaped model ids are refused, never written in plaintext |
+| P6 | accepted output serialises and re-parses to the same document |
+
+**What the properties found (honest record):** five failures on first run, **none of them app defects** —
+and the way they failed is the useful part:
+1. `serde_json` does not round-trip extreme f64 exponents exactly (`3.942350228396264e268` reparses as
+   `...2635e268`). Upstream behaviour; the number domain was narrowed to realistic settings values and the
+   limitation is recorded here rather than silently avoided.
+2. `is_secret_shaped` has a **16-character floor**, so a 12-char `ghp_` string is not flagged. Correct by
+   design; the generator's token lengths were unrealistic, and the floor is now documented.
+3. Two assertion bugs of mine: asserting that *pre-existing* user env garbage must be a string (it must not be
+   "fixed" — preserving it is the promise), and a credential generator producing bare prefixes.
+
+**Disclosed limits:**
+- Numbers with |exponent| > ~22 do not survive a serialise/parse round-trip in `serde_json`; settings never
+  contain them.
+- Secret detection needs ≥ 16 characters and a known prefix: `sk-ant-` alone is not detected. No false
+  negatives for real provider key formats, which are all far longer.
