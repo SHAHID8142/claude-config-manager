@@ -680,7 +680,7 @@ fn provider_auth_style(provider_id: &str) -> AuthStyle {
 }
 
 /// Credential for a target: the named credential, else the provider's own file.
-pub(crate) fn resolve_secret(home: &std::path::Path, target: &RouteTarget) -> Option<String> {
+pub fn resolve_secret(home: &std::path::Path, target: &RouteTarget) -> Option<String> {
     let vault = crate::credential_vault::CredentialVault::for_home(home);
     if let Some(id) = &target.credential_id
         && let Ok(Some(s)) = vault.secret(id)
