@@ -9,6 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod config_locator;
 pub mod credential_service;
 pub mod keychain_store;
 pub mod presets;
