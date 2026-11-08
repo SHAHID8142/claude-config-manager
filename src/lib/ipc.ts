@@ -209,6 +209,15 @@ export async function testConnection(
   });
 }
 
+/** V2-12a: is a credential already stored for this provider? Lets the UI keep
+ *  "Save & Apply" enabled when only the model changes. */
+export async function hasCredential(
+  providerId: string,
+  ipc: IpcLike = defaultIpc,
+): Promise<boolean> {
+  return ipc.invoke<boolean>("has_credential", { providerId });
+}
+
 export async function discoverModels(
   providerId: string,
   credential?: string,

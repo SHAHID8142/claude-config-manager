@@ -216,6 +216,23 @@ fn discover_models(
         })
 }
 
+/// V2-12a: does a credential already exist for this provider? The UI gates
+/// "Save & Apply" on this so changing only the model (or roles) never forces
+/// the owner to retype a key that is already stored at 0600.
+#[tauri::command]
+fn has_credential(provider_id: String) -> Result<bool, CommandError> {
+    credential_handoff::validate_provider_id(&provider_id)
+        .map_err(|_| CommandError::invalid_input("invalid provider id"))?;
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let store = file_secret_store::FileSecretStore::for_home(&home);
+    let creds = credential_service::CredentialService::new(&store);
+    creds
+        .has_credential(&provider_id)
+        .map_err(|e| CommandError::io(e.to_string()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -227,7 +244,8 @@ pub fn run() {
             restore_last_backup,
             check_environment,
             discover_models,
-            test_connection
+            test_connection,
+            has_credential
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -236,6 +254,12 @@ pub fn run() {
 #[cfg(test)]
 mod contract_tests {
     use super::*;
+
+    #[test]
+    fn has_credential_rejects_an_unsafe_provider_id_before_touching_disk() {
+        let err = has_credential("../../etc/passwd".into()).expect_err("must reject");
+        assert!(matches!(err, CommandError::InvalidInput(_)));
+    }
 
     #[test]
     fn command_error_serializes_with_kind_and_message() {

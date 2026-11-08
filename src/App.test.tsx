@@ -98,12 +98,44 @@ describe("Provider selector (T18)", () => {
       "NVIDIA NIM",
       "Custom…",
     ]);
-    // read_status fires first (status effect), then the catalog loads.
+    // read_status fires first (status effect), the catalog loads, and the
+    // auto-selected provider then asks whether a key is stored (V2-12a).
     expect(ipc.calls.map((c) => c.cmd).sort()).toEqual([
       "check_environment",
+      "has_credential",
       "list_providers",
       "read_status",
     ]);
+  });
+
+  it("changing only the model keeps Save enabled when a key is already stored", async () => {
+    const ipc = mockWithProviders();
+    // An empty stored-key answer is the default; this provider has one.
+    const withStored = {
+      invoke: <T,>(cmd: string, args?: Record<string, unknown>) =>
+        cmd === "has_credential" ? Promise.resolve(true as T) : ipc.invoke<T>(cmd, args),
+      calls: ipc.calls,
+    } as typeof ipc;
+    render(<App ipc={withStored} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await waitFor(() => expect(select).toBeEnabled());
+    await userEvent.selectOptions(select, "openrouter");
+    // No key typed: the stored credential is what authorizes the apply.
+    const save = await screen.findByRole("button", { name: /save & apply/i });
+    await waitFor(() => expect(save).toBeEnabled());
+    expect(screen.getByText(/leave this blank to keep it/i)).toBeInTheDocument();
+    const key = screen.getByLabelText(/api key/i);
+    expect(key).toHaveValue("");
+  });
+
+  it("keeps Save disabled with a blank key and no stored credential", async () => {
+    const ipc = mockWithProviders();
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await waitFor(() => expect(select).toBeEnabled());
+    await userEvent.selectOptions(select, "openrouter");
+    const save = screen.getByRole("button", { name: /save & apply/i });
+    await waitFor(() => expect(save).toBeDisabled());
   });
 
   it("selecting a preset shows capability and connection badges (T25)", async () => {

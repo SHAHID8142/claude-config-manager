@@ -20,6 +20,7 @@ import {
   defaultIpc,
   discoverModels,
   testConnection,
+  hasCredential,
   listProviders,
   readStatus,
   restoreLastBackup,
@@ -113,6 +114,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   // T45: role overrides start empty = "no override" and stay collapsed.
   const [roles, setRoles] = useState<RoleState>(EMPTY_ROLES);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // V2-12a: a stored credential means the key field can stay blank.
+  const [storedCredential, setStoredCredential] = useState(false);
 
   async function handleFetchModels() {
     if (selected === null || isCustom) return;
@@ -178,6 +181,28 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     };
   }, [ipc, applyOutcome]);
 
+  // V2-12a: provider switch asks the backend once whether a key is on disk,
+  // so "change model only" never forces a retype and never implies a key
+  // exists when it does not.
+  useEffect(() => {
+    let cancelled = false;
+    setStoredCredential(false);
+    if (selectedId === "" || selectedId === CUSTOM_ID)
+      return () => {
+        cancelled = true;
+      };
+    hasCredential(selectedId, ipc)
+      .then((found) => {
+        if (!cancelled) setStoredCredential(found);
+      })
+      .catch(() => {
+        if (!cancelled) setStoredCredential(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, ipc]);
+
   useEffect(() => {
     let cancelled = false;
     listProviders(ipc)
@@ -214,14 +239,18 @@ export default function App({ ipc = defaultIpc }: AppProps) {
 
   const canApply =
     (selected !== null || (isCustom && customEndpoint.trim() !== "")) &&
-    apiKey.trim() !== "" &&
+    (apiKey.trim() !== "" || storedCredential) &&
     !modelInvalid &&
     !roleInvalid &&
     !applying;
 
   // The connection test needs a real provider (a custom endpoint has no
   // documented key-check endpoint) and something to test.
-  const testDisabled = selected === null || isCustom || apiKey.trim() === "" || testingConnection;
+  const testDisabled =
+    selected === null ||
+    isCustom ||
+    (apiKey.trim() === "" && !storedCredential) ||
+    testingConnection;
 
   async function handleApply() {
     if (!canApply) return;
@@ -238,6 +267,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           model: modelValidation?.ok ? modelValidation.value : undefined,
           // T45: only filled-in roles are sent; the rest stay untouched.
           roleModels: rolesToSend(roles),
+          // Blank keeps the stored credential untouched (backend contract).
           apiKey: apiKey.trim(),
         },
         ipc,
@@ -427,7 +457,9 @@ export default function App({ ipc = defaultIpc }: AppProps) {
               hint={
                 selected === null && !isCustom
                   ? "Enabled once a provider is selected."
-                  : "Stored as an owner-only file (0600) in Application Support when saving. Never written to logs or backups in plaintext."
+                  : storedCredential
+                    ? "A key is already stored for this provider — leave this blank to keep it and change only the model."
+                    : "Stored as an owner-only file (0600) in Application Support when saving. Never written to logs or backups in plaintext."
               }
             >
               <ApiKeyField
