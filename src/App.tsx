@@ -8,6 +8,7 @@ import { StatusBanner } from "./components/StatusBanner";
 import {
   checkEnvironment,
   defaultIpc,
+  discoverModels,
   listProviders,
   readStatus,
   restoreLastBackup,
@@ -17,6 +18,7 @@ import {
   type EffectiveStatus,
   type EnvironmentReport,
   type IpcLike,
+  type ModelEntry,
   type ProviderSummary,
   type RestoreOutcome,
   type StatusWarning,
@@ -81,6 +83,28 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [restoreOutcome, setRestoreOutcome] = useState<RestoreOutcome | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentReport | null>(null);
+  const [models, setModels] = useState<ModelEntry[] | null>(null);
+  const [fetchingModels, setFetchingModels] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [modelsFetchedFor, setModelsFetchedFor] = useState<string | null>(null);
+
+  async function handleFetchModels() {
+    if (selected === null || isCustom) return;
+    setFetchingModels(true);
+    setModelsError(null);
+    setModelsFetchedFor(null);
+    try {
+      // Pass the typed key only if the catalog needs it; otherwise the
+      // backend resolves the stored credential itself.
+      const entries = await discoverModels(selected.id, apiKey.trim() || undefined, ipc);
+      setModels(entries);
+      setModelsFetchedFor(selected.id);
+    } catch (err: unknown) {
+      setModelsError(isCommandError(err) ? err.message : "Model discovery failed.");
+    } finally {
+      setFetchingModels(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -390,6 +414,42 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       </Section>
 
       <Section title="Model">
+        {modelsError !== null && (
+          <StatusBanner
+            severity="error"
+            message="Model discovery failed."
+            detail={modelsError}
+            onDismiss={() => setModelsError(null)}
+          />
+        )}
+        <div className="mb-2 flex items-center gap-2">
+          <LoadingButton
+            label="Fetch models"
+            pendingLabel="Fetching…"
+            pending={fetchingModels}
+            disabled={selected === null || isCustom}
+            variant="secondary"
+            onClick={() => {
+              void handleFetchModels();
+            }}
+          />
+          {selected !== null && !isCustom && (
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              Catalog source: verified preset for {selected.name}
+            </span>
+          )}
+        </div>
+        {modelsFetchedFor !== null &&
+          (models !== null && models.length > 0 ? (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {models.length} models discovered. Selection UI arrives with the next task; nothing is
+              auto-selected.
+            </p>
+          ) : (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Catalog returned no models — manual Model ID entry arrives with the next task.
+            </p>
+          ))}
         <FieldRow
           label="Model"
           htmlFor="model-input"

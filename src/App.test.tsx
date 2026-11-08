@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import App from "./App";
 import { createMockIpc } from "./lib/ipc-mock";
 import { providerSummaryFixtures } from "./lib/fixtures/providers";
-import type { EffectiveStatus } from "./lib/ipc";
+import type { EffectiveStatus, ModelEntry } from "./lib/ipc";
 
 const statusFixture: EffectiveStatus = {
   settingsFound: true,
@@ -459,5 +459,68 @@ describe("Environment diagnostics (T36)", () => {
       expect(screen.queryByText("Claude Code CLI not found on PATH.")).not.toBeInTheDocument();
     });
     expect(screen.queryByText(/settings file has a problem/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("Model discovery states (T39)", () => {
+  function mockWithModels(models: ModelEntry[] | { fail: string }) {
+    return createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        check_environment: () =>
+          Promise.resolve({
+            cliFound: true,
+            cliVersion: "2.1.246",
+            cliVersionWarning: null,
+            settingsState: "ok",
+            settingsDetail: null,
+            configDirWritable: true,
+          }),
+        discover_models: () =>
+          Array.isArray(models)
+            ? Promise.resolve(models)
+            : Promise.reject({ kind: "io", message: models.fail }),
+      },
+    });
+  }
+
+  it("fetch button disabled without provider, enabled with one; success shows count", async () => {
+    const ipc = mockWithModels([
+      { id: "model-a", displayName: "Model A", capabilityStatus: "unknown" },
+      { id: "model-b", displayName: null, capabilityStatus: "unknown" },
+    ]);
+    render(<App ipc={ipc} />);
+    const fetchBtn = await screen.findByRole("button", { name: "Fetch models" });
+    expect(fetchBtn).toBeDisabled();
+    const select = screen.getByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "openrouter");
+    expect(fetchBtn).toBeEnabled();
+    await userEvent.click(fetchBtn);
+    expect(await screen.findByText(/2 models discovered/)).toBeInTheDocument();
+    // Never auto-selected: the model input stays disabled/empty.
+    expect(screen.getByLabelText("Model", { selector: "input" })).toBeDisabled();
+  });
+
+  it("shows an error banner on discovery failure with retry available", async () => {
+    const ipc = mockWithModels({ fail: "catalog endpoint returned HTTP 403" });
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "openrouter");
+    await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
+    expect(await screen.findByText("Model discovery failed.")).toBeInTheDocument();
+    expect(screen.getByText("catalog endpoint returned HTTP 403")).toBeInTheDocument();
+    // Retry remains possible.
+    expect(screen.getByRole("button", { name: "Fetch models" })).toBeEnabled();
+  });
+
+  it("shows an empty-catalog state without selecting anything", async () => {
+    const ipc = mockWithModels([]);
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "openrouter");
+    await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
+    expect(await screen.findByText(/Catalog returned no models/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Model", { selector: "input" })).toBeDisabled();
   });
 });
