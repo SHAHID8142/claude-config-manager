@@ -8,6 +8,7 @@
 //!   the shared redaction guard).
 
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 pub mod config_backup;
 pub mod config_locator;
@@ -20,6 +21,7 @@ pub mod keychain_store;
 pub mod presets;
 pub mod provider_catalog;
 pub mod redact;
+pub mod save_apply;
 pub mod secret_store;
 
 /// Structured error payload crossing the UI boundary (T11 contract).
@@ -66,10 +68,40 @@ fn list_providers() -> Result<Vec<provider_catalog::ProviderSummary>, CommandErr
         .collect())
 }
 
+/// T33 contract: full Save & Apply pipeline for one verified direct provider.
+#[tauri::command]
+fn save_and_apply(
+    provider_id: String,
+    model: Option<String>,
+    base_url: Option<String>,
+    api_key: Option<String>,
+) -> Result<save_apply::ApplyOutcome, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let store: Arc<dyn secret_store::SecretStore> = Arc::new(keychain_store::KeychainStore::new());
+    let svc = save_apply::SaveApplyService::for_production(&home, store);
+    svc.apply(
+        &provider_id,
+        model.as_deref(),
+        base_url.as_deref(),
+        api_key.as_deref(),
+    )
+    .map_err(|e| match e {
+        save_apply::ApplyError::InvalidInput(m) => CommandError::invalid_input(m),
+        save_apply::ApplyError::NoCredential => CommandError::invalid_input(e.to_string()),
+        other => CommandError::io(other.to_string()),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![greet, list_providers])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            list_providers,
+            save_and_apply
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

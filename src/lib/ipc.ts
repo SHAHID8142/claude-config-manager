@@ -61,8 +61,40 @@ export interface ProviderSummary {
   bridge: "not_required" | "required_for_open_ai_only";
   capabilityStatus: { status: "verified"; source_url: string } | { status: "unknown" };
   docsUrl: string | null;
+  /** Direct base URL for compat presets; null for native/OpenAI-only. */
+  directBaseUrl: string | null;
 }
 
 export async function listProviders(ipc: IpcLike = defaultIpc): Promise<ProviderSummary[]> {
   return ipc.invoke<ProviderSummary[]>("list_providers");
+}
+
+// ---------------------------------------------------------------------------
+// `save_and_apply` (T33) — full safe-apply pipeline for one direct provider.
+// ---------------------------------------------------------------------------
+
+export interface ApplyOutcome {
+  settingsPath: string;
+  backupFileName: string;
+  helperPath: string;
+  appliedKeys: string[];
+}
+
+export interface SaveApplyArgs {
+  providerId: string;
+  model?: string;
+  baseUrl?: string;
+  apiKey?: string;
+}
+
+export async function saveAndApply(
+  args: SaveApplyArgs,
+  ipc: IpcLike = defaultIpc,
+): Promise<ApplyOutcome> {
+  return ipc.invoke<ApplyOutcome>("save_and_apply", {
+    providerId: args.providerId,
+    model: args.model ?? null,
+    baseUrl: args.baseUrl ?? null,
+    apiKey: args.apiKey ?? null,
+  });
 }

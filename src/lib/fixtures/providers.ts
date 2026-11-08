@@ -151,6 +151,7 @@ export const providerSummaryFixtures: ProviderSummary[] = [
       source_url: "https://platform.claude.com/docs/en/api/models-list",
     },
     docsUrl: "https://platform.claude.com/docs/en/api/models-list",
+    directBaseUrl: null,
   },
   {
     id: "openrouter",
@@ -162,6 +163,7 @@ export const providerSummaryFixtures: ProviderSummary[] = [
       source_url: "https://openrouter.ai/docs/api-reference/messages",
     },
     docsUrl: "https://openrouter.ai/docs/cookbook/coding-agents/claude-code-integration",
+    directBaseUrl: "https://openrouter.ai/api",
   },
   {
     id: "deepseek",
@@ -173,6 +175,7 @@ export const providerSummaryFixtures: ProviderSummary[] = [
       source_url: "https://api-docs.deepseek.com/guides/anthropic_api",
     },
     docsUrl: "https://api-docs.deepseek.com/guides/anthropic_api",
+    directBaseUrl: "https://api.deepseek.com/anthropic",
   },
   {
     id: "zai",
@@ -184,6 +187,7 @@ export const providerSummaryFixtures: ProviderSummary[] = [
       source_url: "https://docs.z.ai/devpack/tool/claude",
     },
     docsUrl: "https://docs.z.ai/devpack/tool/claude",
+    directBaseUrl: "https://api.z.ai/api/anthropic",
   },
   {
     id: "nvidia-nim",
@@ -195,5 +199,6 @@ export const providerSummaryFixtures: ProviderSummary[] = [
       source_url: "https://docs.nvidia.com/nim/large-language-models/latest/introduction.html",
     },
     docsUrl: "https://docs.nvidia.com/nim/large-language-models/latest/introduction.html",
+    directBaseUrl: null,
   },
 ];

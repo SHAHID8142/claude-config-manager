@@ -226,6 +226,8 @@ pub struct ProviderSummary {
     pub bridge: BridgeRequirement,
     pub capability_status: CapabilityStatus,
     pub docs_url: Option<String>,
+    /// Direct base URL for compat presets; None for native/OpenAI-only (T33).
+    pub direct_base_url: Option<String>,
 }
 
 impl ProviderSummary {
@@ -237,6 +239,7 @@ impl ProviderSummary {
             bridge: t.bridge,
             capability_status: t.capability_status.clone(),
             docs_url: t.docs_url.clone(),
+            direct_base_url: t.direct_base_url.clone(),
         }
     }
 }

@@ -153,3 +153,102 @@ describe("Provider selector (T18)", () => {
     expect(screen.getByText("backend offline")).toBeInTheDocument();
   });
 });
+
+describe("Save & Apply (T33)", () => {
+  const outcomeFixture = {
+    settingsPath: "/tmp/fixture/.claude/settings.json",
+    backupFileName: "settings-backup-1700000000000000000.json",
+    helperPath: "/tmp/fixture/helpers/anthropic.sh",
+    appliedKeys: ["model", "apiKeyHelper", "credential:anthropic"],
+  };
+
+  function mockWithApply() {
+    return createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        save_and_apply: (args) => {
+          expect(args?.providerId).toBe("anthropic");
+          expect(args?.apiKey).toBe("sk-test-fixture-key");
+          expect(args?.baseUrl).toBeNull();
+          return Promise.resolve(outcomeFixture);
+        },
+      },
+    });
+  }
+
+  it("applies for a preset: button enables with key, succeeds with banner", async () => {
+    const ipc = mockWithApply();
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "anthropic");
+
+    const keyInput = screen.getByLabelText("API key", { selector: "input" });
+    const applyBtn = screen.getByRole("button", { name: "Save & Apply" });
+    // Disabled until a key is entered.
+    expect(applyBtn).toBeDisabled();
+    await userEvent.type(keyInput, "sk-test-fixture-key");
+    expect(applyBtn).toBeEnabled();
+
+    await userEvent.click(applyBtn);
+    await waitFor(() => {
+      expect(screen.getByText("Configuration applied and verified.")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Backup: settings-backup-/)).toBeInTheDocument();
+    expect(screen.getByText(/never written into/)).toBeInTheDocument();
+  });
+
+  it("shows an error banner when apply fails, without leaking the key", async () => {
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        save_and_apply: () =>
+          Promise.reject({
+            kind: "io",
+            message: "write verification failed",
+          }),
+      },
+    });
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "anthropic");
+    await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-secret-x");
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => {
+      expect(screen.getByText("Save & Apply failed.")).toBeInTheDocument();
+    });
+    expect(screen.getByText("write verification failed")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("sk-secret-x");
+  });
+
+  it("passes the compat preset base URL and custom endpoint through", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        save_and_apply: (args) => {
+          calls.push(args ?? {});
+          return Promise.resolve({ ...outcomeFixture, appliedKeys: [] });
+        },
+      },
+    });
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "deepseek");
+    await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-x");
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].providerId).toBe("deepseek");
+    expect(calls[0].baseUrl).toBe("https://api.deepseek.com/anthropic");
+
+    // Custom path
+    await userEvent.selectOptions(select, "__custom__");
+    await userEvent.type(
+      screen.getByLabelText("Custom endpoint URL", { selector: "input" }),
+      "https://gw.example.com",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1].providerId).toBe("custom");
+    expect(calls[1].baseUrl).toBe("https://gw.example.com");
+  });
+});

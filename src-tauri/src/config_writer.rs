@@ -94,14 +94,17 @@ pub fn write_settings_atomic(
     expected_mtime: Option<SystemTime>,
 ) -> Result<(), ConfigError> {
     let locator = ConfigLocator::new();
-    match locator.inspect(path) {
-        Ok(LocatedStatus::RegularFile) => {}
-        Ok(LocatedStatus::Missing) => return Err(ConfigError::Missing),
-        Ok(LocatedStatus::Symlink) => return Err(ConfigError::SymlinkRefused),
-        Ok(LocatedStatus::OtherFile) => {
+    let status = locator
+        .inspect(path)
+        .map_err(|e| ConfigError::Io(e.to_string()))?;
+    let was_missing = status == LocatedStatus::Missing;
+    match status {
+        LocatedStatus::RegularFile | LocatedStatus::Missing => {}
+        // First-run creation is allowed (T33 pipeline); Missing handled above.
+        LocatedStatus::Symlink => return Err(ConfigError::SymlinkRefused),
+        LocatedStatus::OtherFile => {
             return Err(ConfigError::Io("not a regular file".to_string()));
         }
-        Err(e) => return Err(ConfigError::Io(e.to_string())),
     }
     if locator
         .config_dir_is_symlink(path)
@@ -110,7 +113,8 @@ pub fn write_settings_atomic(
         return Err(ConfigError::SymlinkRefused);
     }
 
-    // Concurrent-modification detection (threat T4).
+    // Concurrent-modification detection (threat T4). A Some(expected) against
+    // a still-missing file is a caller bookkeeping error and must refuse.
     if let Some(expected) = expected_mtime {
         let current = std::fs::symlink_metadata(path)
             .map_err(|e| ConfigError::Io(e.to_string()))?
@@ -121,7 +125,11 @@ pub fn write_settings_atomic(
         }
     }
 
-    let original = std::fs::read(path).map_err(|e| ConfigError::Io(e.to_string()))?;
+    let original = if was_missing {
+        Vec::new()
+    } else {
+        std::fs::read(path).map_err(|e| ConfigError::Io(e.to_string()))?
+    };
     let new_bytes = serialize(doc)?.into_bytes();
 
     atomic_write(path, &new_bytes)?;
@@ -137,7 +145,11 @@ pub fn write_settings_atomic(
         Ok(written) if &written == doc => Ok(()),
         Ok(_) => {
             // Verification failed: restore original, then surface the error.
-            rollback_to_bytes(path, &original)?;
+            if was_missing {
+                let _ = std::fs::remove_file(path);
+            } else {
+                rollback_to_bytes(path, &original)?;
+            }
             Err(ConfigError::Io(
                 "write verification failed — original content restored".to_string(),
             ))
@@ -247,14 +259,17 @@ mod tests {
     }
 
     #[test]
-    fn missing_target_refused_at_write_time() {
+    fn missing_target_is_created_on_first_run() {
         let dir = temp_dir("missing");
         let path = dir.join("settings.json");
-        let doc: Value = serde_json::from_str("{}").expect("doc");
-        assert_eq!(
-            write_settings_atomic(&path, &doc, None),
-            Err(ConfigError::Missing)
-        );
+        let doc: Value = serde_json::from_str(r#"{"first":true}"#).expect("doc");
+        write_settings_atomic(&path, &doc, None).expect("create on first run");
+        assert_eq!(read_settings(&path).expect("read"), doc);
+        // A Some(mtime) against a missing file must still refuse (caller
+        // bookkeeping error).
+        fs::remove_file(&path).expect("remove");
+        write_settings_atomic(&path, &doc, Some(SystemTime::UNIX_EPOCH))
+            .expect_err("stale expectation must refuse");
         fs::remove_dir_all(&dir).expect("cleanup");
     }
 

@@ -64,7 +64,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T30 Atomic writes, concurrent detection, rollback | ✅ | 2026-11-08 | (T30 commit) | ✓ | temp+fsync+rename, mtime conflict guard, verified rollback; 7 tests; Rust 95/95 |
 | T31 Symlink/traversal/permission negative tests | ✅ | 2026-11-08 | (T31 commit) | ✓ | Config-dir symlink refusal + strict backup-name contract + 7 integration tests; Rust 102/102 |
 | T32 Credential handoff per verified docs | ✅ | 2026-11-08 | (T32 commit) | ✓ | apiKeyHelper+Keychain RESOLVED (no STOP); mutual-exclusion with env mode; Bearer-only fallback consent-gated; Rust 111/111 |
-| T33 Save & Apply for ONE verified direct provider | ⬜ | — | — | — | — |
+| T33 Save & Apply for ONE verified direct provider | ✅ | 2026-11-08 | (T33 commit) | ✓ | Full pipeline wired (Keychain→helper→merge→backup→atomic); first-run creation; UI banners; Rust 110+7, TS 60/60 |
 | T34 Read-back status + override warnings | ⬜ | — | — | — | — |
 | T35 Restore-last-backup operation | ⬜ | — | — | — | — |
 | T36 Failure handling: missing CLI, versions, invalid settings | ⬜ | — | — | — | — |

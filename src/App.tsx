@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { ApiKeyField } from "./components/ApiKeyField";
 import { BridgeBadge, CapabilityBadge } from "./components/CapabilityBadge";
 import { FieldRow } from "./components/FieldRow";
+import { LoadingButton } from "./components/LoadingButton";
 import { Section } from "./components/Section";
 import { StatusBanner } from "./components/StatusBanner";
 import {
   defaultIpc,
   listProviders,
+  saveAndApply,
   isCommandError,
+  type ApplyOutcome,
   type IpcLike,
   type ProviderSummary,
 } from "./lib/ipc";
@@ -40,6 +43,9 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [customName, setCustomName] = useState("");
   const [customEndpoint, setCustomEndpoint] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [applying, setApplying] = useState(false);
+  const [applyOutcome, setApplyOutcome] = useState<ApplyOutcome | null>(null);
+  const [applyError, setApplyError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +68,34 @@ export default function App({ ipc = defaultIpc }: AppProps) {
 
   const isCustom = selectedId === CUSTOM_ID;
   const selected = providers?.find((p) => p.id === selectedId) ?? null;
+
+  const canApply =
+    (selected !== null || (isCustom && customEndpoint.trim() !== "")) &&
+    apiKey.trim() !== "" &&
+    !applying;
+
+  async function handleApply() {
+    if (!canApply) return;
+    setApplying(true);
+    setApplyOutcome(null);
+    setApplyError(null);
+    try {
+      const baseUrl = isCustom ? customEndpoint.trim() : (selected?.directBaseUrl ?? undefined);
+      const outcome = await saveAndApply(
+        {
+          providerId: isCustom ? "custom" : (selected?.id ?? ""),
+          baseUrl,
+          apiKey: apiKey.trim(),
+        },
+        ipc,
+      );
+      setApplyOutcome(outcome);
+    } catch (err: unknown) {
+      setApplyError(isCommandError(err) ? err.message : "Apply failed.");
+    } finally {
+      setApplying(false);
+    }
+  }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 bg-zinc-50 p-6 dark:bg-zinc-950">
@@ -236,18 +270,43 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       </Section>
 
       <Section title="Actions">
+        {applyOutcome !== null && (
+          <StatusBanner
+            severity="success"
+            message="Configuration applied and verified."
+            detail={`Backup: ${applyOutcome.backupFileName || "(none — first run)"} · helper: ${applyOutcome.helperPath}`}
+            onDismiss={() => setApplyOutcome(null)}
+          />
+        )}
+        {applyError !== null && (
+          <StatusBanner
+            severity="error"
+            message="Save & Apply failed."
+            detail={applyError}
+            onDismiss={() => setApplyError(null)}
+          />
+        )}
         <div className="flex flex-wrap gap-2">
           <button type="button" disabled className={secondaryButtonClass}>
             Test Connection
           </button>
-          <button
-            type="button"
-            disabled
-            className={`rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
-          >
-            Save &amp; Apply
-          </button>
+          <LoadingButton
+            label="Save & Apply"
+            pendingLabel="Applying…"
+            pending={applying}
+            disabled={(selected === null && !isCustom) || apiKey.trim() === ""}
+            variant="primary"
+            onClick={() => {
+              void handleApply();
+            }}
+          />
         </div>
+        {selected !== null && (
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+            The API key is stored in the macOS Keychain and handed to Claude Code via an
+            apiKeyHelper script — it is never written into settings.json.
+          </p>
+        )}
       </Section>
 
       <details className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
