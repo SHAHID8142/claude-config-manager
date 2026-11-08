@@ -51,7 +51,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T22 macOS Keychain-backed vault | ✅ | 2026-11-08 | (T22 commit) | ✓ | keyring v3→v4 fix (legacy API no-ops on macOS 26); real round-trip verified; ACL-prompt behavior documented, never bypassed |
 | T23 Secret lifecycle + redaction tests | ✅ | 2026-11-08 | (T23 commit) | ✓ | redact.rs guard + CredentialService; leak-simulation tests; Rust 47/47 |
 | T24 Additional provider presets, one per commit | ✅ | 2026-11-08 | 6dc26c3, c989338, af66992+d7e0ccf, ceb1780 | ✓ | OpenRouter, DeepSeek, Z.AI (discovery none), NVIDIA NIM (bridge required); all verified; repair commit recorded honestly |
-| T25 Capability/compatibility labels | ⬜ | — | — | — | — |
+| T25 Capability/compatibility labels | ✅ | 2026-11-08 | (T25 commit) | ✓ | CapabilityBadge + BridgeBadge; unknown first-class; open_ai_only hides endpoint field; 57/57 |
 
 ## Global configuration safety
 

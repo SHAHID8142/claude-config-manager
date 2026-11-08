@@ -74,21 +74,32 @@ describe("Provider selector (T18)", () => {
     expect(ipc.calls.map((c) => c.cmd)).toEqual(["list_providers"]);
   });
 
-  it("selecting a preset shows its verified capability and direct-mode note", async () => {
+  it("selecting a preset shows capability and connection badges (T25)", async () => {
     const ipc = mockWithProviders();
     render(<App ipc={ipc} />);
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "anthropic");
-    expect(screen.getByText(/Connects directly — no bridge process needed/)).toBeInTheDocument();
-    expect(screen.getByText(/Capability status: verified/)).toBeInTheDocument();
+    expect(screen.getByText(/capabilities verified/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "(source)" })).toHaveAttribute(
       "href",
       "https://platform.claude.com/docs/en/api/models-list",
     );
+    expect(screen.getByText(/direct connection/)).toBeInTheDocument();
     // Preset endpoint shown read-only and disabled.
     const endpoint = screen.getByLabelText("Endpoint URL", { selector: "input" });
     expect(endpoint).toBeDisabled();
     expect(endpoint).toHaveValue("https://api.anthropic.com");
+  });
+
+  it("shows the bridge-required badge for OpenAI-only providers (T25)", async () => {
+    const ipc = mockWithProviders();
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "nvidia-nim");
+    expect(screen.getByText(/bridge required/)).toBeInTheDocument();
+    expect(screen.queryByText(/direct connection/)).not.toBeInTheDocument();
+    // No Anthropic base URL to display for OpenAI-only providers.
+    expect(screen.queryByLabelText("Endpoint URL", { selector: "input" })).not.toBeInTheDocument();
   });
 
   it("selecting Custom reveals custom name/endpoint entry", async () => {

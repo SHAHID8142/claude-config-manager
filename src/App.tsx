@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ApiKeyField } from "./components/ApiKeyField";
+import { BridgeBadge, CapabilityBadge } from "./components/CapabilityBadge";
 import { FieldRow } from "./components/FieldRow";
 import { Section } from "./components/Section";
 import { StatusBanner } from "./components/StatusBanner";
@@ -120,21 +121,18 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           </select>
         </FieldRow>
 
-        {selected !== null && selected.capabilityStatus.status === "verified" && (
-          <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
-            Capability status: verified{" "}
-            {selected.docsUrl !== null && (
-              <a href={selected.docsUrl} target="_blank" rel="noreferrer" className="underline">
-                (source)
-              </a>
-            )}
-          </p>
-        )}
-
-        {selected !== null && selected.bridge === "not_required" && (
-          <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
-            Connects directly — no bridge process needed.
-          </p>
+        {selected !== null && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <CapabilityBadge
+              status={selected.capabilityStatus.status}
+              sourceUrl={
+                selected.capabilityStatus.status === "verified"
+                  ? selected.capabilityStatus.source_url
+                  : null
+              }
+            />
+            <BridgeBadge required={selected.bridge === "required_for_open_ai_only"} />
+          </div>
         )}
 
         {isCustom && (
@@ -186,7 +184,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           </>
         )}
 
-        {selected !== null && !isCustom && (
+        {selected !== null && !isCustom && selected.protocol !== "open_ai_only" && (
           <FieldRow
             label="Endpoint URL"
             htmlFor="endpoint-input"
