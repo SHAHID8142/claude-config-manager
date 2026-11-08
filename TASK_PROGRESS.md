@@ -126,6 +126,10 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | G6 JSON dialect | ✅ | 2026-11-08 | fa5471d | ✓ | Verified from official docs that Claude Code rejects comments → strict parsing confirmed; error now names cause (string-safe scanner) |
 | G7 Real launch | ⚠️ partial | 2026-11-08 | 1175f53 | ✓ | Launched unsigned bundle: alive 8s, 800x600 window, WebKit XPCs, clean-HOME start, no ~/.claude writes. Pixels blocked by Screen Recording permission |
 | G10 TLS/proxy | ✅ | 2026-11-08 | 40d702c | ✓ | OS trust store (platform-verifier), HTTPS_PROXY/NO_PROXY honoured, self-signed cert refused (live), CONNECT tunnel proven |
+| G11 keychain diagnosability | ✅ | 2026-11-08 | 148f9e8 | ✓ | OSStatus preserved (secret-stripped) — superseded by G13 |
+| G12 black screen after Save | ✅ | 2026-11-08 | 148f9e8 | ✓ | unit-variant wire shape + camelCase fixed; ErrorBoundary; verified against real DTO payloads and in the running bundle |
+| G13 credential storage | ✅ | 2026-11-08 | 0a6026f | ✓ | Keychain removed (keyring dep gone); 0600 file store, atomic write, symlink/mode/traversal refusals; helper fails closed; end-to-end apply verified |
+| G14 CLI detection | ✅ | 2026-11-08 | 0a6026f | ✓ | finds ~/.local/bin etc. with the GUI PATH (proven: 2.1.319 found with PATH=/usr/bin:/bin); probe PATH repaired for `env node` |
 
 ## Blockers / open items
 
