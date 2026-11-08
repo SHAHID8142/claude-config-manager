@@ -35,7 +35,7 @@ overwrites a file it cannot parse.
    - Anthropic (native), OpenRouter, DeepSeek, Z.AI and NVIDIA NIM ship as verified presets.
    - **Custom** lets you type your own endpoint (https only).
 3. Paste your **API key**. It is stored as an **owner-only file, mode 0600**, in
-   `~/Library/Application Support/ClaudeConfigManager/secrets/<provider>.secret`
+   `~/.claude-config-manager/secrets/<provider>.secret`
    (replacing the earlier Keychain storage — see "Where the key lives" below). It is never written to
    `settings.json`, never logged, and never placed in the helper script. The field is masked and can be
    revealed only deliberately.
@@ -118,6 +118,7 @@ Then open a new terminal so Claude Code picks up the reverted configuration.
 | `The settings file has a problem this app will not overwrite` | malformed JSON or the file is a symlink | fix the JSON by hand (the app refuses to guess); symlinks are refused for safety |
 | Claude Code still uses the old endpoint | plaintext `ANTHROPIC_*` env vars in your shell or in `env` outrank the helper | the app warns about this; remove the stale variable |
 | Claude Code says the model does not exist | the id is well-formed but not offered by that provider | the app validates *shape* only; check the provider's catalog |
+| Claude Code says `apiKeyHelper: Failing — exited 127: …/Library/Application: No such file` | You are on a build older than G16, whose helper path contained a space (Claude Code does not quote it) | Install the current build and press Save & Apply again; helpers now live under `~/.claude-config-manager/` |
 | Claude Code prints `401 Missing Authentication header` or `Both ANTHROPIC_AUTH_TOKEN and apiKeyHelper set` | Your **shell** exports `ANTHROPIC_AUTH_TOKEN` (e.g. in `~/.zshrc`). It outranks `apiKeyHelper`, so Claude Code never uses the key this app stored | Remove/comment that `export` line, open a new terminal, and re-run `claude`; the app shows a warning naming the variable and its length |
 | Helper returns nothing | Credential file missing (deleted, or moved) | re-apply with your key, or check `ls -l "$HOME/Library/Application Support/ClaudeConfigManager/secrets/"` |
 | Helper prints "permissions are too open" | Something loosened the file's mode | `chmod 600 "$HOME/Library/Application Support/ClaudeConfigManager/secrets/<provider>.secret"` |
@@ -185,7 +186,7 @@ The app stopped using the macOS Keychain: SecItemAdd was refused for the shipped
 Save & Apply impossible. Credentials are now written to:
 
 ```
-~/Library/Application Support/ClaudeConfigManager/secrets/<provider>.secret   (0600, dir 0700)
+~/.claude-config-manager/secrets/<provider>.secret   (0600, dir 0700)
 ```
 
 - **Protects against:** other users on the machine, backups/cloud sync of `~/.claude`

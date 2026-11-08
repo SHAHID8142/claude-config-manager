@@ -34,11 +34,7 @@ fn temp_dir(tag: &str) -> PathBuf {
 
 /// Create the credential file the helper reads, under a fixture HOME.
 fn write_credential(home: &Path, provider: &str, value: &str, mode: u32) {
-    let dir = home
-        .join("Library")
-        .join("Application Support")
-        .join("ClaudeConfigManager")
-        .join("secrets");
+    let dir = home.join(".claude-config-manager").join("secrets");
     fs::create_dir_all(&dir).expect("secrets dir");
     let path = dir.join(format!("{provider}.secret"));
     fs::write(&path, value).expect("write credential");

@@ -36,14 +36,13 @@ pub struct FileSecretStore {
 }
 
 impl FileSecretStore {
-    /// `<home>/Library/Application Support/ClaudeConfigManager/secrets`
+    /// `<home>/.claude-config-manager/secrets`
+    ///
+    /// Deliberately space-free: the helper script's path is embedded in
+    /// `apiKeyHelper`, which Claude Code does not quote (see `credential_handoff`).
     pub fn for_home(home: &Path) -> Self {
         Self {
-            root: home
-                .join("Library")
-                .join("Application Support")
-                .join("ClaudeConfigManager")
-                .join("secrets"),
+            root: home.join(".claude-config-manager").join("secrets"),
         }
     }
 

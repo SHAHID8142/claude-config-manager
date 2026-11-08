@@ -201,7 +201,7 @@ fn settings_json_never_contains_the_credential() {
     let current = serde_json::json!({});
     let desired = DesiredSettings {
         model: Some("m".into()),
-        api_key_helper: Some("/Users/u/Library/Application Support/ccm/helpers/deepseek.sh".into()),
+        api_key_helper: Some("/Users/u/.claude-config-manager/helpers/deepseek.sh".into()),
         ..Default::default()
     };
     let next = apply_desired(&current, &desired).expect("merge");

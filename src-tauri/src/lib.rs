@@ -89,7 +89,8 @@ fn save_and_apply(
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
-    // Credentials live in an owner-only file (0600) under Application Support.
+    // Credentials live in an owner-only file (0600) under ~/.claude-config-manager
+    // (a space-free path, because Claude Code does not quote apiKeyHelper).
     // The Keychain path was dropped: macOS refused it for the shipped bundle and
     // there was no way to sign around it (docs/audits/G13-file-credentials.md).
     let store: Arc<dyn secret_store::SecretStore> =

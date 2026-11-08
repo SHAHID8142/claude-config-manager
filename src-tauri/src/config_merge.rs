@@ -104,6 +104,14 @@ impl DesiredSettings {
         }
         if let Some(helper) = &self.api_key_helper {
             let p = Path::new(helper);
+            if helper.chars().any(|c| c.is_whitespace()) {
+                // Claude Code executes the apiKeyHelper value as-is; a space
+                // silently truncates it (".../Library/Application: No such file").
+                return Err(ConfigError::ValidationFailed(
+                    "apiKeyHelper path must not contain whitespace (Claude Code does not quote it)"
+                        .into(),
+                ));
+            }
             if !p.is_absolute() {
                 return Err(ConfigError::ValidationFailed(
                     "apiKeyHelper must be an absolute path (settings env values are not shell-expanded; T02)".into(),
@@ -266,6 +274,20 @@ mod tests {
     }
 
     #[test]
+    fn helper_path_with_a_space_is_refused() {
+        // Regression (found in a real terminal): ".../Application Support/..." was
+        // executed as ".../Library/Application" and exited 127.
+        let desired = DesiredSettings {
+            api_key_helper: Some(
+                "/Users/x/Library/Application Support/ClaudeConfigManager/helpers/a.sh".into(),
+            ),
+            ..Default::default()
+        };
+        let err = apply_desired(&obj(&[]), &desired).expect_err("must refuse");
+        assert!(err.to_string().contains("whitespace"), "{err}");
+    }
+
+    #[test]
     fn writing_a_model_removes_the_shadowing_env_model() {
         // ANTHROPIC_MODEL outranks settings.model; leaving it means the picked
         // model is ignored while the app reports success.
@@ -319,10 +341,7 @@ mod tests {
             ),
         ]);
         let desired = DesiredSettings {
-            api_key_helper: Some(
-                "/Users/x/Library/Application Support/ClaudeConfigManager/helpers/openrouter.sh"
-                    .into(),
-            ),
+            api_key_helper: Some("/Users/x/.claude-config-manager/helpers/openrouter.sh".into()),
             clear_env_credentials: true,
             ..Default::default()
         };
@@ -516,16 +535,13 @@ mod tests {
     #[test]
     fn helper_mode_writes_absolute_path() {
         let desired = DesiredSettings {
-            api_key_helper: Some(
-                "/Users/x/Library/Application Support/ClaudeConfigManager/helpers/anthropic.sh"
-                    .into(),
-            ),
+            api_key_helper: Some("/Users/x/.claude-config-manager/helpers/anthropic.sh".into()),
             ..Default::default()
         };
         let out = apply_desired(&obj(&[]), &desired).expect("merge");
         assert_eq!(
             out["apiKeyHelper"],
-            "/Users/x/Library/Application Support/ClaudeConfigManager/helpers/anthropic.sh"
+            "/Users/x/.claude-config-manager/helpers/anthropic.sh"
         );
     }
 

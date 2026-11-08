@@ -22,6 +22,7 @@ the reason — never silently dropped.
 | G14 | "Claude Code CLI not found" on GUI-PATH launches | ✅ closed (`G13-G14-storage-and-cli-detection.md`) |
 | G15 | Shadowing env keys survived apply; no way to test a key; actions below the fold | ✅ closed (`G15-shadowing-keys-and-connection-test.md`) |
 | G15c | A shell export (`~/.zshrc`) silently overrode the app; undetectable from a GUI app | ✅ closed (`G15c-shell-env-shadowing.md`) |
+| G16 | Helper path contained a space → Claude Code exited 127 on every request | ✅ closed (`G16-space-in-helper-path.md`) |
 
 ---
 
