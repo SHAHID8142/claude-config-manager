@@ -31,6 +31,12 @@ apiKeyHelper set: true
 Tests: `helper_mode_removes_shadowing_plaintext_credentials`,
 `env_mode_still_writes_plaintext_credentials_when_asked` (env mode unaffected).
 
+## Defect 1b — the same shadowing for the model
+`ANTHROPIC_MODEL` also outranks `settings.model`, so a stale `ANTHROPIC_MODEL=auto` (found in the owner's
+file) meant the model picked in the UI was ignored while the app reported success.
+`DesiredSettings.clear_env_model` removes it whenever a top-level model is written
+(`writing_a_model_removes_the_shadowing_env_model`). Env-model mode is unaffected.
+
 ## Defect 2 — no way to test that a key works
 
 "Applied and verified" verifies **the file**, not the credential. The placeholder "Test Connection" button

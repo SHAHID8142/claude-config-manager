@@ -60,6 +60,12 @@ pub struct DesiredSettings {
     /// `apiKeyHelper`, so Save & Apply would report success while the stored
     /// credential was never used.
     pub clear_env_credentials: bool,
+    /// Explicitly remove `ANTHROPIC_MODEL` from `env` when a top-level `model`
+    /// is written. `ANTHROPIC_MODEL` outranks `settings.model`, so a value left
+    /// by another tool (e.g. `auto`) silently overrides the model the user just
+    /// picked — Save & Apply would "succeed" while Claude Code used something
+    /// else. Only relevant when `model` is set; env-model mode uses `env_model`.
+    pub clear_env_model: bool,
 }
 
 impl DesiredSettings {
@@ -205,7 +211,11 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
     }
 
     let env_writes = desired.env_writes();
-    if !env_writes.is_empty() || desired.clear_env_base_url || desired.clear_env_credentials {
+    if !env_writes.is_empty()
+        || desired.clear_env_base_url
+        || desired.clear_env_credentials
+        || desired.clear_env_model
+    {
         let existing_env = match out.get("env") {
             Some(Value::Object(m)) => m.clone(),
             Some(Value::Null) | None => Map::new(),
@@ -223,6 +233,9 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
         let mut env = existing_env;
         if desired.clear_env_base_url {
             env.remove("ANTHROPIC_BASE_URL");
+        }
+        if desired.clear_env_model {
+            env.remove("ANTHROPIC_MODEL");
         }
         if desired.clear_env_credentials {
             // A blank string counts as present for precedence purposes, so both
@@ -250,6 +263,37 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v.clone()))
                 .collect(),
         )
+    }
+
+    #[test]
+    fn writing_a_model_removes_the_shadowing_env_model() {
+        // ANTHROPIC_MODEL outranks settings.model; leaving it means the picked
+        // model is ignored while the app reports success.
+        let current = obj(&[
+            ("model", Value::String("old-model".into())),
+            (
+                "env",
+                obj(&[
+                    ("ANTHROPIC_MODEL", Value::String("auto".into())),
+                    (
+                        "ANTHROPIC_BASE_URL",
+                        Value::String("https://openrouter.ai/api".into()),
+                    ),
+                ]),
+            ),
+        ]);
+        let desired = DesiredSettings {
+            model: Some("claude-sonnet-4-5".into()),
+            clear_env_model: true,
+            ..Default::default()
+        };
+        let out = apply_desired(&current, &desired).expect("merge");
+        assert_eq!(out["model"], "claude-sonnet-4-5");
+        assert!(out["env"].get("ANTHROPIC_MODEL").is_none(), "{out}");
+        assert_eq!(
+            out["env"]["ANTHROPIC_BASE_URL"],
+            "https://openrouter.ai/api"
+        );
     }
 
     #[test]

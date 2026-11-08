@@ -247,6 +247,9 @@ impl SaveApplyService {
             // The credential now lives in the helper only; plaintext env keys
             // would outrank it and silently make the stored key dead weight.
             clear_env_credentials: true,
+            // Same reasoning for the model: ANTHROPIC_MODEL wins over
+            // settings.model, so a stale `auto` would silently override the pick.
+            clear_env_model: model.is_some(),
             env_default_haiku: roles.haiku,
             env_default_sonnet: roles.sonnet,
             env_default_opus: roles.opus,
