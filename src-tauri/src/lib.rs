@@ -14,6 +14,7 @@ pub mod config_backup;
 pub mod config_locator;
 pub mod config_merge;
 pub mod config_reader;
+pub mod config_restore;
 pub mod config_status;
 pub mod config_writer;
 pub mod credential_handoff;
@@ -105,6 +106,18 @@ fn read_status() -> Result<config_status::EffectiveStatus, CommandError> {
     config_status::read_effective_status(&path).map_err(|e| CommandError::io(e.to_string()))
 }
 
+/// T35 contract: restore the newest settings backup (with pre-restore copy).
+#[tauri::command]
+fn restore_last_backup() -> Result<config_restore::RestoreOutcome, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let settings = config_locator::ConfigLocator::new().locate(&home, None);
+    let backups = config_backup::default_backup_dir(&home);
+    config_restore::restore_last_backup(&settings, &backups)
+        .map_err(|e| CommandError::io(e.to_string()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -112,7 +125,8 @@ pub fn run() {
             greet,
             list_providers,
             save_and_apply,
-            read_status
+            read_status,
+            restore_last_backup
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

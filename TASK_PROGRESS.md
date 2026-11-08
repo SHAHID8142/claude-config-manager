@@ -66,7 +66,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T32 Credential handoff per verified docs | ✅ | 2026-11-08 | (T32 commit) | ✓ | apiKeyHelper+Keychain RESOLVED (no STOP); mutual-exclusion with env mode; Bearer-only fallback consent-gated; Rust 111/111 |
 | T33 Save & Apply for ONE verified direct provider | ✅ | 2026-11-08 | (T33 commit) | ✓ | Full pipeline wired (Keychain→helper→merge→backup→atomic); first-run creation; UI banners; Rust 110+7, TS 60/60 |
 | T34 Read-back status + override warnings | ✅ | 2026-11-08 | (T34 commit) | ✓ | config_status.rs; shadowing/plaintext/conflict warnings; live status panel; Rust 117, TS 65/65 |
-| T35 Restore-last-backup operation | ⬜ | — | — | — | — |
+| T35 Restore-last-backup operation | ✅ | 2026-11-08 | (T35 commit) | ✓ | Content-gated restore + pre-restore safety copy; corrupted refused; Rust 122+7, TS 67/67 |
 | T36 Failure handling: missing CLI, versions, invalid settings | ⬜ | — | — | — | — |
 
 ## Model selection

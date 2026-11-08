@@ -350,3 +350,47 @@ describe("Effective status + override warnings (T34)", () => {
     await waitFor(() => expect(statusCallCount).toBeGreaterThanOrEqual(2));
   });
 });
+
+describe("Restore last backup (T35)", () => {
+  it("restores and shows the outcome with pre-restore copy", async () => {
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        restore_last_backup: () =>
+          Promise.resolve({
+            restoredFrom: "settings-backup-1700000000000000000.json",
+            preRestoreBackup: "settings-backup-1799999999999999999.json",
+          }),
+      },
+    });
+    render(<App ipc={ipc} />);
+    const btn = await screen.findByRole("button", { name: "Restore last backup" });
+    await userEvent.click(btn);
+    await waitFor(() => {
+      expect(screen.getByText("Settings restored from the latest backup.")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Restored: settings-backup-1700000000000000000/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/pre-restore copy: settings-backup-1799999999999999999/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows restore errors cleanly (e.g. no backups)", async () => {
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        restore_last_backup: () =>
+          Promise.reject({ kind: "io", message: "no backups available to restore" }),
+      },
+    });
+    render(<App ipc={ipc} />);
+    const btn = await screen.findByRole("button", { name: "Restore last backup" });
+    await userEvent.click(btn);
+    await waitFor(() => {
+      expect(screen.getByText("Restore failed.")).toBeInTheDocument();
+    });
+    expect(screen.getByText("no backups available to restore")).toBeInTheDocument();
+  });
+});

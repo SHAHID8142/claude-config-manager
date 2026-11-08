@@ -122,3 +122,16 @@ export interface EffectiveStatus {
 export async function readStatus(ipc: IpcLike = defaultIpc): Promise<EffectiveStatus> {
   return ipc.invoke<EffectiveStatus>("read_status");
 }
+
+// ---------------------------------------------------------------------------
+// `restore_last_backup` (T35) — newest backup with pre-restore safety copy.
+// ---------------------------------------------------------------------------
+
+export interface RestoreOutcome {
+  restoredFrom: string;
+  preRestoreBackup: string;
+}
+
+export async function restoreLastBackup(ipc: IpcLike = defaultIpc): Promise<RestoreOutcome> {
+  return ipc.invoke<RestoreOutcome>("restore_last_backup");
+}

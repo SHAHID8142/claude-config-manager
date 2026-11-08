@@ -9,12 +9,14 @@ import {
   defaultIpc,
   listProviders,
   readStatus,
+  restoreLastBackup,
   saveAndApply,
   isCommandError,
   type ApplyOutcome,
   type EffectiveStatus,
   type IpcLike,
   type ProviderSummary,
+  type RestoreOutcome,
   type StatusWarning,
 } from "./lib/ipc";
 import { classifyEndpoint, endpointCheckMessage } from "./lib/endpoint";
@@ -73,6 +75,9 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [applyOutcome, setApplyOutcome] = useState<ApplyOutcome | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [status, setStatus] = useState<EffectiveStatus | null>(null);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreOutcome, setRestoreOutcome] = useState<RestoreOutcome | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +140,20 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       setApplyError(isCommandError(err) ? err.message : "Apply failed.");
     } finally {
       setApplying(false);
+    }
+  }
+
+  async function handleRestore() {
+    setRestoring(true);
+    setRestoreOutcome(null);
+    setRestoreError(null);
+    try {
+      const outcome = await restoreLastBackup(ipc);
+      setRestoreOutcome(outcome);
+    } catch (err: unknown) {
+      setRestoreError(isCommandError(err) ? err.message : "Restore failed.");
+    } finally {
+      setRestoring(false);
     }
   }
 
@@ -369,6 +388,22 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             onDismiss={() => setApplyError(null)}
           />
         )}
+        {restoreOutcome !== null && (
+          <StatusBanner
+            severity="success"
+            message="Settings restored from the latest backup."
+            detail={`Restored: ${restoreOutcome.restoredFrom} · pre-restore copy: ${restoreOutcome.preRestoreBackup || "(none — file was missing)"}`}
+            onDismiss={() => setRestoreOutcome(null)}
+          />
+        )}
+        {restoreError !== null && (
+          <StatusBanner
+            severity="error"
+            message="Restore failed."
+            detail={restoreError}
+            onDismiss={() => setRestoreError(null)}
+          />
+        )}
         <div className="flex flex-wrap gap-2">
           <button type="button" disabled className={secondaryButtonClass}>
             Test Connection
@@ -381,6 +416,14 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             variant="primary"
             onClick={() => {
               void handleApply();
+            }}
+          />
+          <LoadingButton
+            label="Restore last backup"
+            pendingLabel="Restoring…"
+            pending={restoring}
+            onClick={() => {
+              void handleRestore();
             }}
           />
         </div>
