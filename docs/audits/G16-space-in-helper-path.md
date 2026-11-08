@@ -43,3 +43,20 @@ token now reports `shell_env: []` unless the user's shell **files** actually exp
 Every path that gets **executed by a third-party tool** must be treated as untrusted input for
 quoting purposes: verify it by running exactly what the tool runs (here: the unquoted path), not
 by calling the file ourselves.
+
+## Live verification after the fresh reinstall (2026-11-08)
+
+Fresh install → owner selected OpenRouter, pasted the key, pressed Save & Apply. Read-only checks:
+
+| Check | Result |
+| --- | --- |
+| `settings.json` → `apiKeyHelper` | `/Users/…/.claude-config-manager/helpers/openrouter.sh` — **no space** |
+| helper file | exists, executable |
+| `sh <apiKeyHelper>` | prints the credential (prefix `sk-or-v1-`), exit 0 |
+| secret file | `~/.claude-config-manager/secrets/openrouter.secret`, mode **0600**, 73 bytes |
+| shadowing `env` keys | none (`ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` absent) |
+| `env.ANTHROPIC_BASE_URL` | `https://openrouter.ai/api` |
+| live auth | `GET https://openrouter.ai/api/v1/key` with the helper's output → **HTTP 200** (free tier, usage 0) |
+
+The `exit 127` class is closed in the shipped build, and the credential the app stores is the one the
+provider accepts.
