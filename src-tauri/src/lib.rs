@@ -4,6 +4,25 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::greet;
+
+    #[test]
+    fn greet_includes_name() {
+        let out = greet("fixture-user");
+        assert!(out.contains("fixture-user"));
+    }
+
+    #[test]
+    fn greet_rejects_nothing_empty_is_safe() {
+        // Negative case: empty input must not panic and must stay a plain string.
+        let out = greet("");
+        assert!(out.starts_with("Hello, ") && out.ends_with('!'));
+        assert!(!out.contains('\n'));
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
