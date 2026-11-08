@@ -102,7 +102,7 @@ anyway and reports the OSStatus if both paths fail. If you hit it again, the mes
 
 ## Gates after both fixes
 ```
-cargo test        237 passed, 0 failed, 4 ignored (live network / real keychain)
+cargo test        236 passed, 0 failed, 4 ignored (live network / real keychain)
 cargo clippy -D warnings, cargo fmt --check    clean
 npx vitest run    124 passed / 14 files    lint, format, tsc, build   clean
 ```

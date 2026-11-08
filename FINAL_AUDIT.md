@@ -45,7 +45,7 @@ cargo fmt --check                              # PASS
 cargo clippy --all-targets -- -D warnings      # PASS (0 warnings)
 cargo test                                     # 185 unit + 7 adversarial + 7 crash + 6 lifecycle
                                                # + 14 malformed + 6 property-based + 11 secret/network
-                                               # + 1 keychain fallback = 237 passed, 0 failed,
+                                               # + 1 keychain fallback = 236 passed, 0 failed,
                                                # 4 ignored (live network / real keychain, opt-in)
 npm run lint                                   # PASS
 npm run format:check                           # PASS
