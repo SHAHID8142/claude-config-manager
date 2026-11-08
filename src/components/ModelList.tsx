@@ -1,6 +1,9 @@
-/** Searchable model list (T40). Selection happens ONLY on explicit click
- * (PRD F04 — nothing is ever auto-selected, not on fetch, not on filter). */
-import { useState } from "react";
+/** Searchable model list (T40, restyled V2-13). Selection happens ONLY on
+ * explicit click (PRD F04 — nothing is ever auto-selected, not on fetch, not on
+ * filter). Rows stay one line tall so a 60-model catalog is scannable, and the
+ * provenance line is stated once instead of repeating a chip on every row. */
+import { useMemo, useState } from "react";
+import { Check, Search } from "lucide-react";
 import type { ModelEntry } from "../lib/ipc";
 import { focusRing } from "../lib/focus";
 
@@ -18,73 +21,83 @@ export function ModelList({ models, selectedId, onSelect }: ModelListProps) {
   const rawSource = models[0]?.source ?? "";
   const source = rawSource.trim() === "" ? "unknown" : rawSource;
 
-  const q = query.trim().toLowerCase();
-  const filtered = q
-    ? models.filter(
-        (m) =>
-          m.id.toLowerCase().includes(q) || (m.displayName?.toLowerCase().includes(q) ?? false),
-      )
-    : models;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (q === "") return models;
+    return models.filter(
+      (m) => m.id.toLowerCase().includes(q) || (m.displayName?.toLowerCase().includes(q) ?? false),
+    );
+  }, [models, query]);
 
   return (
     <div className="flex flex-col gap-2">
-      <label htmlFor="model-search" className="sr-only">
-        Filter models
-      </label>
-      <input
-        id="model-search"
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Filter by id or name…"
-        className={`w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 placeholder-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 ${focusRing}`}
-        aria-describedby="model-search-hint"
-      />
-      <p id="model-search-hint" className="text-xs text-zinc-500 dark:text-zinc-400">
-        {filtered.length} of {models.length} models shown. Click a model to select it — nothing is
-        selected automatically.
+      <div className="relative">
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-ink-subtle"
+        />
+        <label htmlFor="model-search" className="sr-only">
+          Filter models
+        </label>
+        <input
+          id="model-search"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Filter by id or name"
+          className={`w-full rounded-md border border-line bg-surface-raised py-1.5 pr-2.5 pl-8 text-[12.5px] text-ink placeholder:text-ink-subtle ${focusRing}`}
+          aria-describedby="model-search-hint"
+        />
+      </div>
+      <p id="model-search-hint" className="text-[11px] text-ink-subtle">
+        {filtered.length} of {models.length} models · click to select, nothing is auto-selected
       </p>
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        Metadata source: <span className="font-mono">{source}</span> · capability data unverified
-        (unknown for every model).
-      </p>
+
       {filtered.length === 0 ? (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400" role="status">
+        <p className="py-3 text-[12.5px] text-ink-muted" role="status">
           No models match “{query}”.
         </p>
       ) : (
         <ul
           aria-label="Discovered models"
-          className="max-h-48 overflow-y-auto rounded-md border border-zinc-200 dark:border-zinc-700"
+          className="max-h-56 overflow-y-auto rounded-md border border-line bg-surface-raised"
         >
           {filtered.map((m) => {
             const isSelected = m.id === selectedId;
             return (
-              <li key={m.id}>
+              <li key={m.id} className="border-b border-line last:border-b-0">
                 <button
                   type="button"
                   role="option"
                   aria-selected={isSelected}
                   onClick={() => onSelect(m.id)}
-                  className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm ${focusRing} ${
+                  className={`flex h-8 w-full items-center gap-2 px-2.5 text-left text-[12.5px] ${focusRing} ${
                     isSelected
-                      ? "bg-blue-50 text-blue-900 dark:bg-blue-950 dark:text-blue-200"
-                      : "text-zinc-700 hover:bg-zinc-50 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                      ? "bg-accent-soft text-ink"
+                      : "text-ink-muted hover:bg-surface-sunken hover:text-ink"
                   }`}
                 >
-                  <span className="font-mono">{m.id}</span>
-                  <span className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                    {m.displayName !== null && <span>{m.displayName}</span>}
-                    <span className="rounded-full border border-zinc-300 px-1.5 py-0.5 dark:border-zinc-600">
-                      capabilities unknown
+                  <Check
+                    aria-hidden="true"
+                    className={`size-3.5 shrink-0 ${isSelected ? "text-accent" : "invisible"}`}
+                  />
+                  <span className="min-w-0 flex-1 truncate font-mono">{m.id}</span>
+                  {m.displayName !== null && (
+                    <span className="max-w-40 shrink-0 truncate text-[11px] text-ink-subtle">
+                      {m.displayName}
                     </span>
-                  </span>
+                  )}
                 </button>
               </li>
             );
           })}
         </ul>
       )}
+
+      <p className="text-[11px] text-ink-subtle">
+        Source: <span className="font-mono">{source}</span> · capability data unverified (unknown
+        for every model)
+      </p>
     </div>
   );
 }

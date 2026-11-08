@@ -511,8 +511,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                 }}
               />
               {selected !== null && !isCustom && (
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Catalog source: verified preset for {selected.name}
+                <span className="text-[11px] text-ink-subtle">
+                  Verified preset for {selected.name}
                 </span>
               )}
             </div>
@@ -556,6 +556,22 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                 {modelValidation.message} Save &amp; Apply is disabled until this is fixed.
               </p>
             )}
+            {selectedModel !== null &&
+              selectedModel.trim() !== "" &&
+              !selectedModel.trim().toLowerCase().startsWith("claude") &&
+              (status?.envMaxContextTokens ?? null) === null && (
+                <p className="text-[11px] text-ink-subtle">
+                  Claude Code doesn&apos;t recognize this id and will assume a 200k window.{" "}
+                  <button
+                    type="button"
+                    className="text-accent underline-offset-2 hover:underline"
+                    onClick={() => setAdvancedOpen(true)}
+                  >
+                    Declare its real window
+                  </button>{" "}
+                  if it is larger.
+                </p>
+              )}
             {selectedModel !== null &&
               selectedModel.trim() !== "" &&
               (models === null || models.length === 0) && (

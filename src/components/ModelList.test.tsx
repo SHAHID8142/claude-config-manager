@@ -27,12 +27,25 @@ const models = [
 ];
 
 describe("ModelList (T40)", () => {
-  it("renders all models with unknown-capability chips", () => {
+  it("renders every model as one scannable row with a single provenance line", () => {
     render(<ModelList models={models} selectedId={null} onSelect={() => {}} />);
     // The list container keeps its aria-label for AT; options are buttons.
     expect(screen.getByLabelText("Discovered models")).toBeInTheDocument();
-    expect(screen.getAllByText("capabilities unknown")).toHaveLength(3);
-    expect(screen.getByText(/3 of 3 models shown/)).toBeInTheDocument();
+    expect(screen.getAllByRole("option")).toHaveLength(3);
+    expect(screen.getByText(/3 of 3 models/)).toBeInTheDocument();
+    // V2-13: the per-row chip is gone; honesty is stated once, not 60 times.
+    expect(screen.queryByText("capabilities unknown")).toBeNull();
+    expect(screen.getByText(/capability data unverified/)).toBeInTheDocument();
+  });
+
+  it("marks the selected row for sighted and assistive users alike", () => {
+    render(<ModelList models={models} selectedId="deepseek/deepseek-y" onSelect={() => {}} />);
+    const chosen = screen.getByRole("option", { name: /deepseek\/deepseek-y/ });
+    expect(chosen).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("option", { name: /anthropic\/claude-x/ })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
   });
 
   it("filters by id and display name, with honest empty state", async () => {
@@ -40,7 +53,7 @@ describe("ModelList (T40)", () => {
     const search = screen.getByLabelText("Filter models");
     await userEvent.type(search, "deepseek");
     expect(screen.getAllByRole("option")).toHaveLength(1);
-    expect(screen.getByText(/1 of 3 models shown/)).toBeInTheDocument();
+    expect(screen.getByText(/1 of 3 models/)).toBeInTheDocument();
 
     await userEvent.clear(search);
     await userEvent.type(search, "zzz-nothing");

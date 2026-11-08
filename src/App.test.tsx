@@ -262,6 +262,21 @@ describe("Save & Apply (T33)", () => {
     expect(screen.getByText(/never written into/)).toBeInTheDocument();
   });
 
+  it("points out the 200k assumption for a non-Claude model id (V2-13)", async () => {
+    const ipc = mockWithApply();
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "openrouter");
+    await userEvent.type(
+      screen.getByLabelText("Model", { selector: "input" }),
+      "nvidia/nemotron-x",
+    );
+    expect(screen.getByText(/will assume a 200k window/i)).toBeInTheDocument();
+    // The tip is a real affordance: it opens the panel that can fix it.
+    await userEvent.click(screen.getByRole("button", { name: /declare its real window/i }));
+    expect(screen.getByLabelText(/context window/i)).toBeInTheDocument();
+  });
+
   it("sends the declared context window for an unrecognized model id (V2-12b)", async () => {
     const ipc = mockWithApply();
     render(<App ipc={ipc} />);
