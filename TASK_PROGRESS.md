@@ -36,7 +36,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T12 Minimal single-window layout | ✅ | 2026-11-08 | (T12 commit) | ✓ | PRD main-screen shell; honest disabled states; 11/11 frontend tests |
 | T13 Light/dark system theme + responsive sizing | ✅ | 2026-11-08 | (T13 commit) | ✓ | prefers-color-scheme verified in build output; color-scheme light dark |
 | T14 Accessible labels, keyboard nav, focus states | ✅ | 2026-11-08 | (T14 commit) | ✓ | focusRing shared util; aria-describedby hint linkage; 14/14 tests |
-| T15 Loading/error/success feedback components | ⬜ | — | — | — | — |
+| T15 Loading/error/success feedback components | ✅ | 2026-11-08 | (T15 commit) | ✓ | StatusBanner (4 severities, a11y roles) + LoadingButton (aria-busy, reduced-motion); 25/25 tests |
 
 ## Provider and credential UX
 
