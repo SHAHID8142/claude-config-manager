@@ -92,6 +92,15 @@ pub struct SaveApplyService {
 }
 
 impl SaveApplyService {
+    /// Directory holding the apply lock. Sits beside backups so both live in
+    /// the app's support folder rather than next to the user's settings file.
+    pub fn lock_dir(&self) -> PathBuf {
+        self.backups_dir
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| self.backups_dir.clone())
+    }
+
     pub fn for_production(home: &Path, store: Arc<dyn SecretStore>) -> Self {
         Self {
             home: home.to_path_buf(),
@@ -131,6 +140,12 @@ impl SaveApplyService {
         api_key: Option<&str>,
         roles: &RoleOverrides,
     ) -> Result<ApplyOutcome, ApplyError> {
+        // --- Mutual exclusion (G4): one apply at a time, process-wide ---
+        // Acquired before anything is read so two windows cannot interleave a
+        // read-merge-write cycle. Released automatically when this returns.
+        let _lock = crate::apply_lock::ApplyLock::acquire(&self.lock_dir())
+            .map_err(|e| ApplyError::Io(e.to_string()))?;
+
         // --- Input validation (nothing touched yet) ---
         crate::credential_handoff::validate_provider_id(provider_id)
             .map_err(|_| ApplyError::InvalidInput("invalid provider id".into()))?;
@@ -544,6 +559,63 @@ mod tests {
         let doc: Value = serde_json::from_slice(&after).expect("json");
         assert_eq!(doc["model"], "good-model");
         assert_eq!(doc["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"], "role-sonnet");
+    }
+
+    /// G4: eight concurrent applies over the same settings file. Exactly one may
+    /// hold the lock at a time; the rest must be refused with a clear message
+    /// rather than corrupting the file.
+    #[test]
+    fn concurrent_applies_are_serialized_and_never_corrupt_the_file() {
+        let (home, _store) = fixture("g4-concurrent");
+        let home = Arc::new(home);
+        let results: Vec<_> = (0..8)
+            .map(|i| {
+                let home = Arc::clone(&home);
+                std::thread::spawn(move || {
+                    // Separate service instances = separate app instances.
+                    let svc = service(&home, Arc::new(MockSecretStore::new()));
+                    svc.apply(
+                        "deepseek",
+                        Some(&format!("model-{i}")),
+                        Some("https://api.deepseek.com/anthropic"),
+                        Some(FAKE_KEY),
+                    )
+                })
+            })
+            .collect::<Vec<_>>()
+            .into_iter()
+            .map(|h| h.join().expect("thread"))
+            .collect();
+
+        let ok = results.iter().filter(|r| r.is_ok()).count();
+        assert!(ok >= 1, "at least one apply must succeed: {results:?}");
+        for r in &results {
+            if let Err(e) = r {
+                let msg = e.to_string();
+                assert!(
+                    msg.contains("already running"),
+                    "a concurrent apply may only fail with the lock message, got: {msg}"
+                );
+            }
+        }
+
+        // Whatever won, the file is valid JSON with a model one of us wrote and
+        // the user's unrelated env key intact.
+        let doc: Value = serde_json::from_str(
+            &fs::read_to_string(home.join(".claude/settings.json")).expect("read"),
+        )
+        .expect("settings must be valid JSON after concurrent applies");
+        let model = doc["model"].as_str().expect("model").to_string();
+        assert!(
+            model.starts_with("model-"),
+            "unexpected model after concurrency: {model}"
+        );
+        assert_eq!(doc["env"]["CLAUDE_CODE_X"], "1");
+        // Lock must be released once every apply returned.
+        assert!(
+            !home.join("apply.lock").exists(),
+            "the apply lock must not be left behind"
+        );
     }
 
     /// M1 regression: switching from a compat provider back to native Anthropic

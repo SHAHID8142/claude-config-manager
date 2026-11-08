@@ -10,6 +10,7 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+pub mod apply_lock;
 pub mod config_backup;
 pub mod config_locator;
 pub mod config_merge;

@@ -92,3 +92,37 @@ and the way they failed is the useful part:
   contain them.
 - Secret detection needs ≥ 16 characters and a known prefix: `sk-ant-` alone is not detected. No false
   negatives for real provider key formats, which are all far longer.
+
+---
+
+## G4 — concurrent applies
+
+**Gap class:** nothing prevented two app instances (or two windows) from running the read-merge-write
+pipeline at once. The mtime check is check-then-act, so two writers could both pass it.
+
+**Change:** new `src-tauri/src/apply_lock.rs`, acquired at the top of `apply_with_roles` and released by
+`Drop`:
+- `create_new` (O_EXCL) — the acquisition itself is atomic;
+- file holds `pid` + a per-acquisition nonce, mode `0600`;
+- a lock is reclaimed only if its owner is gone **and** it is older than a 5 s grace window;
+- hard staleness at 120 s, so a crash can never wedge the app permanently.
+
+**Two bugs this found in my own first implementation** (both would have been shipped otherwise):
+1. *Cross-delete by pid.* Ownership was decided by pid, so two guards inside one process looked identical and
+   the loser's `Drop` deleted the winner's lock. Fixed with a nonce token compared on release.
+2. *Empty-file race.* `create_new` publishes the file before the pid is written; a second process read an
+   empty file, concluded "owner dead", and stole the lock — the concurrency test failed with
+   `write verification failed` under parallel load. Fixed by failing closed inside the grace window.
+
+**Evidence:** 8 unit tests (`an_empty_but_fresh_lock_is_held_not_stolen`,
+`the_holder_is_not_deleted_by_a_stale_reclaimer_that_lost`, `a_lock_from_a_dead_process_is_reclaimed`, …) plus
+`concurrent_applies_are_serialized_and_never_corrupt_the_file` — 8 threads over one settings file: at least
+one succeeds, every other failure must carry the lock message, the file stays valid JSON with the user's
+unrelated env key intact, and no lock file remains. Full suite re-run 5× with no flakes.
+
+**Residual:**
+- The lock is advisory and local to one user account; it is not an OS-level file lock, so an external editor
+  writing the file is still only caught by the mtime check.
+- A crash within the 5 s window means a user-visible "another apply is running" for up to 5 s. Accepted:
+  better a short wait than two writers.
+- The UI does not yet grey out the button while an apply is in flight (the backend refuses correctly).
