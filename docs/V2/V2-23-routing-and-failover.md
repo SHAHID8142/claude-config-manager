@@ -53,7 +53,7 @@ cargo test         291 passed / 0 failed   (8 proxy-loopback tests, 7 routing, 5
 cargo clippy       0 warnings
 npx tsc --noEmit   clean
 npm run lint       clean
-npx vitest run     177 passed / 22 files
+npx vitest run     181 passed / 22 files
 npm run tauri build exit 0
 ```
 

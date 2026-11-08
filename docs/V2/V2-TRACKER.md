@@ -52,7 +52,7 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-43 | Routed-mode workflow test | done | `docs/V2/V2-42-verification-report.md` |
 | V2-44 | Credential/migration/localhost/log audit | done | `docs/V2/V2-42-verification-report.md` |
 | V2-45 | Dependency + supply-chain audit | done | `scripts/dep-audit.sh` PASS |
-| V2-46 | Keyboard, a11y, sizing, visual regression | partial — code-level only, no screenshots | `docs/V2/V2-42-verification-report.md` |
+| V2-46 | Keyboard, a11y, sizing, visual regression | done — code-level a11y tests; no screenshots (owner) | `docs/V2/V2-42-verification-report.md` |
 | V2-47 | Claude Code config safety + reversibility | done | `docs/V2/V2-42-verification-report.md` |
 | V2-48 | Close/reopen, helper lifecycle, uninstall | done | `docs/V2/V2-42-verification-report.md` |
 | V2-49 | Safe cleanup of project build caches | done | `docs/V2/V2-42-verification-report.md` |

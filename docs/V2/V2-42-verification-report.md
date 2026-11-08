@@ -60,6 +60,8 @@ is first-party Rust using the already-vendored `ureq`.
 | Focus is visible | shared `focusRing` token (`focus-visible:ring-accent`) on inputs and selects |
 | Contrast | `src/styles/theme.contrast.test.ts` (WCAG both themes) |
 | Window sizing | 760×780 minimum; the new section scrolls inside the existing column |
+| Routing panel: labelled controls, real disabled states, no positive tabindex | `src/a11y.test.tsx` → *failover routing accessibility (V2-46)*, 3 tests |
+| Failure reasons are real text, never a hover-only `title` | same file: *publishes failure reasons as text, not a hover-only title* |
 | Visual regression | **not verified** — no screenshots taken, per owner instruction |
 
 ## V2-47 Claude Code config safety + reversibility
@@ -97,7 +99,7 @@ before removal; the last cleanup used `cargo clean` inside the repo only.
 | `cargo test` | **291 passed / 0 failed** (3 live tests ignored by design) |
 | `npx tsc --noEmit` | clean |
 | `npm run lint` | clean |
-| `npx vitest run` | **177 passed / 22 files** |
+| `npx vitest run` | **181 passed / 22 files** |
 | `npm run tauri build` | exit 0, `.app` + `.dmg` produced |
 | `scripts/dep-audit.sh` | PASS |
 

@@ -14,7 +14,7 @@
 
 The app does what it claims for the Anthropic-API-compatible provider path: it stores the key in the
 an owner-only credential file, writes only the keys it owns, backs up before writing, writes atomically, verifies by read-back,
-and can roll back. Those claims are backed by 291 Rust and 177 TypeScript tests executed for this audit, including eight tests that drive the failover proxy over real loopback sockets.
+and can roll back. Those claims are backed by 291 Rust and 181 TypeScript tests executed for this audit, including eight tests that drive the failover proxy over real loopback sockets.
 
 It cannot ship because of four external/release items, not because of test failures:
 1. no Apple Developer ID → the signed/notarized build does not exist (Gatekeeper refuses the current one);
@@ -208,7 +208,7 @@ cargo clippy --all-targets 0 warnings
 cargo test                 291 passed / 0 failed
 npx tsc --noEmit           clean
 npm run lint               clean
-npx vitest run             177 passed / 22 files
+npx vitest run             181 passed / 22 files
 npm run tauri build        exit 0 (.app + .dmg)
 scripts/dep-audit.sh       PASS (0 npm vulns, 0 advisories in the macOS graph)
 ```

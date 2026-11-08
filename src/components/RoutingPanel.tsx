@@ -160,7 +160,6 @@ export function RoutingPanel({
                       ? "bg-ok-soft text-ok"
                       : "bg-danger-soft text-danger"
                   }`}
-                  title={health.find((h) => h.targetId === t.id)?.message}
                 >
                   {health.find((h) => h.targetId === t.id)?.ok ? "key ok" : "key failed"}
                 </span>
@@ -305,6 +304,20 @@ export function RoutingPanel({
           <p className="break-words text-[11.5px] text-danger">{status.lastError}</p>
         ) : null}
       </div>
+
+      {/* Real text, not a hover-only tooltip: a keyboard or screen-reader user
+          must be able to read why a target failed. */}
+      {health !== null && health.some((h) => !h.ok) ? (
+        <ul aria-label="Failing routing targets" className="flex flex-col gap-0.5">
+          {health
+            .filter((h) => !h.ok)
+            .map((h) => (
+              <li key={h.targetId} className="break-words text-[11.5px] text-danger">
+                {h.targetId}: {h.message}
+              </li>
+            ))}
+        </ul>
+      ) : null}
 
       {error ? <p className="break-words text-[11.5px] text-danger">{error}</p> : null}
     </div>

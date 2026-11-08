@@ -149,6 +149,10 @@ describe("RoutingPanel", () => {
     });
     expect(screen.getByText("key ok")).toBeInTheDocument();
     expect(screen.getByText("key failed")).toBeInTheDocument();
+    // The reason is real text, not a hover-only title attribute.
+    expect(screen.getByRole("list", { name: "Failing routing targets" })).toHaveTextContent(
+      "b: Key rejected (401).",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Check targets" }));
     expect(onCheckHealth).toHaveBeenCalledOnce();
   });

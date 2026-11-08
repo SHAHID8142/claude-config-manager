@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import App from "./App";
 
 import { StatusBanner } from "./components/StatusBanner";
+import { RoutingPanel } from "./components/RoutingPanel";
 import { createMockIpc } from "./lib/ipc-mock";
 import { providerSummaryFixtures } from "./lib/fixtures/providers";
 
@@ -167,5 +168,93 @@ describe("macOS theme and small-window resilience (T62, static)", () => {
         );
       }
     }
+  });
+});
+
+// V2-46: the failover routing surface follows the same rules as the rest of the
+// app — labelled controls, real disabled states, no positive tabindex, and
+// failure reasons as text rather than hover-only tooltips.
+describe("failover routing accessibility (V2-46)", () => {
+  const providers = [
+    {
+      id: "openrouter",
+      name: "OpenRouter",
+      protocol: "anthropic_compat" as const,
+      bridge: "not_required" as const,
+      capabilityStatus: { status: "verified" as const, source_url: "https://example.test" },
+      docsUrl: null,
+      directBaseUrl: "https://openrouter.ai/api",
+    },
+  ];
+  const credentials = [
+    {
+      id: "openrouter-1",
+      providerId: "openrouter",
+      label: "primary",
+      last4: "1f2a",
+      priority: 0,
+      enabled: true,
+      legacy: false,
+    },
+  ];
+
+  function renderPanel() {
+    return render(
+      <RoutingPanel
+        config={{
+          version: 1,
+          enabled: true,
+          targets: [
+            {
+              id: "openrouter-1",
+              providerId: "openrouter",
+              credentialId: "openrouter-1",
+              model: "nvidia/nemotron-3-ultra",
+              baseUrl: "https://openrouter.ai/api",
+              enabled: true,
+            },
+          ],
+        }}
+        providers={providers}
+        credentials={credentials}
+        status={null}
+        health={[
+          { targetId: "openrouter-1", providerId: "openrouter", ok: false, message: "Key rejected (401)." },
+        ]}
+        onChange={() => {}}
+        onSave={() => {}}
+        onStartProxy={() => {}}
+        onStopProxy={() => {}}
+        onApplyRouted={() => {}}
+      />,
+    );
+  }
+
+  it("gives every control an accessible name", () => {
+    renderPanel();
+    for (const control of screen.getAllByRole("button")) {
+      const name = control.getAttribute("aria-label") ?? control.textContent?.trim() ?? "";
+      expect(name.length, `unnamed button: ${control.outerHTML.slice(0, 80)}`).toBeGreaterThan(0);
+    }
+    expect(screen.getByLabelText("Fail over between targets")).toBeInTheDocument();
+    expect(screen.getByLabelText("Provider")).toBeInTheDocument();
+    expect(screen.getByLabelText("Credential")).toBeInTheDocument();
+  });
+
+  it("never uses a positive tabindex and uses real disabled states", () => {
+    renderPanel();
+    for (const el of Array.from(document.querySelectorAll("[tabindex]"))) {
+      expect(Number(el.getAttribute("tabindex"))).toBeLessThanOrEqual(0);
+    }
+    // "Route Claude Code" is enabled here; the first target cannot move up.
+    expect(screen.getByRole("button", { name: "Move openrouter-1 up" })).toBeDisabled();
+  });
+
+  it("publishes failure reasons as text, not a hover-only title", () => {
+    renderPanel();
+    expect(screen.getByRole("list", { name: "Failing routing targets" })).toHaveTextContent(
+      "Key rejected (401).",
+    );
+    expect(document.querySelector("[title]")).toBeNull();
   });
 });
