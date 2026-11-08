@@ -141,7 +141,8 @@ credential-looking is replaced with `[REDACTED]`).
   support them. Selecting such a provider only writes configuration; requests would fail at Claude Code.
 - **Model capability data is `unknown`.** The app does not claim a third-party model supports tool use,
   vision or reasoning — that depends on the model *and* on the provider's compatibility layer.
-- **No automated uninstall**, no auto-update, no GUI-side "test connection" to the provider.
+- **No automated uninstall**, no auto-update. There *is* a **Test connection** action for providers that document a key-check endpoint.
+- **Failover is opt-in and only for direct Anthropic-compatible providers.** See §11.
 - **Clearing a role override** requires editing the file (see §4).
 
 ---
@@ -178,6 +179,46 @@ The architecture is deliberately tiered, so a Windows port is mostly a platform-
 Also needed: CI on Windows, a Windows-aware `ConfigLocator`, and re-checking every `#[cfg(unix)]` test (the
 whole filesystem suite is Unix-only today). Do **not** assume macOS behaviour transfers: the symlink refusals,
 permission checks and helper execution model all differ.
+
+## 11. Failover routing (optional)
+
+The app can run a small proxy on your own machine so that one failed provider does not stop your
+session.
+
+1. Choose a provider and add a stored key (Credentials).
+2. Under **Failover routing**, pick the provider and one of its stored credentials, optionally
+   pin a model, and press **Add target**. Repeat for the backup providers you want.
+3. Order the list (↑ / ↓). The proxy tries targets top to bottom.
+4. **Save chain**, then **Start proxy**, then **Route Claude Code**.
+
+What it changes — `~/.claude/settings.json` gets
+
+```json
+{
+  "env": { "ANTHROPIC_BASE_URL": "http://127.0.0.1:<port>" },
+  "apiKeyHelper": "/Users/<you>/.claude-config-manager/helpers/proxy.sh"
+}
+```
+
+The helper prints a **proxy token**, not a provider key. Keys stay in
+`~/.claude-config-manager/secrets/` and only the proxy reads them.
+
+When it fails over: 401/403 (bad key), 429 (rate limit, honours `Retry-After`), 5xx, timeouts and
+network errors. It does **not** fail over on a malformed request (400/404/422), and it never
+retries a request whose stream already started — so a tool call or a charge is never duplicated.
+
+Limits worth knowing:
+
+- The listener is `127.0.0.1` only and exists while the app runs; quitting the app stops it.
+- Cooldowns (30 s for a rate limit, 6 h for a rejected key or exhausted quota) are in memory and
+  reset on restart.
+- Only `anthropic-version`, `anthropic-beta` and `accept` are forwarded besides the body.
+- Routing adds a hop: if the app is not running, Claude Code cannot reach the provider. Turn
+  routing off (save normally, or stop the proxy and re-apply your provider) to go direct again.
+
+---
+
+---
 
 ## Where the key lives (and what that protects)
 

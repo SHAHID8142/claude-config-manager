@@ -8,12 +8,13 @@
 ## Verdict
 
 > **Direct-mode configuration: PASS.**
+> **Failover routing (opt-in loopback proxy): PASS at code level, not yet exercised against a paid provider.**
 > **Release readiness: NOT READY.**
 > Not ready to distribute, and not yet proven on a clean Mac.
 
 The app does what it claims for the Anthropic-API-compatible provider path: it stores the key in the
 an owner-only credential file, writes only the keys it owns, backs up before writing, writes atomically, verifies by read-back,
-and can roll back. Those claims are backed by 203 Rust and 120 TypeScript tests executed in this audit.
+and can roll back. Those claims are backed by 291 Rust and 177 TypeScript tests executed for this audit, including eight tests that drive the failover proxy over real loopback sockets.
 
 It cannot ship because of four external/release items, not because of test failures:
 1. no Apple Developer ID → the signed/notarized build does not exist (Gatekeeper refuses the current one);
@@ -181,3 +182,41 @@ This is a well-tested, fail-closed configuration tool for the direct (Anthropic-
 with a critical credential-misrouting bug found and fixed during the audit, and a bridge half of the product
 that does not exist. It is **not** a finished product: the packaging/signing/verification chain that makes a
 macOS app installable is missing, and nothing here was ever seen running on a screen.
+
+
+---
+
+## V2 addendum — failover routing and the loopback proxy
+
+**What changed since the first audit**
+
+- **Design:** premium, minimal, two-column macOS layout with a Claude-clay accent, semantic light/dark
+  tokens (contrast-tested against the shipped CSS), Lucide icons, keyboard-visible focus.
+- **Credentials:** per-provider, multiple named keys in an owner-only store with a metadata-only index;
+  a legacy key is aliased, never moved or rewritten; changing a model no longer needs the key retyped.
+- **Context window:** `CLAUDE_CODE_MAX_CONTEXT_TOKENS` is a managed key with digits-only validation, so a
+  1M-context model is never silently assumed to be 200k.
+- **Failover:** an opt-in first-party Rust proxy on `127.0.0.1` with a per-process token, ordered targets,
+  error classification (auth / rate limit / quota / 5xx / timeout / network), `Retry-After`-aware cooldowns,
+  streaming passthrough, and no replay of a started stream. No third-party binary is installed or executed.
+
+**Verification (code level, per owner instruction — no screenshot loop)**
+
+```
+cargo fmt --check          clean
+cargo clippy --all-targets 0 warnings
+cargo test                 291 passed / 0 failed
+npx tsc --noEmit           clean
+npm run lint               clean
+npx vitest run             177 passed / 22 files
+npm run tauri build        exit 0 (.app + .dmg)
+scripts/dep-audit.sh       PASS (0 npm vulns, 0 advisories in the macOS graph)
+```
+
+**Still not ready to distribute**
+
+1. Ad-hoc signature only (no Apple Developer ID, no notarization).
+2. No project `LICENSE` (owner decision).
+3. No clean-Mac, Windows or Linux run.
+4. Live failover against a paid provider was not executed; the integration tests use a scripted upstream.
+5. Bridge mode for OpenAI-only providers still does not exist.

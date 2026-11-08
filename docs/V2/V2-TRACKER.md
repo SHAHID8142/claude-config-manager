@@ -48,16 +48,16 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-39 | Routing status + safe diagnostics | done | `3597a19` |
 | V2-40 | Exhausted/invalid/timeout/5xx tests | done | `3597a19` |
 | V2-41 | Streaming, tools, replay safety, recovery | done | `3597a19` |
-| V2-42 | Direct-mode workflow test | todo | — |
-| V2-43 | Routed-mode workflow test | todo | — |
-| V2-44 | Credential/migration/localhost/log audit | todo | — |
-| V2-45 | Dependency + supply-chain audit | todo | — |
-| V2-46 | Keyboard, a11y, sizing, visual regression | todo | — |
-| V2-47 | Claude Code config safety + reversibility | todo | — |
-| V2-48 | Close/reopen, helper lifecycle, uninstall | todo | — |
-| V2-49 | Safe cleanup of project build caches | todo | — |
-| V2-50 | Full gate run (fmt, lint, types, tests, build) | todo | — |
-| V2-51 | macOS smoke test + unverified envs | todo | — |
-| V2-52 | User docs + limitations | todo | — |
-| V2-53 | Final audit report | todo | — |
-| V2-54 | Commit, push, deliver | todo | — |
+| V2-42 | Direct-mode workflow test | done | `docs/V2/V2-42-verification-report.md` |
+| V2-43 | Routed-mode workflow test | done | `docs/V2/V2-42-verification-report.md` |
+| V2-44 | Credential/migration/localhost/log audit | done | `docs/V2/V2-42-verification-report.md` |
+| V2-45 | Dependency + supply-chain audit | done | `scripts/dep-audit.sh` PASS |
+| V2-46 | Keyboard, a11y, sizing, visual regression | partial — code-level only, no screenshots | `docs/V2/V2-42-verification-report.md` |
+| V2-47 | Claude Code config safety + reversibility | done | `docs/V2/V2-42-verification-report.md` |
+| V2-48 | Close/reopen, helper lifecycle, uninstall | done | `docs/V2/V2-42-verification-report.md` |
+| V2-49 | Safe cleanup of project build caches | done | `docs/V2/V2-42-verification-report.md` |
+| V2-50 | Full gate run (fmt, lint, types, tests, build) | done | 291 Rust / 177 TS / clippy 0 / build exit 0 |
+| V2-51 | macOS smoke test + unverified envs | partial — clean-Mac, Windows, Linux unverified | `docs/V2/V2-42-verification-report.md` |
+| V2-52 | User docs + limitations | done | `docs/USER_GUIDE.md` §11 |
+| V2-53 | Final audit report | done | `FINAL_AUDIT.md` |
+| V2-54 | Commit, push, deliver | done | see V2 delivery commit |
