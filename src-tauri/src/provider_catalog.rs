@@ -286,6 +286,15 @@ pub fn classify_endpoint(url: &str) -> EndpointCheck {
         Ok(p) => p,
         Err(e) => return EndpointCheck::Invalid(e.to_string()),
     };
+    // T60: host-level refusals come FIRST — otherwise `http://0.0.0.0` would be
+    // reported as merely "Insecure" and the user would be told to "use https"
+    // for a host that can never be a destination.
+    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
+    if matches!(host.as_str(), "0.0.0.0" | "::" | "[::]") || host.starts_with("169.254.") {
+        return EndpointCheck::Invalid(format!(
+            "{host} is not a usable endpoint (wildcard bind or link-local address)"
+        ));
+    }
     match parsed.scheme() {
         "https" => {}
         "http" => {

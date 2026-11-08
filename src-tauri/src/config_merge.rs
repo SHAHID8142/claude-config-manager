@@ -119,7 +119,15 @@ impl DesiredSettings {
 /// Model IDs: non-empty, printable ASCII, no whitespace or control chars.
 /// (Providers differ widely in ID syntax — we constrain only what is unsafe.)
 pub fn validate_model_id(model: &str) -> Result<(), ConfigError> {
+    // T60: a pasted API key satisfies "printable ASCII" but would be written to
+    // settings.json in plaintext. Refuse credential-shaped values outright.
     let t = model.trim();
+    if crate::redact::is_secret_shaped(t) {
+        return Err(ConfigError::ValidationFailed(
+            "value looks like an API key, not a model id — refusing to write it in plaintext"
+                .into(),
+        ));
+    }
     if t.is_empty() || t.len() > 256 {
         return Err(ConfigError::ValidationFailed(
             "model: empty or oversized".into(),

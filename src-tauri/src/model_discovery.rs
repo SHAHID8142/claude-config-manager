@@ -74,9 +74,27 @@ fn is_loopback_host(host: &str) -> bool {
 
 /// Validate the endpoint URL from a DiscoverySpec (https or loopback-http).
 pub fn validate_endpoint(url: &str) -> Result<(), DiscoveryError> {
+    // T60: same rules as `classify_endpoint` — control/whitespace characters,
+    // embedded credentials and wildcard hosts are refused before parsing can
+    // normalise them into something else.
+    if url.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return Err(DiscoveryError::InvalidEndpoint(
+            "URL must not contain whitespace or control characters".into(),
+        ));
+    }
     let parsed =
         url::Url::parse(url).map_err(|e| DiscoveryError::InvalidEndpoint(e.to_string()))?;
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err(DiscoveryError::InvalidEndpoint(
+            "URL must not embed credentials".into(),
+        ));
+    }
     let host = parsed.host_str().unwrap_or_default();
+    if matches!(host, "0.0.0.0" | "::" | "[::]") || host.starts_with("169.254.") {
+        return Err(DiscoveryError::InvalidEndpoint(
+            "wildcard or link-local host is not a usable endpoint".into(),
+        ));
+    }
     if parsed.scheme() == "https" && !host.is_empty() {
         return Ok(());
     }

@@ -106,7 +106,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | Task | Status | Date | Commit | Push | Notes |
 |------|--------|------|--------|------|-------|
 | T59 Malformed input regression suite | ✅ | 2026-11-08 | 062817c | ✓ | 14-case suite (tests/malformed_inputs.rs). Found+fixed 5 defects: credential-in-URL accepted, newline URL normalisation, non-http scheme misreported, provider id leading `-`, whitespace catalog ids. clippy --all-targets now clean. Rust 177 total |
-| T60 Localhost/tampering/secret-leak regression suite | ⬜ | — | — | — | — |
+| T60 Localhost exposure / download tampering / secret-leak suite | ✅ | 2026-11-08 | <hash> | ✓ | 11-case suite. Fixed: secret-shaped model ids accepted, discovery accepted credential-in-URL, wildcard/link-local hosts, `key=value` secrets not redacted. Download-integrity = NOT TESTED (no bridge code) with guard test. Rust 188 total |
 | T61 Rollback + interrupted-write recovery tests | ⬜ | — | — | — | — |
 | T62 Keyboard/a11y/theme/small-window UX audit | ⬜ | — | — | — | — |
 | T63 Dependency/license/vulnerability audit | ⬜ | — | — | — | — |
@@ -120,4 +120,4 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 ## Blockers / open items
 
-None currently. Next task: **T60** (T47–T58 blocked on consent).
+None currently. Next task: **T61** (T47–T58 blocked on consent).

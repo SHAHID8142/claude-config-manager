@@ -35,6 +35,23 @@ pub fn is_secret_shaped(s: &str) -> bool {
     if t.len() < 16 {
         return false;
     }
+    // T60: `key=sk-ant-...` / `authorization: sk-...` forms are where secrets
+    // actually appear in error text — test the value after the separator too.
+    if let Some(core) = t.rsplit(['=', ':']).next()
+        && core.len() >= 16
+        && core != t
+        && is_secret_core(core)
+    {
+        return true;
+    }
+    is_secret_core(t)
+}
+
+/// Prefix/shape tests for a single candidate token.
+fn is_secret_core(t: &str) -> bool {
+    if t.len() < 16 {
+        return false;
+    }
     const PREFIXES: [&str; 6] = [
         "sk-ant-", // Anthropic
         "sk-or-",  // OpenRouter
@@ -64,9 +81,14 @@ pub fn strip_secret_shaped(input: &str) -> String {
         .split_whitespace()
         .map(|tok| {
             if is_secret_shaped(tok) {
-                "[REDACTED]"
+                "[REDACTED]".to_string()
+            } else if let Some((prefix, value)) = tok.rsplit_once(['=', ':'])
+                && is_secret_core(value.trim())
+            {
+                // Keep the key name (useful for diagnosis), drop the secret.
+                format!("{prefix}=[REDACTED]")
             } else {
-                tok
+                tok.to_string()
             }
         })
         .collect::<Vec<_>>()
