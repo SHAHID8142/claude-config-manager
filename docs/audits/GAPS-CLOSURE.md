@@ -15,7 +15,7 @@ the reason — never silently dropped.
 | G7 | Real GUI / VoiceOver / contrast / clean-Mac launch | **BLOCKED** (no signed build, no machine evidence) |
 | G8 | Bridge mode fidelity (streaming, tools, vision, reasoning) | **BLOCKED** (feature absent, T47–T58) |
 | G9 | CI pipeline itself never executed | **BLOCKED** (GitHub billing) |
-| G10 | TLS/proxy/certificate-error posture | pending |
+| G10 | TLS/proxy/certificate-error posture | ✅ closed |
 
 ---
 
@@ -183,3 +183,35 @@ comma") instead of a bare "invalid JSON". The detector scans **outside string li
 trailing comma as its "malformed" sample, which now yields the named hint; it was switched to a genuine
 syntax error so it still tests position reporting, and `json_comments_are_rejected_strict` now accepts either
 variant. Neither test's intent was weakened — the rejection contract is unchanged.
+
+---
+
+## G10 — TLS, proxies and certificate posture
+
+**Gap class:** no work at all on transport trust. The build used `ureq`'s bundled webpki roots, ignored
+`HTTPS_PROXY`, and nothing asserted that verification was on.
+
+**Change:**
+- `platform-verifier` feature enabled and `RootCerts::PlatformVerifier` set explicitly → trust follows the
+  **macOS system store**, so a root installed by the user's organisation (MDM) works, while verification
+  stays on.
+- Proxy support wired through `Proxy::try_from_env()` (honours `HTTP(S)_PROXY` and `NO_PROXY`), injectable as
+  a parameter so it can be tested without mutating process-global environment variables.
+
+**Evidence:**
+- `requests_go_through_the_configured_proxy` — a loopback fake proxy performs the `CONNECT` tunnel and
+  receives the tunnelled `GET /v1/models`; the origin host is unresolvable (`.invalid`), so the request can
+  only have succeeded through the proxy.
+- `live_self_signed_certificate_is_refused` (**`#[ignore]`, live network, run and passing**) — a self-signed
+  certificate is rejected, proving verification is not disabled.
+- Live catalog tests re-run with the new TLS config: NVIDIA NIM still returns its catalog.
+
+**Two things this taught the test author:** `ureq` tunnels even plain-HTTP origins with `CONNECT`, and closing
+a fake proxy socket before the client finishes writing shows up as `Broken pipe` — both fixed in the fixture,
+not worked around in production code.
+
+**Residual:**
+- A corporate TLS-inspecting proxy that re-signs traffic will only work if its root is installed in the system
+  store; otherwise the user sees a transport error (accurate, but terse).
+- No certificate pinning (deliberate: providers rotate certificates and endpoints).
+- SOCKS proxies: `socks-proxy` feature is not enabled, so `ALL_PROXY=socks5://` is ignored.

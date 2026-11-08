@@ -187,6 +187,17 @@ fn http_get(
     auth_style: AuthStyle,
     credential: Option<&str>,
 ) -> Result<String, DiscoveryError> {
+    // G10: honour the standard proxy environment variables (including NO_PROXY)
+    // rather than pretending corporate networks do not exist.
+    http_get_with_proxy(url, auth_style, credential, ureq::Proxy::try_from_env())
+}
+
+fn http_get_with_proxy(
+    url: &str,
+    auth_style: AuthStyle,
+    credential: Option<&str>,
+    proxy: Option<ureq::Proxy>,
+) -> Result<String, DiscoveryError> {
     // Agent with a global timeout (ureq v3 config API).
     //
     // Redirects are DISABLED deliberately (G2). `ureq`'s defaults happen to be
@@ -200,6 +211,14 @@ fn http_get(
         .max_redirects(0)
         .max_redirects_will_error(true)
         .redirect_auth_headers(ureq::config::RedirectAuthHeaders::Never)
+        .proxy(proxy)
+        .tls_config(
+            // Trust the OS store: a certificate installed by the user's
+            // organisation (MDM) must work, and TLS verification stays ON.
+            ureq::tls::TlsConfig::builder()
+                .root_certs(ureq::tls::RootCerts::PlatformVerifier)
+                .build(),
+        )
         .build();
     let agent = ureq::Agent::new_with_config(config);
 
@@ -447,6 +466,95 @@ mod tests {
             .expect("request captured");
         handle.join().expect("server thread");
         req.to_lowercase()
+    }
+
+    /// G10: an explicit proxy is actually used (the request reaches the proxy and
+    /// never the origin). Proves the proxy plumbing works without depending on
+    /// process-wide environment variables, which tests must not mutate.
+    #[test]
+    fn requests_go_through_the_configured_proxy() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        use std::sync::mpsc;
+
+        let (tx, rx) = mpsc::channel::<String>();
+        let proxy = TcpListener::bind("127.0.0.1:0").expect("bind proxy");
+        let proxy_port = proxy.local_addr().expect("addr").port();
+        std::thread::spawn(move || {
+            for stream in proxy.incoming().take(1) {
+                let mut stream = stream.expect("accept");
+                // ureq tunnels even plain-HTTP origins through CONNECT, so the
+                // fake proxy must complete the tunnel before seeing the request.
+                let mut buf = [0u8; 512];
+                let mut connect = String::new();
+                while !connect.contains("\r\n\r\n") {
+                    let n = stream.read(&mut buf).unwrap_or(0);
+                    if n == 0 {
+                        return;
+                    }
+                    connect.push_str(&String::from_utf8_lossy(&buf[..n]));
+                }
+                stream
+                    .write_all(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                    .ok();
+
+                let mut request = String::new();
+                while !request.contains("\r\n\r\n") {
+                    let n = stream.read(&mut buf).unwrap_or(0);
+                    if n == 0 {
+                        break;
+                    }
+                    request.push_str(&String::from_utf8_lossy(&buf[..n]));
+                }
+                tx.send(format!("CONNECT {connect}\n----\n{request}")).ok();
+                stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 11\r\nconnection: close\r\n\r\n{\"data\":[]}",
+                    )
+                    .ok();
+                stream.flush().ok();
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        });
+
+        let proxy = ureq::Proxy::new(&format!("http://127.0.0.1:{proxy_port}")).expect("proxy url");
+        let body = http_get_with_proxy(
+            "http://origin.invalid/v1/models",
+            AuthStyle::ApiKey,
+            Some("sk-proxy-test"),
+            Some(proxy),
+        )
+        .expect("proxied request");
+
+        assert_eq!(body.trim(), r#"{"data":[]}"#);
+        let seen = rx
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .expect("proxy saw a request");
+        assert!(
+            seen.contains("CONNECT origin.invalid:80"),
+            "proxy must be asked to tunnel to the origin, got: {seen}"
+        );
+        assert!(
+            seen.contains("GET /v1/models"),
+            "the tunnelled request must reach the proxy, got: {seen}"
+        );
+        // Credentials are sent to the endpoint through the proxy as configured —
+        // the proxy itself does not add or strip them.
+        assert!(seen.contains("x-api-key: sk-proxy-test"));
+    }
+
+    /// TLS verification must stay ON. Live (network) test: a self-signed
+    /// certificate must be rejected, not silently accepted.
+    #[test]
+    #[ignore = "live network: requires internet access"]
+    fn live_self_signed_certificate_is_refused() {
+        let err = http_get("https://self-signed.badssl.com/", AuthStyle::ApiKey, None)
+            .expect_err("a self-signed certificate must be refused");
+        let msg = err.to_string().to_lowercase();
+        assert!(
+            msg.contains("certificate") || msg.contains("tls") || msg.contains("transport"),
+            "expected a TLS failure, got: {err}"
+        );
     }
 
     /// G5: an endless catalog response must be cut off at the cap instead of

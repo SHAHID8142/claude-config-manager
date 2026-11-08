@@ -111,6 +111,7 @@ Then open a new terminal so Claude Code picks up the reverted configuration.
 | Claude Code still uses the old endpoint | plaintext `ANTHROPIC_*` env vars in your shell or in `env` outrank the helper | the app warns about this; remove the stale variable |
 | Claude Code says the model does not exist | the id is well-formed but not offered by that provider | the app validates *shape* only; check the provider's catalog |
 | Helper returns nothing | Keychain item missing (deleted, or app reinstalled) | re-apply with your key, or `security find-generic-password -s com.claude-config-manager.<provider> -a <provider> -w` to check |
+| Model fetch fails behind a corporate network | TLS trust or proxy | the app uses the macOS system trust store (MDM roots work) and honours `HTTPS_PROXY`/`NO_PROXY`; SOCKS proxies are not supported |
 | "Fetch models" fails with 401 | the provider wants a different credential style for its catalog | DeepSeek already handled (Bearer); for others, type the model id manually |
 | `…is damaged and can't be opened` | the build is unsigned (ad-hoc) | expected for this build; see Limitations |
 
