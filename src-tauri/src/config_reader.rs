@@ -27,6 +27,8 @@ pub enum ConfigError {
     MalformedShape(&'static str),
     /// A value failed schema validation before any write (T28 gate).
     ValidationFailed(String),
+    /// The file changed between snapshot and write — another process edited it.
+    ConcurrentModification,
     SymlinkRefused,
     Io(String),
 }
@@ -46,6 +48,10 @@ impl std::fmt::Display for ConfigError {
                 write!(f, "settings file must contain a JSON object, found {k}")
             }
             ConfigError::ValidationFailed(m) => write!(f, "{m}"),
+            ConfigError::ConcurrentModification => write!(
+                f,
+                "settings file changed while you were editing — review and retry"
+            ),
             ConfigError::SymlinkRefused => {
                 write!(f, "settings path is a symlink — refused for safety")
             }
