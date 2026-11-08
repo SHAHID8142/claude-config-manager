@@ -47,7 +47,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T18 Provider selector + custom provider entry | ✅ | 2026-11-08 | (T18 commit) | ✓ | list_providers command; custom entry UI; error banner; Rust 18/18 + TS 29/29 |
 | T19 Validated Base URL field + protocol warnings | ✅ | 2026-11-08 | (T19 commit) | ✓ | classify_endpoint Rust authority + TS mirror; live insecure/local warnings; 23+36 tests |
 | T20 Masked API key entry + reveal/hide | ✅ | 2026-11-08 | (T20 commit) | ✓ | 30s auto-rehide + blur rehide; aria-pressed; no echo test; 44/44 |
-| T21 OS credential vault interface + mock tests | ⬜ | — | — | — | — |
+| T21 OS credential vault interface + mock tests | ✅ | 2026-11-08 | (T21 commit) | ✓ | SecretStore trait + MockSecretStore; 8 tests incl. concurrency + no-secret-in-errors |
 | T22 macOS Keychain-backed vault | ⬜ | — | — | — | — |
 | T23 Secret lifecycle + redaction tests | ⬜ | — | — | — | — |
 | T24 Additional provider presets, one per commit | ⬜ | — | — | — | — |

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod presets;
 pub mod provider_catalog;
+pub mod secret_store;
 
 /// Structured error payload crossing the UI boundary (T11 contract).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
