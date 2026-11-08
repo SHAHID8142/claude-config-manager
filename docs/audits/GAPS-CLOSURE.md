@@ -12,7 +12,7 @@ the reason — never silently dropped.
 | G4 | No single-instance lock: two applies can race | ✅ closed |
 | G5 | No size/scale limits (huge settings file, huge catalog body) | ✅ closed |
 | G6 | Settings JSON dialect assumed strict (JSON5/comments would be refused) | ✅ closed (verified, not changed) |
-| G7 | Real GUI / VoiceOver / contrast / clean-Mac launch | **BLOCKED** (no signed build, no machine evidence) |
+| G7 | Real GUI / VoiceOver / contrast / clean-Mac launch | ⚠️ **partly closed** — launch + clean-start verified; pixels/VoiceOver blocked by Screen Recording permission |
 | G8 | Bridge mode fidelity (streaming, tools, vision, reasoning) | **BLOCKED** (feature absent, T47–T58) |
 | G9 | CI pipeline itself never executed | **BLOCKED** (GitHub billing) |
 | G10 | TLS/proxy/certificate-error posture | ✅ closed |
@@ -215,3 +215,31 @@ not worked around in production code.
   store; otherwise the user sees a transport error (accurate, but terse).
 - No certificate pinning (deliberate: providers rotate certificates and endpoints).
 - SOCKS proxies: `socks-proxy` feature is not enabled, so `ALL_PROXY=socks5://` is ignored.
+
+---
+
+## G7 — real launch (partly closed)
+
+**What was actually executed** on 2026-11-08 against the shipped, unsigned arm64 bundle
+(`Claude Config Manager.app`, built at T64):
+
+| Check | Method | Result |
+|---|---|---|
+| Process starts and stays up | ran the bundle executable, 8 s wait | ✅ alive, no panic, empty stderr |
+| The window really exists | `CGWindowListCopyWindowInfo` via a small CoreGraphics probe | ✅ window `#4124`, **800×600**, owner `Claude Config Manager` |
+| The webview really initialised | `lsappinfo list` | ✅ `com.apple.WebKit.Networking` and `WebKit.GPU` XPC services spawned for our bundle id — a WebKit host that failed to load would not spawn them |
+| App registered as a foreground app | `lsappinfo` | ✅ `bundleID=io.github.shahid8142.claude-config-manager`, type `Foreground`, `Arch=ARM64` |
+| Clean-machine start | relaunched with `HOME` pointed at an empty temp dir | ✅ starts and stays alive |
+| **Does not touch `~/.claude` on start** | inspected the clean HOME | ✅ **no `.claude` directory created** — the M5 defect (a startup probe writing into the user's config) is absent in the shipped binary |
+| Writes nothing to the user's home on start | `find` over the clean HOME | ✅ nothing created |
+
+**Still NOT verified, and why:**
+- **Pixel/visual verification is blocked by macOS.** `screencapture` of the window and of its screen rect both
+  fail with *"could not create image from window/rect"* — the terminal lacks Screen Recording permission. No
+  screenshot was taken, so nothing about layout, colour, contrast, overflow or dark mode has been *seen*.
+- VoiceOver was not run (needs an interactive session).
+- The bundle is ad-hoc signed, so `spctl` still rejects it for distribution; launching it locally worked
+  because there is no quarantine attribute on a locally built artifact.
+
+**To close the rest:** grant the terminal Screen Recording permission (System Settings → Privacy & Security)
+so window captures work, and/or run the three-minute manual checklist in `docs/USER_GUIDE.md` on a clean Mac.
