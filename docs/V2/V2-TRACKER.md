@@ -61,3 +61,5 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-52 | User docs + limitations | done | `docs/USER_GUIDE.md` §11 |
 | V2-53 | Final audit report | done | `FINAL_AUDIT.md` |
 | V2-54 | Commit, push, deliver | done | see V2 delivery commit |
+| V2-55 | Sidebar–detail shell + per-screen IA (owner request) | done | `47f40b2` |
+| V2-56 | Single-column hierarchy + summary-first dashboard (owner request) | done | `2811e46` |
