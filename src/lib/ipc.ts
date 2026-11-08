@@ -168,6 +168,8 @@ export interface EnvironmentReport {
   settingsState: string;
   settingsDetail: string | null;
   configDirWritable: boolean;
+  /** ANTHROPIC_* exported by the login shell — names and lengths only. */
+  shellEnv: Array<{ name: string; length: number }>;
 }
 
 export async function checkEnvironment(ipc: IpcLike = defaultIpc): Promise<EnvironmentReport> {

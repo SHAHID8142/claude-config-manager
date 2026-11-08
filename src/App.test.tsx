@@ -754,6 +754,52 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
     return { ipc, calls };
   }
 
+  it("warns when the login shell exports a credential that overrides the app", async () => {
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        check_environment: () =>
+          Promise.resolve({
+            cliFound: true,
+            cliVersion: "2.1.319",
+            cliVersionWarning: null,
+            settingsState: "ok",
+            settingsDetail: null,
+            configDirWritable: true,
+            shellEnv: [{ name: "ANTHROPIC_AUTH_TOKEN", length: 36 }],
+          }),
+      },
+    });
+    render(<App ipc={ipc} />);
+    expect(
+      await screen.findByText(/Your shell exports ANTHROPIC settings that override this app/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/ANTHROPIC_AUTH_TOKEN \(36 chars\)/)).toBeInTheDocument();
+  });
+
+  it("stays quiet when the shell exports nothing", async () => {
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        check_environment: () =>
+          Promise.resolve({
+            cliFound: true,
+            cliVersion: "2.1.319",
+            cliVersionWarning: null,
+            settingsState: "ok",
+            settingsDetail: null,
+            configDirWritable: true,
+            shellEnv: [],
+          }),
+      },
+    });
+    render(<App ipc={ipc} />);
+    await screen.findByText(/mode: direct/);
+    expect(screen.queryByText(/Your shell exports ANTHROPIC settings/)).not.toBeInTheDocument();
+  });
+
   describe('Test Connection (the only honest answer to "does my key work")', () => {
     function mockTesting(result: Record<string, unknown> | Error) {
       const calls: Array<Record<string, unknown>> = [];

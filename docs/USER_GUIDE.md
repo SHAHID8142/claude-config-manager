@@ -118,6 +118,7 @@ Then open a new terminal so Claude Code picks up the reverted configuration.
 | `The settings file has a problem this app will not overwrite` | malformed JSON or the file is a symlink | fix the JSON by hand (the app refuses to guess); symlinks are refused for safety |
 | Claude Code still uses the old endpoint | plaintext `ANTHROPIC_*` env vars in your shell or in `env` outrank the helper | the app warns about this; remove the stale variable |
 | Claude Code says the model does not exist | the id is well-formed but not offered by that provider | the app validates *shape* only; check the provider's catalog |
+| Claude Code prints `401 Missing Authentication header` or `Both ANTHROPIC_AUTH_TOKEN and apiKeyHelper set` | Your **shell** exports `ANTHROPIC_AUTH_TOKEN` (e.g. in `~/.zshrc`). It outranks `apiKeyHelper`, so Claude Code never uses the key this app stored | Remove/comment that `export` line, open a new terminal, and re-run `claude`; the app shows a warning naming the variable and its length |
 | Helper returns nothing | Credential file missing (deleted, or moved) | re-apply with your key, or check `ls -l "$HOME/Library/Application Support/ClaudeConfigManager/secrets/"` |
 | Helper prints "permissions are too open" | Something loosened the file's mode | `chmod 600 "$HOME/Library/Application Support/ClaudeConfigManager/secrets/<provider>.secret"` |
 | Model fetch fails behind a corporate network | TLS trust or proxy | the app uses the macOS system trust store (MDM roots work) and honours `HTTPS_PROXY`/`NO_PROXY`; SOCKS proxies are not supported |

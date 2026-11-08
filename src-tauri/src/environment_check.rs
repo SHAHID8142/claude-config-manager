@@ -30,6 +30,18 @@ pub struct EnvironmentReport {
     /// Human detail for non-ok settings states (no content echoed).
     pub settings_detail: Option<String>,
     pub config_dir_writable: bool,
+    /// `ANTHROPIC_*` variables exported by the login shell (names + lengths only,
+    /// never values). A GUI app cannot see the shell environment, but Claude Code
+    /// can — and those variables outrank `apiKeyHelper`, so a stale export silently
+    /// overrides everything this app writes. Found from a real 401 report.
+    pub shell_env: Vec<ShellEnvVar>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShellEnvVar {
+    pub name: String,
+    pub length: usize,
 }
 
 /// Extract an `x.y.z`-shaped token from a version output line.
@@ -244,6 +256,87 @@ fn config_dir_writable(settings_path: &Path) -> bool {
     }
 }
 
+/// Variables that outrank `apiKeyHelper`/`settings.model` when exported.
+const SHADOWABLE_ENV: &[&str] = &[
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_MODEL",
+];
+
+/// Parse `NAME=len` lines produced by the probe shell (never values).
+fn parse_shell_env(output: &str) -> Vec<ShellEnvVar> {
+    let mut out = Vec::new();
+    for line in output.lines() {
+        let Some((name, len)) = line.trim().split_once('=') else {
+            continue;
+        };
+        if !SHADOWABLE_ENV.contains(&name) {
+            continue;
+        }
+        if let Ok(length) = len.trim().parse::<usize>() {
+            // An exported-but-empty variable still counts as present.
+            out.push(ShellEnvVar {
+                name: name.to_string(),
+                length,
+            });
+        }
+    }
+    out
+}
+
+/// Ask the user's login shell which shadowable variables it exports.
+///
+/// Only names and lengths are requested, so no credential can end up in a log,
+/// in the UI, or in an error message. Runs with a short timeout: this is a
+/// diagnostic, never a blocker.
+fn probe_shell_env() -> Vec<ShellEnvVar> {
+    let script = format!(
+        r#"for v in {}; do eval "val=\$$v"; if [ -n "${{val+x}}" ]; then echo "$v=${{#val}}"; fi; done"#,
+        SHADOWABLE_ENV.join(" ")
+    );
+    for shell in ["/bin/zsh", "/bin/bash"] {
+        if !Path::new(shell).exists() {
+            continue;
+        }
+        let mut child = match Command::new(shell)
+            .args(["-lic", &script])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let started = Instant::now();
+        let status = loop {
+            match child.try_wait() {
+                Ok(Some(st)) => break Some(st),
+                Ok(None) if started.elapsed() < Duration::from_secs(3) => {
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                _ => {
+                    let _ = child.kill();
+                    break None;
+                }
+            }
+        };
+        if status.is_some_and(|s| s.success()) {
+            let mut buf = String::new();
+            if let Some(mut out) = child.stdout.take() {
+                use std::io::Read;
+                let _ = out.read_to_string(&mut buf);
+            }
+            let parsed = parse_shell_env(&buf);
+            if !parsed.is_empty() {
+                return parsed;
+            }
+        }
+    }
+    Vec::new()
+}
+
 /// Build the full environment report.
 pub fn check_environment(home: &Path, config_dir_override: Option<&Path>) -> EnvironmentReport {
     // CLI detection + version probe.
@@ -298,6 +391,7 @@ pub fn check_environment(home: &Path, config_dir_override: Option<&Path>) -> Env
         settings_state,
         settings_detail,
         config_dir_writable: config_dir_writable(&settings_path),
+        shell_env: probe_shell_env(),
     }
 }
 
@@ -373,6 +467,38 @@ mod tests {
             probe_path(Path::new("/Users/x"), Path::new("/opt/homebrew/bin/claude"))
                 .contains("/opt/homebrew/bin")
         );
+    }
+
+    /// A shell export outranks `apiKeyHelper`, so the app must be able to say so
+    /// — without ever reading the value.
+    #[test]
+    fn shell_exports_are_reported_by_name_and_length_only() {
+        let parsed = parse_shell_env(
+            "ANTHROPIC_AUTH_TOKEN=36\nANTHROPIC_API_KEY=0\nPATH=123\nnot a line\nANTHROPIC_MODEL=4\n",
+        );
+        assert_eq!(
+            parsed,
+            vec![
+                ShellEnvVar {
+                    name: "ANTHROPIC_AUTH_TOKEN".into(),
+                    length: 36
+                },
+                ShellEnvVar {
+                    name: "ANTHROPIC_API_KEY".into(),
+                    length: 0
+                },
+                ShellEnvVar {
+                    name: "ANTHROPIC_MODEL".into(),
+                    length: 4
+                },
+            ],
+            "unrelated variables and malformed lines are ignored"
+        );
+    }
+
+    #[test]
+    fn no_exports_produce_an_empty_report() {
+        assert!(parse_shell_env("").is_empty());
     }
 
     #[test]

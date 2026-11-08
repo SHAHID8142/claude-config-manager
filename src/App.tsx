@@ -100,6 +100,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [restoreOutcome, setRestoreOutcome] = useState<RestoreOutcome | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentReport | null>(null);
+  const [shellWarningDismissed, setShellWarningDismissed] = useState(false);
   const [models, setModels] = useState<ModelEntry[] | null>(null);
   const [fetchingModels, setFetchingModels] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
@@ -195,6 +196,12 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     };
   }, [ipc]);
 
+  // A shell export beats everything this app writes; a GUI app cannot see the
+  // shell, so the backend asks the login shell for names and lengths only.
+  const shellShadowing = (environment?.shellEnv ?? [])
+    .filter((v) => v.length > 0)
+    .map((v) => `${v.name} (${v.length} chars)`);
+
   const isCustom = selectedId === CUSTOM_ID;
   const selected = providers?.find((p) => p.id === selectedId) ?? null;
 
@@ -278,6 +285,14 @@ export default function App({ ipc = defaultIpc }: AppProps) {
         />
       )}
 
+      {environment !== null && shellShadowing.length > 0 && !shellWarningDismissed && (
+        <StatusBanner
+          severity="warning"
+          message="Your shell exports ANTHROPIC settings that override this app."
+          detail={`${shellShadowing.join(", ")} — Claude Code ranks these above apiKeyHelper and settings.json. Unset them in ~/.zshrc (or your shell profile) and open a new terminal.`}
+          onDismiss={() => setShellWarningDismissed(true)}
+        />
+      )}
       {environment !== null && !environment.cliFound && (
         <StatusBanner
           severity="warning"
