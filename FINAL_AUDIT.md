@@ -1,0 +1,135 @@
+# FINAL AUDIT — Claude Config Manager
+
+**Date:** 2026-11-08 · **Branch:** `main` · **Repo:** https://github.com/SHAHID8142/claude-config-manager
+**Audited commit:** the commit that contains this file (see T70 report for the exact SHA)
+
+---
+
+## Verdict
+
+> **Direct-mode configuration: PASS.**
+> **Release readiness: NOT READY.**
+> Not ready to distribute, and not yet proven on a clean Mac.
+
+The app does what it claims for the Anthropic-API-compatible provider path: it stores the key in the
+Keychain, writes only the keys it owns, backs up before writing, writes atomically, verifies by read-back,
+and can roll back. Those claims are backed by 203 Rust and 120 TypeScript tests executed in this audit.
+
+It cannot ship because of four external/release items, not because of test failures:
+1. no Apple Developer ID → the signed/notarized build does not exist (Gatekeeper refuses the current one);
+2. no `LICENSE` file (owner decision);
+3. bridge mode (needed for OpenAI-only providers) is **not implemented** — blocked on consent to install a
+   third-party binary;
+4. no real macOS clean-install smoke test has been performed (no evidence).
+
+---
+
+## Task scorecard
+
+| Status | Count | Tasks |
+|---|---|---|
+| ✅ PASS | 52 | T01–T46, T59–T63, T66, T67, T68, T69a |
+| ⚠️ PARTIAL / BLOCKED | 1 | T64 (unsigned build only) |
+| ⬜ NOT STARTED (blocked on user) | 12 | T47–T58 (bridge) |
+| ⬜ NOT TESTED (no evidence) | 2 | T65 (clean-install smoke), T10 CI (workflow never executed) |
+
+Per-task evidence lives in `docs/audits/` (57 documents) with the exact tests and commits. Commit hashes are
+recorded in `TASK_PROGRESS.md` (no placeholders — verified in the T01–T41 sweep and again at T67).
+
+---
+
+## Evidence: commands and results (this audit)
+
+```bash
+cargo fmt --check                              # PASS
+cargo clippy --all-targets -- -D warnings      # PASS (0 warnings)
+cargo test                                     # 158 unit + 7 adversarial + 7 crash + 6 lifecycle
+                                               # + 14 malformed + 11 secret/network = 203 passed,
+                                               # 0 failed, 2 ignored (live network, opt-in)
+npm run lint                                   # PASS
+npm run format:check                           # PASS
+npx tsc --noEmit                               # PASS
+npx vitest run                                 # 120 passed / 12 files
+npm run build                                  # PASS (240 kB bundle)
+scripts/dep-audit.sh                           # PASS — 0 advisories in the macOS graph
+cargo test live_nvidia_nim -- --ignored        # PASS — 84 models fetched live
+cargo test live_openrouter   -- --ignored      # PASS — live catalog (count drifts by design)
+```
+
+Claims-vs-code check (T67): 53 test identifiers cited in audits → **0 missing** from the codebase.
+
+---
+
+## Security posture
+
+### Verified controls
+| Control | Evidence |
+|---|---|
+| Credential in Keychain only; settings file holds a helper path | `save_apply` tests, T60 (`settings_json_never_contains_the_credential`) |
+| Helper script `0700`, only validated provider id interpolated | T59/T66; provider ids now must start alphanumeric |
+| URL policy: https only (loopback http for dev), no credentials in URL, no wildcard/link-local hosts, control chars refused | T59/T60 |
+| Secret-shaped values refused as model ids (a pasted key cannot be written in plaintext) | T60 |
+| Redaction by exact value and by shape, including `key=value` forms | T60 |
+| Malformed settings never repaired or overwritten; symlinks refused | T26–T31, T59, T61 |
+| Concurrent modification detected; atomic temp+fsync+rename; read-back verification | T30, T61 |
+| Corrupt backup refused before any write; pre-restore safety copy | T61 |
+| No silent model failover, no invented role mapping | ADR-002, T46 tests |
+| Stale provider endpoint cleared on switch (prevents credential misrouting) | T69a fix |
+| No download path exists (supply-chain surface absent, guarded by test) | T60 |
+
+### Residual risks (accepted or open)
+1. **Ad-hoc signed binary.** Gatekeeper rejects it; a user who bypasses quarantine runs unverified code.
+   Mitigation: do not distribute until signed/notarized.
+2. **`apiKeyHelper` uses `/usr/bin/security` resolved via PATH inside the script.** If a hostile `security`
+   were earlier on PATH when Claude Code runs the helper, it could read/forward the command arguments. Low
+   likelihood (Claude Code inherits a normal user PATH), disclosed; a fix is to hardcode `/usr/bin/security`.
+3. **Plaintext env credentials are still possible** (user's own file). The app warns; it cannot prevent a
+   user from adding them.
+4. **Linux-only advisories remain** in the lockfile (`glib`, `zbus`, `zvariant`, `proc-macro-error`). Not in
+   the macOS graph today; they will become relevant if a Linux build is attempted.
+5. **No app hardening against a compromised local account** — the Keychain ACL is the trust boundary.
+6. **CI has never run** (GitHub billing lock), so the pipeline itself is unproven; all evidence is local.
+
+---
+
+## What is explicitly NOT verified
+- Signing, notarization, universal binary, clean-Mac install, first launch, Gatekeeper behaviour beyond the
+  measured rejection.
+- Any GUI interaction: no window was opened, no VoiceOver pass, no light/dark toggle, no window resizing,
+  no contrast measurement.
+- Bridge mode: does not exist. Nothing about translation fidelity, streaming, tool calls, vision or
+  reasoning is claimed.
+- Live DeepSeek/Anthropic model catalogs (require real keys; rule 15).
+- Behaviour on Windows or Intel Macs.
+
+---
+
+## Release blockers (owner decisions required)
+
+| # | Blocker | Owner action | Blocks |
+|---|---|---|---|
+| 1 | No Apple Developer ID / notarization | Provide credentials or accept "unsigned, local-only" | Distribution (T64/T65) |
+| 2 | No `LICENSE` file | Choose a license | Any public release |
+| 3 | Bridge consent | Approve downloading a pinned third-party bridge binary, or drop the feature | T47–T58 |
+| 4 | Clean-Mac smoke test | Run the checklist on a fresh Mac and return results | T65, final verdict |
+| 5 | CI billing | Enable Actions | T10, ongoing regression safety |
+
+---
+
+## How to reproduce this audit
+```bash
+git clone https://github.com/SHAHID8142/claude-config-manager.git && cd claude-config-manager
+npm ci
+npm run check:all          # frontend + rust gates
+scripts/dep-audit.sh       # dependency advisories scoped to the macOS graph
+npm run tauri build        # produces the (unsigned) .app/.dmg
+```
+Expected: every command above passes; the built app is unsigned and will be refused by Gatekeeper.
+
+---
+
+## Honest summary
+This is a well-tested, fail-closed configuration tool for the direct (Anthropic-compatible) provider path,
+with a critical credential-misrouting bug found and fixed during the audit, and a bridge half of the product
+that does not exist. It is **not** a finished product: the packaging/signing/verification chain that makes a
+macOS app installable is missing, and nothing here was ever seen running on a screen.
