@@ -25,6 +25,8 @@ pub enum ConfigError {
     MalformedJson(String),
     /// Top-level JSON is valid but not an object.
     MalformedShape(&'static str),
+    /// A value failed schema validation before any write (T28 gate).
+    ValidationFailed(String),
     SymlinkRefused,
     Io(String),
 }
@@ -43,6 +45,7 @@ impl std::fmt::Display for ConfigError {
             ConfigError::MalformedShape(k) => {
                 write!(f, "settings file must contain a JSON object, found {k}")
             }
+            ConfigError::ValidationFailed(m) => write!(f, "{m}"),
             ConfigError::SymlinkRefused => {
                 write!(f, "settings path is a symlink — refused for safety")
             }
