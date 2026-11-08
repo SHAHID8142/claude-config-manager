@@ -1,0 +1,32 @@
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.npm/
+
+# Tauri / Rust build artifacts
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Test artifacts (never commit test configs or captured secrets)
+/tmp/
+*.test-tmp/
+coverage/
+
+# Logs and diagnostics (must never contain secrets)
+*.log
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Local environment — secrets must never be committed
+.env
+.env.*
+!.env.example
