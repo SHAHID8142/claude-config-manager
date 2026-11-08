@@ -21,6 +21,7 @@ pub mod credential_handoff;
 pub mod credential_service;
 pub mod environment_check;
 pub mod keychain_store;
+pub mod model_discovery;
 pub mod presets;
 pub mod provider_catalog;
 pub mod redact;
