@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "anthropic",
+  "name": "Anthropic",
+  "auth": "api_key",
+  "protocol": "anthropic_native",
+  "bridge": "not_required",
+  "direct_base_url": null,
+  "discovery": {
+    "kind": "endpoint",
+    "url": "https://api.anthropic.com/v1/models",
+    "requires_auth": true,
+    "list_selector": "data"
+  },
+  "capability_status": {
+    "status": "verified",
+    "source_url": "https://platform.claude.com/docs/en/api/models-list"
+  },
+  "docs_url": "https://platform.claude.com/docs/en/api/models-list"
+}

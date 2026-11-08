@@ -43,7 +43,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | Task | Status | Date | Commit | Push | Notes |
 |------|--------|------|--------|------|-------|
 | T16 Versioned provider template schema | ✅ | 2026-11-08 | (T16 commit) | ✓ | Rust provider_catalog.rs; HTTPS-only validation; 9 catalog tests (4 negative) |
-| T17 ONE verified provider preset + fixtures | ⬜ | — | — | — | — |
+| T17 ONE verified provider preset + fixtures | ✅ | 2026-11-08 | (T17 commit) | ✓ | Anthropic preset (compile-time embedded, source-cited); Rust 17/17 + TS 29/29 |
 | T18 Provider selector + custom provider entry | ⬜ | — | — | — | — |
 | T19 Validated Base URL field + protocol warnings | ⬜ | — | — | — | — |
 | T20 Masked API key entry + reveal/hide | ⬜ | — | — | — | — |
