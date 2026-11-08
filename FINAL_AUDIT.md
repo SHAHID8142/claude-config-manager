@@ -43,17 +43,18 @@ recorded in `TASK_PROGRESS.md` (no placeholders — verified in the T01–T41 sw
 ```bash
 cargo fmt --check                              # PASS
 cargo clippy --all-targets -- -D warnings      # PASS (0 warnings)
-cargo test                                     # 158 unit + 7 adversarial + 7 crash + 6 lifecycle
-                                               # + 14 malformed + 11 secret/network = 203 passed,
-                                               # 0 failed, 2 ignored (live network, opt-in)
+cargo test                                     # 177 unit + 7 adversarial + 7 crash + 6 lifecycle
+                                               # + 14 malformed + 6 property-based + 11 secret/network
+                                               # = 228 passed, 0 failed, 3 ignored (live network, opt-in)
 npm run lint                                   # PASS
 npm run format:check                           # PASS
 npx tsc --noEmit                               # PASS
 npx vitest run                                 # 120 passed / 12 files
 npm run build                                  # PASS (240 kB bundle)
 scripts/dep-audit.sh                           # PASS — 0 advisories in the macOS graph
-cargo test live_nvidia_nim -- --ignored        # PASS — 84 models fetched live
+cargo test live_nvidia_nim   -- --ignored      # PASS — 84 models fetched live
 cargo test live_openrouter   -- --ignored      # PASS — live catalog (count drifts by design)
+cargo test live_self_signed  -- --ignored      # PASS — self-signed cert refused (TLS on)
 ```
 
 Claims-vs-code check (T67): 53 test identifiers cited in audits → **0 missing** from the codebase.
@@ -76,6 +77,12 @@ Claims-vs-code check (T67): 53 test identifiers cited in audits → **0 missing*
 | No silent model failover, no invented role mapping | ADR-002, T46 tests |
 | Stale provider endpoint cleared on switch (prevents credential misrouting) | T69a fix |
 | No download path exists (supply-chain surface absent, guarded by test) | T60 |
+| Credential never forwarded across a redirect; redirects refused outright | G2 (`a_redirecting_catalog_is_refused_and_the_credential_is_not_forwarded`) |
+| Concurrent applies serialised by a cross-process lock (stale-safe) | G4 (8 lock tests + 8-thread apply test) |
+| Merge contract holds under generated input (totality, idempotence, ownership) | G3 (6 proptest invariants) |
+| Unbounded documents/body refused before allocation | G5 |
+| TLS verification on, OS trust store, proxy env honoured | G10 + live self-signed test |
+| Write verification failure restores the original exactly | G1 |
 
 ### Residual risks (accepted or open)
 1. **Ad-hoc signed binary.** Gatekeeper rejects it; a user who bypasses quarantine runs unverified code.
@@ -88,15 +95,26 @@ Claims-vs-code check (T67): 53 test identifiers cited in audits → **0 missing*
 4. **Linux-only advisories remain** in the lockfile (`glib`, `zbus`, `zvariant`, `proc-macro-error`). Not in
    the macOS graph today; they will become relevant if a Linux build is attempted.
 5. **No app hardening against a compromised local account** — the Keychain ACL is the trust boundary.
+6. **The apply lock is advisory** (a lock file, not `flock`): it serialises our own writers, not an external
+   editor, which is still only caught by the mtime check.
+7. **Secret-shape detection has a 16-character floor**, so a truncated paste like `sk-ant-` is not flagged.
 6. **CI has never run** (GitHub billing lock), so the pipeline itself is unproven; all evidence is local.
 
 ---
 
+## Round 2 (gap closure after "did you audit every aspect?")
+`docs/audits/GAPS-CLOSURE.md` records ten gaps found by that question, eight closed in code here:
+read-back rollback (G1), redirects/credential forwarding (G2), property-based testing (G3), concurrent
+applies (G4), size limits (G5), JSON dialect — verified against official docs rather than changed (G6),
+real launch and clean-HOME start (G7, partly), TLS/proxy posture (G10). Each closure found at least one real
+defect, including two in the new lock itself and a swallowed error message in the size limit.
+
 ## What is explicitly NOT verified
 - Signing, notarization, universal binary, clean-Mac install, first launch, Gatekeeper behaviour beyond the
   measured rejection.
-- Any GUI interaction: no window was opened, no VoiceOver pass, no light/dark toggle, no window resizing,
-  no contrast measurement.
+- **Anything visual.** The app was launched (process, 800×600 window, WebKit XPCs, clean-HOME start all
+  verified) — but no screenshot was ever obtained: macOS refused `screencapture` without Screen Recording
+  permission. No VoiceOver pass, no light/dark toggle, no resize, no contrast measurement.
 - Bridge mode: does not exist. Nothing about translation fidelity, streaming, tool calls, vision or
   reasoning is claimed.
 - Live DeepSeek/Anthropic model catalogs (require real keys; rule 15).
