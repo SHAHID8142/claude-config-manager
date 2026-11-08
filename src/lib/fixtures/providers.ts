@@ -2,6 +2,8 @@
 // fixture copied from src-tauri/presets/anthropic.json — the Rust catalog is
 // the source of truth; a drift check happens in T18's contract wiring.
 
+import type { ProviderSummary } from "../ipc";
+
 export interface ProviderTemplateFixture {
   schema_version: number;
   id: string;
@@ -44,3 +46,19 @@ export const anthropicPreset: ProviderTemplateFixture = {
 };
 
 export const builtinPresetFixtures: ProviderTemplateFixture[] = [anthropicPreset];
+
+/** T18: the provider list the UI receives via `list_providers`, mirrored
+ * from the Rust `ProviderSummary` wire shape (camelCase). */
+export const providerSummaryFixtures: ProviderSummary[] = [
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    protocol: "anthropic_native",
+    bridge: "not_required",
+    capabilityStatus: {
+      status: "verified",
+      source_url: "https://platform.claude.com/docs/en/api/models-list",
+    },
+    docsUrl: "https://platform.claude.com/docs/en/api/models-list",
+  },
+];

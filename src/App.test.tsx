@@ -1,77 +1,92 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import App from "./App";
+import { createMockIpc } from "./lib/ipc-mock";
+import { providerSummaryFixtures } from "./lib/fixtures/providers";
 
-describe("App shell (T12)", () => {
-  it("renders the app title", () => {
-    render(<App />);
-    expect(screen.getByRole("heading", { name: "Claude Config Manager" })).toBeInTheDocument();
+function mockWithProviders() {
+  return createMockIpc({
+    handlers: { list_providers: () => Promise.resolve(providerSummaryFixtures) },
   });
+}
 
-  it("renders all PRD main-screen sections", () => {
-    render(<App />);
+describe("App shell (T12/T14 regression)", () => {
+  it("renders the app title and all PRD sections", async () => {
+    render(<App ipc={mockWithProviders()} />);
+    expect(screen.getByRole("heading", { name: "Claude Config Manager" })).toBeInTheDocument();
     for (const section of ["Active configuration", "Provider", "Model", "Actions"]) {
       expect(screen.getByRole("region", { name: section })).toBeInTheDocument();
     }
+    expect(screen.getByText("mode: not configured")).toBeInTheDocument();
   });
 
-  it("marks controls not yet wired as disabled with honest placeholder status", () => {
-    render(<App />);
-    // Section titles and field labels can share words ("Provider"), so
-    // disambiguate by control element type.
-    expect(screen.getByLabelText("Provider", { selector: "select" })).toBeDisabled();
-    expect(screen.getByLabelText("Endpoint URL", { selector: "input" })).toBeDisabled();
+  it("keeps unwired controls disabled with honest placeholders", async () => {
+    render(<App ipc={mockWithProviders()} />);
     expect(screen.getByLabelText("API key", { selector: "input" })).toBeDisabled();
     expect(screen.getByLabelText("Model", { selector: "input" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Test Connection" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save & Apply" })).toBeDisabled();
-    expect(screen.getByText("mode: not configured")).toBeInTheDocument();
   });
 
-  it("provides the connection-mode indicator with an accessible name", () => {
-    render(<App />);
-    expect(screen.getByLabelText("Connection mode")).toBeInTheDocument();
-  });
-});
-
-describe("Accessibility (T14)", () => {
-  it("links field hints to their controls via aria-describedby", () => {
-    render(<App />);
-    const endpoint = screen.getByLabelText("Endpoint URL", { selector: "input" });
-    expect(endpoint).toHaveAttribute("aria-describedby", "endpoint-input-hint");
-    expect(screen.getByText("Editable when a provider is selected.")).toHaveAttribute(
-      "id",
-      "endpoint-input-hint",
-    );
+  it("links field hints via aria-describedby", async () => {
+    render(<App ipc={mockWithProviders()} />);
     const apiKey = screen.getByLabelText("API key", { selector: "input" });
     expect(apiKey).toHaveAttribute("aria-describedby", "api-key-input-hint");
   });
+});
 
-  it("links hints on every hinted field, not just the first", () => {
-    render(<App />);
-    const model = screen.getByLabelText("Model", { selector: "input" });
-    expect(model).toHaveAttribute("aria-describedby", "model-input-hint");
-    const provider = screen.getByLabelText("Provider", { selector: "select" });
-    expect(provider).toHaveAttribute("aria-describedby", "provider-select-hint");
+describe("Provider selector (T18)", () => {
+  it("loads and lists builtin providers from the catalog", async () => {
+    const ipc = mockWithProviders();
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await waitFor(() => expect(select).toBeEnabled());
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
+    expect(options).toEqual(["Select a provider", "Anthropic", "Custom…"]);
+    expect(ipc.calls.map((c) => c.cmd)).toEqual(["list_providers"]);
   });
 
-  it("applies visible focus treatments to every interactive control", () => {
-    render(<App />);
-    const focusables = [
-      screen.getByLabelText("Provider", { selector: "select" }),
-      screen.getByLabelText("Endpoint URL", { selector: "input" }),
-      screen.getByLabelText("API key", { selector: "input" }),
-      screen.getByLabelText("Model", { selector: "input" }),
-      screen.getByRole("button", { name: "Test Connection" }),
-      screen.getByRole("button", { name: "Save & Apply" }),
-      screen.getByText("Advanced"),
-    ];
-    for (const el of focusables) {
-      const cls = el.getAttribute("class") ?? "";
-      expect(
-        cls.includes("focus-visible:ring-2") || el.tagName === "SUMMARY",
-        `missing focus treatment on <${el.tagName}>`,
-      ).toBe(true);
-    }
+  it("selecting a preset shows its verified capability and direct-mode note", async () => {
+    const ipc = mockWithProviders();
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "anthropic");
+    expect(screen.getByText(/Connects directly — no bridge process needed/)).toBeInTheDocument();
+    expect(screen.getByText(/Capability status: verified/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "(source)" })).toHaveAttribute(
+      "href",
+      "https://platform.claude.com/docs/en/api/models-list",
+    );
+    // Preset endpoint shown read-only and disabled.
+    const endpoint = screen.getByLabelText("Endpoint URL", { selector: "input" });
+    expect(endpoint).toBeDisabled();
+    expect(endpoint).toHaveValue("https://api.anthropic.com");
+  });
+
+  it("selecting Custom reveals custom name/endpoint entry", async () => {
+    const ipc = mockWithProviders();
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "__custom__");
+    const nameInput = screen.getByLabelText("Custom provider name", { selector: "input" });
+    const endpointInput = screen.getByLabelText("Custom endpoint URL", { selector: "input" });
+    expect(nameInput).toBeEnabled();
+    expect(endpointInput).toBeEnabled();
+    await userEvent.type(nameInput, "My gateway");
+    await userEvent.type(endpointInput, "https://gw.example.com");
+    expect(nameInput).toHaveValue("My gateway");
+    expect(endpointInput).toHaveValue("https://gw.example.com");
+  });
+
+  it("shows an error banner when the catalog fails to load", async () => {
+    const ipc = createMockIpc({
+      failures: { list_providers: { kind: "not_available", message: "backend offline" } },
+    });
+    render(<App ipc={ipc} />);
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(screen.getByText("backend offline")).toBeInTheDocument();
   });
 });

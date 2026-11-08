@@ -1,18 +1,64 @@
+import { useEffect, useState } from "react";
 import { FieldRow } from "./components/FieldRow";
 import { Section } from "./components/Section";
+import { StatusBanner } from "./components/StatusBanner";
+import {
+  defaultIpc,
+  listProviders,
+  isCommandError,
+  type IpcLike,
+  type ProviderSummary,
+} from "./lib/ipc";
 import { focusRing } from "./lib/focus";
 
 const inputClass = `w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 placeholder-zinc-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 ${focusRing}`;
 
 const secondaryButtonClass = `rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200 ${focusRing}`;
 
+/** Sentinels for the provider selector: presets use their real ids;
+ * custom entry and the empty state use dedicated sentinels. */
+const CUSTOM_ID = "__custom__";
+const EMPTY_ID = "__none__";
+
+export interface AppProps {
+  /** Transport seam for tests; production uses the Tauri runtime. */
+  ipc?: IpcLike;
+}
+
 /**
- * Minimal single-window layout (T12) with accessible labels, keyboard
- * navigation and visible focus states (T14). Controls that are not wired
- * yet render disabled with honest "not configured" placeholders — never
- * fabricated status.
+ * Minimal single-window layout (T12) with a working provider selector and
+ * custom-provider entry (T18). Controls not yet wired render disabled with
+ * honest placeholders — never fabricated status.
  */
-export default function App() {
+export default function App({ ipc = defaultIpc }: AppProps) {
+  const [providers, setProviders] = useState<ProviderSummary[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string>(EMPTY_ID);
+  const [customName, setCustomName] = useState("");
+  const [customEndpoint, setCustomEndpoint] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    listProviders(ipc)
+      .then((p) => {
+        if (!cancelled) {
+          setProviders(p);
+          setLoadError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setLoadError(isCommandError(err) ? err.message : "Provider catalog failed to load.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ipc]);
+
+  const isCustom = selectedId === CUSTOM_ID;
+  const selected = providers?.find((p) => p.id === selectedId) ?? null;
+
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 bg-zinc-50 p-6 dark:bg-zinc-950">
       <header className="flex items-center justify-between">
@@ -27,6 +73,14 @@ export default function App() {
         </span>
       </header>
 
+      {loadError !== null && (
+        <StatusBanner
+          severity="error"
+          message="Could not load the provider catalog."
+          detail={loadError}
+        />
+      )}
+
       <Section title="Active configuration">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           No configuration loaded yet. Settings reading arrives with the configuration-safety
@@ -38,25 +92,98 @@ export default function App() {
         <FieldRow
           label="Provider"
           htmlFor="provider-select"
-          hint="Providers appear once verified presets ship."
+          hint={
+            providers === null
+              ? "Loading provider catalog…"
+              : "Custom providers use your own Anthropic-compatible endpoint."
+          }
         >
-          <select id="provider-select" disabled className={inputClass}>
-            <option>No providers yet</option>
+          <select
+            id="provider-select"
+            value={selectedId}
+            disabled={providers === null}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className={inputClass}
+          >
+            <option value={EMPTY_ID}>
+              {providers === null ? "Loading…" : "Select a provider"}
+            </option>
+            {providers?.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+            {providers !== null && <option value={CUSTOM_ID}>Custom…</option>}
           </select>
         </FieldRow>
-        <FieldRow
-          label="Endpoint URL"
-          htmlFor="endpoint-input"
-          hint="Editable when a provider is selected."
-        >
-          <input
-            id="endpoint-input"
-            type="url"
-            disabled
-            placeholder="https://"
-            className={inputClass}
-          />
-        </FieldRow>
+
+        {selected !== null && selected.capabilityStatus.status === "verified" && (
+          <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+            Capability status: verified{" "}
+            {selected.docsUrl !== null && (
+              <a href={selected.docsUrl} target="_blank" rel="noreferrer" className="underline">
+                (source)
+              </a>
+            )}
+          </p>
+        )}
+
+        {selected !== null && selected.bridge === "not_required" && (
+          <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+            Connects directly — no bridge process needed.
+          </p>
+        )}
+
+        {isCustom && (
+          <>
+            <FieldRow
+              label="Custom provider name"
+              htmlFor="custom-name-input"
+              hint="Shown in the UI only."
+            >
+              <input
+                id="custom-name-input"
+                type="text"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                placeholder="My gateway"
+                className={inputClass}
+              />
+            </FieldRow>
+            <FieldRow
+              label="Custom endpoint URL"
+              htmlFor="custom-endpoint-input"
+              hint="Must be an Anthropic-compatible https endpoint. Validation lands with the endpoint task."
+            >
+              <input
+                id="custom-endpoint-input"
+                type="url"
+                value={customEndpoint}
+                onChange={(e) => setCustomEndpoint(e.target.value)}
+                placeholder="https://"
+                className={inputClass}
+              />
+            </FieldRow>
+          </>
+        )}
+
+        {selected !== null && !isCustom && (
+          <FieldRow
+            label="Endpoint URL"
+            htmlFor="endpoint-input"
+            hint="Provided by the verified preset and not editable."
+          >
+            <input
+              id="endpoint-input"
+              type="url"
+              disabled
+              value={selected.protocol === "anthropic_native" ? "https://api.anthropic.com" : ""}
+              readOnly
+              className={inputClass}
+            />
+          </FieldRow>
+        )}
+
         <FieldRow
           label="API key"
           htmlFor="api-key-input"
@@ -105,7 +232,7 @@ export default function App() {
 
       <details className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
         <summary
-          className={`cursor-pointer text-sm font-semibold text-zinc-700 dark:text-zinc-200 ${focusRing} rounded-md`}
+          className={`cursor-pointer rounded-md text-sm font-semibold text-zinc-700 dark:text-zinc-200 ${focusRing}`}
         >
           Advanced
         </summary>

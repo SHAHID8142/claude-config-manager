@@ -47,10 +47,19 @@ fn greet(name: &str) -> Result<String, CommandError> {
     Ok(format!("Hello, {}! You've been greeted from Rust!", name))
 }
 
+/// T18 contract: list bundled provider templates for the selector.
+#[tauri::command]
+fn list_providers() -> Result<Vec<provider_catalog::ProviderSummary>, CommandError> {
+    Ok(presets::load_builtin_presets()
+        .iter()
+        .map(provider_catalog::ProviderSummary::from_template)
+        .collect())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, list_providers])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -89,5 +98,16 @@ mod contract_tests {
     fn greet_accepts_normal_name() {
         let out = greet("fixture-user").expect("ok");
         assert!(out.contains("fixture-user"));
+    }
+
+    #[test]
+    fn list_providers_returns_bundled_templates() {
+        let providers = list_providers().expect("ok");
+        assert!(!providers.is_empty());
+        assert_eq!(providers[0].id, "anthropic");
+        // Wire shape check: camelCase keys for the TS contract.
+        let json = serde_json::to_value(&providers[0]).expect("serialize");
+        assert!(json.get("capabilityStatus").is_some());
+        assert!(json.get("docsUrl").is_some());
     }
 }

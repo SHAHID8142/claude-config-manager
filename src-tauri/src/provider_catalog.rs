@@ -191,6 +191,32 @@ pub fn validate_https_url(url: &str) -> Result<(), CatalogError> {
     Ok(())
 }
 
+/// UI-facing summary of a provider template (T18 command contract).
+/// camelCase on the wire to match TS conventions.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSummary {
+    pub id: String,
+    pub name: String,
+    pub protocol: Protocol,
+    pub bridge: BridgeRequirement,
+    pub capability_status: CapabilityStatus,
+    pub docs_url: Option<String>,
+}
+
+impl ProviderSummary {
+    pub fn from_template(t: &ProviderTemplate) -> Self {
+        Self {
+            id: t.id.clone(),
+            name: t.name.clone(),
+            protocol: t.protocol,
+            bridge: t.bridge,
+            capability_status: t.capability_status.clone(),
+            docs_url: t.docs_url.clone(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

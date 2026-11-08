@@ -49,3 +49,20 @@ export async function greet(name: string, ipc: IpcLike = defaultIpc): Promise<st
   }
   return ipc.invoke<string>("greet", { name });
 }
+
+// ---------------------------------------------------------------------------
+// `list_providers` (T18) — bundled provider templates for the selector.
+// ---------------------------------------------------------------------------
+
+export interface ProviderSummary {
+  id: string;
+  name: string;
+  protocol: "anthropic_native" | "anthropic_compat" | "open_ai_only";
+  bridge: "not_required" | "required_for_open_ai_only";
+  capabilityStatus: { status: "verified"; source_url: string } | { status: "unknown" };
+  docsUrl: string | null;
+}
+
+export async function listProviders(ipc: IpcLike = defaultIpc): Promise<ProviderSummary[]> {
+  return ipc.invoke<ProviderSummary[]>("list_providers");
+}
