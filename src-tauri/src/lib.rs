@@ -9,6 +9,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod provider_catalog;
+
 /// Structured error payload crossing the UI boundary (T11 contract).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "message", rename_all = "snake_case")]

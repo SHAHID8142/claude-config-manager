@@ -42,7 +42,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 | Task | Status | Date | Commit | Push | Notes |
 |------|--------|------|--------|------|-------|
-| T16 Versioned provider template schema | ⬜ | — | — | — | — |
+| T16 Versioned provider template schema | ✅ | 2026-11-08 | (T16 commit) | ✓ | Rust provider_catalog.rs; HTTPS-only validation; 9 catalog tests (4 negative) |
 | T17 ONE verified provider preset + fixtures | ⬜ | — | — | — | — |
 | T18 Provider selector + custom provider entry | ⬜ | — | — | — | — |
 | T19 Validated Base URL field + protocol warnings | ⬜ | — | — | — | — |
