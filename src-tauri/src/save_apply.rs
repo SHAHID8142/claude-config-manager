@@ -476,6 +476,72 @@ mod tests {
         assert_eq!(env.get("ANTHROPIC_DEFAULT_SONNET_MODEL"), None);
     }
 
+    /// T46: Claude Code documents ANTHROPIC_DEFAULT_*_MODEL as *pinning an
+    /// alias*; there is no documented failover chain. The app must therefore
+    /// never write a second competing model key (env.ANTHROPIC_MODEL) or a
+    /// fallback list — one explicit model, or none at all.
+    #[test]
+    fn apply_never_writes_a_second_model_key_or_a_failover_chain() {
+        let (home, store) = fixture("no-failover");
+        let svc = service(&home, store);
+        svc.apply("deepseek", Some("main-model"), None, Some(FAKE_KEY))
+            .expect("apply");
+
+        let text = fs::read_to_string(home.join(".claude/settings.json")).expect("read");
+        let doc: Value = serde_json::from_str(&text).expect("json");
+        assert_eq!(doc["model"], "main-model");
+        assert_eq!(
+            doc["env"].get("ANTHROPIC_MODEL"),
+            None,
+            "app must not set a second model source that would shadow/duplicate `model`"
+        );
+        // No array/chain shape anywhere: every model-ish value is a string.
+        assert!(doc["model"].is_string());
+        for key in [
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+            "ANTHROPIC_DEFAULT_SONNET_MODEL",
+            "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        ] {
+            assert!(
+                doc["env"].get(key).map(|v| v.is_string()).unwrap_or(true),
+                "{key} must be a single id, never a chain"
+            );
+        }
+    }
+
+    /// T46: a rejected apply must not "fall back" to a model it likes better.
+    /// The previously applied configuration stays exactly as it was.
+    #[test]
+    fn failed_apply_keeps_the_previous_model_instead_of_failing_over() {
+        let (home, store) = fixture("no-fallback");
+        let svc = service(&home, store);
+        svc.apply_with_roles(
+            "deepseek",
+            Some("good-model"),
+            None,
+            Some(FAKE_KEY),
+            &RoleOverrides {
+                sonnet: Some("role-sonnet".into()),
+                ..Default::default()
+            },
+        )
+        .expect("first apply");
+        let before = fs::read(home.join(".claude/settings.json")).expect("read");
+
+        // Second apply is rejected (invalid model id) → nothing may change,
+        // and certainly no substitute model may appear.
+        let err = svc
+            .apply("deepseek", Some("bad model"), None, Some(FAKE_KEY))
+            .expect_err("invalid model rejected");
+        assert!(matches!(err, ApplyError::InvalidInput(_)));
+
+        let after = fs::read(home.join(".claude/settings.json")).expect("read");
+        assert_eq!(before, after, "no fallback write allowed after a rejection");
+        let doc: Value = serde_json::from_slice(&after).expect("json");
+        assert_eq!(doc["model"], "good-model");
+        assert_eq!(doc["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"], "role-sonnet");
+    }
+
     #[test]
     fn invalid_role_override_is_rejected_before_any_write() {
         let (home, store) = fixture("roles-bad");
