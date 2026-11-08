@@ -15,8 +15,8 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-06 | Native-feeling window layout and sizing | done | `039e650` |
 | V2-07 | Header + active configuration summary | done | `fff8c83` |
 | V2-08 | Reusable icon-button component | done | `d278306` |
-| V2-09 | Accessible tooltip + help popover | in progress | — |
-| V2-10 | Input, dropdown, button, switch restyle | todo | — |
+| V2-09 | Accessible tooltip + help popover | done | `1b9b45a` |
+| V2-10 | Input, dropdown, button, switch restyle | in progress | — |
 | V2-11 | Compact form layout, responsive behavior | todo | — |
 | V2-12 | Simplified provider + credential UI | todo | — |
 | V2-13 | Simplified model selection UI | todo | — |
