@@ -1,10 +1,10 @@
 //! T66 — helper restart, GUI-closure independence, clean uninstall and backup
 //! restore behaviour.
 //!
-//! The Keychain helper is a short-lived script Claude Code runs per request, so
-//! "restart" means: the script is idempotent, fails closed, and prints the
-//! secret and nothing else. These tests execute the **generated script itself**
-//! against a fake `security` binary placed on PATH — proving the real file, not
+//! The credential helper is a short-lived script Claude Code runs per request, so
+//! "restart" means: the script is idempotent, fails closed, and prints the secret
+//! and nothing else. These tests execute the **generated script itself** against a
+//! fixture HOME holding a real 0600 credential file — proving the real file, not
 //! a paraphrase of it.
 
 use claude_config_manager_lib::config_backup::list_backups;
@@ -32,29 +32,23 @@ fn temp_dir(tag: &str) -> PathBuf {
     dir
 }
 
-/// Build a fake `security` executable that behaves like the real one for our
-/// arguments, echoing a fixed secret (or failing, when asked).
-fn fake_security(dir: &Path, behaviour: &str) -> PathBuf {
-    let bin = dir.join("bin");
-    fs::create_dir_all(&bin).expect("bin dir");
-    let path = bin.join("security");
-    fs::write(
-        &path,
-        match behaviour {
-            "found" => "#!/bin/sh\necho sk-ant-api03-T66-SECRET\n",
-            "missing" => "#!/bin/sh\nexit 44\n",
-            "noisy" => "#!/bin/sh\necho 'diagnostic line' >&2\necho sk-ant-api03-T66-SECRET\n",
-            _ => unreachable!(),
-        },
-    )
-    .expect("write fake security");
-    fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).expect("chmod");
-    bin
+/// Create the credential file the helper reads, under a fixture HOME.
+fn write_credential(home: &Path, provider: &str, value: &str, mode: u32) {
+    let dir = home
+        .join("Library")
+        .join("Application Support")
+        .join("ClaudeConfigManager")
+        .join("secrets");
+    fs::create_dir_all(&dir).expect("secrets dir");
+    let path = dir.join(format!("{provider}.secret"));
+    fs::write(&path, value).expect("write credential");
+    fs::set_permissions(&path, fs::Permissions::from_mode(mode)).expect("chmod");
 }
 
-fn run_helper(script: &Path, path_dir: &Path) -> std::process::Output {
+fn run_helper(script: &Path, home: &Path) -> std::process::Output {
     Command::new(script)
-        .env("PATH", format!("{}:/usr/bin:/bin", path_dir.display()))
+        .env("HOME", home)
+        .env("PATH", "/usr/bin:/bin")
         .output()
         .expect("run helper")
 }
@@ -62,13 +56,13 @@ fn run_helper(script: &Path, path_dir: &Path) -> std::process::Output {
 #[test]
 fn helper_prints_only_the_credential_and_is_restart_safe() {
     let dir = temp_dir("restart");
-    let bin = fake_security(&dir, "found");
+    write_credential(&dir, "deepseek", "sk-ant-api03-T66-SECRET\n", 0o600);
     let script_text = generate_helper_script("deepseek").expect("script");
     let script =
         install_helper_script(&dir.join("helpers"), "deepseek", &script_text).expect("install");
 
     // First run.
-    let first = run_helper(&script, &bin);
+    let first = run_helper(&script, &dir);
     assert!(first.status.success(), "helper must exit 0: {first:?}");
     assert_eq!(
         String::from_utf8_lossy(&first.stdout).trim(),
@@ -80,7 +74,7 @@ fn helper_prints_only_the_credential_and_is_restart_safe() {
     );
 
     // "Restart" = run it again: identical result, no state carried over.
-    let second = run_helper(&script, &bin);
+    let second = run_helper(&script, &dir);
     assert_eq!(
         String::from_utf8_lossy(&first.stdout),
         String::from_utf8_lossy(&second.stdout)
@@ -94,9 +88,8 @@ fn helper_prints_only_the_credential_and_is_restart_safe() {
 }
 
 #[test]
-fn helper_fails_closed_when_the_keychain_item_is_gone() {
+fn helper_fails_closed_when_the_credential_file_is_gone() {
     let dir = temp_dir("missing");
-    let bin = fake_security(&dir, "missing");
     let script = install_helper_script(
         &dir.join("helpers"),
         "deepseek",
@@ -104,7 +97,7 @@ fn helper_fails_closed_when_the_keychain_item_is_gone() {
     )
     .expect("install");
 
-    let out = run_helper(&script, &bin);
+    let out = run_helper(&script, &dir);
     assert!(
         !out.status.success(),
         "missing credential must fail, not emit empty"
@@ -115,10 +108,10 @@ fn helper_fails_closed_when_the_keychain_item_is_gone() {
 
 #[test]
 fn helper_does_not_mix_diagnostics_into_the_secret_stream() {
-    // `security` writing to stderr must not corrupt the value Claude Code reads
-    // from stdout (the script `exec`s, so streams stay separate).
+    // A world-readable credential is refused by the helper itself, with the
+    // diagnostic on stderr and nothing on stdout.
     let dir = temp_dir("noisy");
-    let bin = fake_security(&dir, "noisy");
+    write_credential(&dir, "deepseek", "sk-ant-api03-T66-SECRET\n", 0o644);
     let script = install_helper_script(
         &dir.join("helpers"),
         "deepseek",
@@ -126,13 +119,14 @@ fn helper_does_not_mix_diagnostics_into_the_secret_stream() {
     )
     .expect("install");
 
-    let out = run_helper(&script, &bin);
-    assert!(out.status.success());
-    assert_eq!(
-        String::from_utf8_lossy(&out.stdout).trim(),
-        "sk-ant-api03-T66-SECRET"
+    let out = run_helper(&script, &dir);
+    assert!(!out.status.success(), "0644 must be refused");
+    assert!(out.stdout.is_empty(), "no secret may be emitted");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("permissions are too open"),
+        "stderr: {:?}",
+        String::from_utf8_lossy(&out.stderr)
     );
-    assert!(String::from_utf8_lossy(&out.stderr).contains("diagnostic line"));
     fs::remove_dir_all(&dir).ok();
 }
 

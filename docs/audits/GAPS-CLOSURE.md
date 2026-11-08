@@ -18,6 +18,8 @@ the reason — never silently dropped.
 | G10 | TLS/proxy/certificate-error posture | ✅ closed |
 | G11 | Keychain refusal blocked Save & Apply, with an undiagnosable message | ✅ closed (`G11-G12-field-defects.md`) |
 | G12 | Black screen after Save (uncaught `in` on a string during render) | ✅ closed (`G11-G12-field-defects.md`) |
+| G13 | Keychain unusable → credentials moved to an owner-only file (0600) | ✅ closed (`G13-G14-storage-and-cli-detection.md`) |
+| G14 | "Claude Code CLI not found" on GUI-PATH launches | ✅ closed (`G13-G14-storage-and-cli-detection.md`) |
 
 ---
 

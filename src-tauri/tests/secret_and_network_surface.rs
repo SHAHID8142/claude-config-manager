@@ -186,8 +186,9 @@ fn discovery_errors_never_echo_the_credential() {
 fn helper_script_never_contains_the_api_key() {
     let script = generate_helper_script("deepseek").expect("script");
     assert!(!script.contains(FAKE_KEY));
-    // It must read the Keychain at run time instead of embedding anything.
-    assert!(script.contains("find-generic-password"));
+    // It must read the credential file at run time instead of embedding anything.
+    assert!(script.contains("ClaudeConfigManager/secrets/deepseek.secret"));
+    assert!(!script.contains("sk-ant"));
     // Only the validated provider id may be interpolated.
     assert!(script.contains("deepseek"));
 }

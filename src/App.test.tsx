@@ -45,7 +45,7 @@ describe("App shell (T12/T14 regression)", () => {
     for (const section of ["Active configuration", "Provider", "Model", "Actions"]) {
       expect(screen.getByRole("region", { name: section })).toBeInTheDocument();
     }
-    expect(await screen.findByText(/mode: direct \(Keychain helper\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/mode: direct \(credential helper\)/)).toBeInTheDocument();
   });
 
   it("keeps unwired controls disabled with honest placeholders", async () => {

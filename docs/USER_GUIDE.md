@@ -17,7 +17,7 @@ The app manages exactly these keys in your Claude Code settings file
 | Key | Meaning |
 |---|---|
 | `model` | The model Claude Code uses |
-| `apiKeyHelper` | Path to a small script that prints your key from the Keychain |
+| `apiKeyHelper` | Path to a small script that prints your key from an owner-only file |
 | `env.ANTHROPIC_BASE_URL` | Provider endpoint |
 | `env.ANTHROPIC_DEFAULT_HAIKU_MODEL` / `..._SONNET_MODEL` / `..._OPUS_MODEL` | Optional per-role model overrides |
 
@@ -34,9 +34,11 @@ overwrites a file it cannot parse.
 2. Choose a **Provider**.
    - Anthropic (native), OpenRouter, DeepSeek, Z.AI and NVIDIA NIM ship as verified presets.
    - **Custom** lets you type your own endpoint (https only).
-3. Paste your **API key**. It is stored in the **macOS Keychain** (service
-   `com.claude-config-manager.<provider>`), never written to disk. The field is masked and can be revealed
-   only deliberately.
+3. Paste your **API key**. It is stored as an **owner-only file, mode 0600**, in
+   `~/Library/Application Support/ClaudeConfigManager/secrets/<provider>.secret`
+   (replacing the earlier Keychain storage — see "Where the key lives" below). It is never written to
+   `settings.json`, never logged, and never placed in the helper script. The field is masked and can be
+   revealed only deliberately.
 4. Optionally press **Fetch models** to load the provider's catalog. Providers without a documented catalog
    (currently Z.AI) ask you to type a model id instead.
 5. Pick or type a **Model**.
@@ -95,7 +97,7 @@ There is no uninstall button yet. To remove the app cleanly:
 2. Delete `~/Library/Application Support/ClaudeConfigManager/helpers/`.
 3. Delete `~/Library/Application Support/ClaudeConfigManager/backups/` **only if** you no longer want the
    ability to roll back.
-4. Delete the Keychain item: `security delete-generic-password -s com.claude-config-manager.<provider> -a <provider>`.
+4. Delete the stored credential: `rm "$HOME/Library/Application Support/ClaudeConfigManager/secrets/<provider>.secret"`.
 5. Delete the app.
 
 Then open a new terminal so Claude Code picks up the reverted configuration.
@@ -110,7 +112,8 @@ Then open a new terminal so Claude Code picks up the reverted configuration.
 | `The settings file has a problem this app will not overwrite` | malformed JSON or the file is a symlink | fix the JSON by hand (the app refuses to guess); symlinks are refused for safety |
 | Claude Code still uses the old endpoint | plaintext `ANTHROPIC_*` env vars in your shell or in `env` outrank the helper | the app warns about this; remove the stale variable |
 | Claude Code says the model does not exist | the id is well-formed but not offered by that provider | the app validates *shape* only; check the provider's catalog |
-| Helper returns nothing | Keychain item missing (deleted, or app reinstalled) | re-apply with your key, or `security find-generic-password -s com.claude-config-manager.<provider> -a <provider> -w` to check |
+| Helper returns nothing | Credential file missing (deleted, or moved) | re-apply with your key, or check `ls -l "$HOME/Library/Application Support/ClaudeConfigManager/secrets/"` |
+| Helper prints "permissions are too open" | Something loosened the file's mode | `chmod 600 "$HOME/Library/Application Support/ClaudeConfigManager/secrets/<provider>.secret"` |
 | Model fetch fails behind a corporate network | TLS trust or proxy | the app uses the macOS system trust store (MDM roots work) and honours `HTTPS_PROXY`/`NO_PROXY`; SOCKS proxies are not supported |
 | "Fetch models" fails with 401 | the provider wants a different credential style for its catalog | DeepSeek already handled (Bearer); for others, type the model id manually |
 | `…is damaged and can't be opened` | the build is unsigned (ad-hoc) | expected for this build; see Limitations |
@@ -157,7 +160,7 @@ The architecture is deliberately tiered, so a Windows port is mostly a platform-
 
 | Layer | macOS today | Windows equivalent |
 |---|---|---|
-| Secret storage | Keychain via `security` CLI | Windows Credential Manager (`CredWrite`/`CredRead`, or the `keyring` crate's Windows backend) |
+| Secret storage | Owner-only file (0700 dir / 0600 file) under Application Support | `%LOCALAPPDATA%\ClaudeConfigManager\secrets` with an ACL granting only the current user |
 | Settings location | `~/.claude/settings.json` / `$CLAUDE_CONFIG_DIR` | `%USERPROFILE%\.claude\settings.json` (verify with the Claude Code docs before claiming parity) |
 | Helper script | `/bin/sh` script calling `security` | `apiKeyHelper` on Windows is not covered by the test suite; a `.cmd`/`.ps1` equivalent would need its own security review (argument quoting, execution policy) |
 | Atomic write | temp + `fsync` + `rename` | `MoveFileEx` with `MOVEFILE_REPLACE_EXISTING`; the "same directory temp file" rule still applies |
@@ -167,3 +170,23 @@ The architecture is deliberately tiered, so a Windows port is mostly a platform-
 Also needed: CI on Windows, a Windows-aware `ConfigLocator`, and re-checking every `#[cfg(unix)]` test (the
 whole filesystem suite is Unix-only today). Do **not** assume macOS behaviour transfers: the symlink refusals,
 permission checks and helper execution model all differ.
+
+## Where the key lives (and what that protects)
+
+The app stopped using the macOS Keychain: SecItemAdd was refused for the shipped bundle
+("keychain access refused by the OS") and no signing configuration fixed it, which made
+Save & Apply impossible. Credentials are now written to:
+
+```
+~/Library/Application Support/ClaudeConfigManager/secrets/<provider>.secret   (0600, dir 0700)
+```
+
+- **Protects against:** other users on the machine, backups/cloud sync of `~/.claude`
+  (the file is outside it), logs and bug reports (never printed), and any accidental
+  world-readable state (the helper and the store both refuse a loosened file).
+- **Does not protect against:** another process running **as you**. This is the same
+  guarantee as `~/.ssh/id_ed25519`, `~/.aws/credentials` and `~/.config/gcloud`. macOS
+  has no API to encrypt a secret so the same user cannot decrypt it; anything that
+  claimed otherwise would be storing the key beside the lock.
+- Encrypting the file would be security theatre without a separate secret to derive a
+  key from, so the app does not pretend to.

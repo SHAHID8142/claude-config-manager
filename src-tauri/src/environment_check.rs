@@ -52,9 +52,105 @@ pub fn parse_version_output(output: &str) -> Option<String> {
 }
 
 /// Locate the `claude` binary without executing it.
-fn find_claude_cli() -> Option<PathBuf> {
+fn find_claude_cli(home: &Path) -> Option<PathBuf> {
     let path_var = std::env::var("PATH").unwrap_or_default();
+    // PATH first (a user who installed it there expects that to win), then the
+    // real install locations. A GUI app started from Finder/Dock gets only
+    // `/usr/bin:/bin:/usr/sbin:/sbin`, so relying on PATH alone reported "Claude
+    // Code CLI not found" on machines where it is installed in ~/.local/bin.
     find_claude_cli_in_path(&path_var)
+        .or_else(|| {
+            cli_candidate_paths(home)
+                .into_iter()
+                .find(|p| is_executable_file(p))
+        })
+        .or_else(|| find_claude_cli_extra_path(&path_var, home))
+}
+
+/// Common install locations for the Claude Code CLI.
+fn cli_candidate_paths(home: &Path) -> Vec<PathBuf> {
+    let mut out = vec![
+        home.join(".local/bin/claude"),
+        home.join(".claude/local/claude"),
+        home.join(".npm-global/bin/claude"),
+        home.join(".bun/bin/claude"),
+        home.join(".volta/bin/claude"),
+        PathBuf::from("/opt/homebrew/bin/claude"),
+        PathBuf::from("/usr/local/bin/claude"),
+        PathBuf::from("/usr/bin/claude"),
+    ];
+    // Node-version managers: ~/.nvm/versions/node/<ver>/bin/claude and fnm.
+    for base in [
+        home.join(".nvm/versions/node"),
+        home.join(".fnm/node-versions"),
+    ] {
+        if let Ok(entries) = std::fs::read_dir(&base) {
+            let mut versions: Vec<PathBuf> =
+                entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+            versions.sort();
+            for v in versions.into_iter().rev() {
+                out.push(v.join("bin/claude"));
+                out.push(v.join("installation/bin/claude"));
+            }
+        }
+    }
+    out
+}
+
+/// Paths the version probe itself needs: a GUI app has no Homebrew prefix, so a
+/// `#!/usr/bin/env node` script would fail even when we found it.
+fn probe_path(home: &Path, cli: &Path) -> String {
+    let mut dirs: Vec<String> = Vec::new();
+    if let Some(dir) = cli.parent() {
+        dirs.push(dir.to_string_lossy().to_string());
+    }
+    for d in [
+        home.join(".local/bin"),
+        home.join(".npm-global/bin"),
+        PathBuf::from("/opt/homebrew/bin"),
+        PathBuf::from("/usr/local/bin"),
+        PathBuf::from("/usr/bin"),
+        PathBuf::from("/bin"),
+    ] {
+        dirs.push(d.to_string_lossy().to_string());
+    }
+    if let Ok(existing) = std::env::var("PATH") {
+        dirs.push(existing);
+    }
+    dirs.join(":")
+}
+
+fn is_executable_file(p: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(p)
+        .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+/// Last resort: ask the user's login shell (PATH from `.zprofile` etc. that a GUI
+/// app never inherits). Only the resolved path is used; output is discarded.
+fn find_claude_cli_extra_path(path_var: &str, home: &Path) -> Option<PathBuf> {
+    for shell in ["/bin/zsh", "/bin/bash"] {
+        if !Path::new(shell).exists() {
+            continue;
+        }
+        let out = std::process::Command::new(shell)
+            .args(["-lc", "command -v claude"])
+            .env("PATH", path_var)
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()?;
+        if !out.status.success() {
+            continue;
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        let candidate = PathBuf::from(text.lines().next().unwrap_or("").trim());
+        if is_executable_file(&candidate) && candidate.starts_with(home) {
+            return Some(candidate);
+        }
+    }
+    None
 }
 
 /// Testable core: search a PATH string for the `claude` binary.
@@ -72,9 +168,14 @@ fn find_claude_cli_in_path(path_var: &str) -> Option<PathBuf> {
 }
 
 /// Run `claude --version` with a poll timeout (argv-only, no shell).
-fn probe_cli_version(cli: &Path) -> Result<Option<String>, String> {
-    let mut child = Command::new(cli)
-        .arg("--version")
+/// `path` is injected for tests; production always builds a usable one.
+fn probe_cli_version(cli: &Path, path: Option<&str>) -> Result<Option<String>, String> {
+    let mut cmd = Command::new(cli);
+    cmd.arg("--version");
+    if let Some(p) = path {
+        cmd.env("PATH", p);
+    }
+    let mut child = cmd
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -146,9 +247,11 @@ fn config_dir_writable(settings_path: &Path) -> bool {
 /// Build the full environment report.
 pub fn check_environment(home: &Path, config_dir_override: Option<&Path>) -> EnvironmentReport {
     // CLI detection + version probe.
-    let (cli_found, cli_version, cli_version_warning) = match find_claude_cli() {
+    let (cli_found, cli_version, cli_version_warning) = match find_claude_cli(home) {
         Some(cli) => {
-            let v = probe_cli_version(&cli);
+            // A `#!/usr/bin/env node` script needs node on PATH; the GUI PATH
+            // does not have Homebrew or nvm, so supply one.
+            let v = probe_cli_version(&cli, Some(&probe_path(home, &cli)));
             match v {
                 Ok(Some(ver)) => (true, Some(ver), None),
                 Ok(None) => (
@@ -211,6 +314,66 @@ fn state_name(e: &crate::config_reader::ConfigError) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    /// A GUI app started from Finder inherits only `/usr/bin:/bin:/usr/sbin:/sbin`,
+    /// so PATH-only detection reported "not found" on working installs.
+    #[test]
+    fn cli_is_found_in_the_usual_install_locations_without_a_shell_path() {
+        let home = std::env::temp_dir().join(format!(
+            "ccm-cli-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(home.join(".local/bin")).expect("dir");
+        let cli = home.join(".local/bin/claude");
+        std::fs::write(&cli, "#!/bin/sh\necho 2.0.0\n").expect("write");
+        std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o700)).expect("chmod");
+
+        // PATH as seen by a GUI app: our install location is absent.
+        assert_eq!(
+            find_claude_cli_in_path("/usr/bin:/bin:/usr/sbin:/sbin"),
+            None
+        );
+        let found = cli_candidate_paths(&home)
+            .into_iter()
+            .find(|p| is_executable_file(p));
+        assert_eq!(
+            found.as_deref(),
+            Some(cli.as_path()),
+            "must fall back to known locations"
+        );
+
+        // A non-executable file with that name is not a usable CLI.
+        std::fs::set_permissions(&cli, std::fs::Permissions::from_mode(0o600)).expect("chmod");
+        assert!(
+            cli_candidate_paths(&home)
+                .into_iter()
+                .all(|p| !is_executable_file(&p)),
+            "a non-executable candidate must not count as found"
+        );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn the_version_probe_gets_a_path_that_can_find_node() {
+        // The helper scripts are `#!/usr/bin/env node`; probing with the GUI PATH
+        // fails with ENOENT even though the binary exists.
+        assert!(
+            probe_path(
+                Path::new("/Users/x"),
+                Path::new("/Users/x/.local/bin/claude")
+            )
+            .contains("/Users/x/.local/bin")
+        );
+        assert!(
+            probe_path(Path::new("/Users/x"), Path::new("/opt/homebrew/bin/claude"))
+                .contains("/opt/homebrew/bin")
+        );
+    }
 
     #[test]
     fn version_parser_extracts_semver_shaped_tokens() {

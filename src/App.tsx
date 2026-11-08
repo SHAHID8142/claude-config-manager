@@ -49,7 +49,7 @@ const EMPTY_ID = "__none__";
 function modeLabel(status: EffectiveStatus | null): string {
   if (status === null) return "unknown";
   if (!status.settingsFound) return "not configured";
-  if (status.apiKeyHelper !== null) return "direct (Keychain helper)";
+  if (status.apiKeyHelper !== null) return "direct (credential helper)";
   if (status.apiKeyPresent || status.authTokenPresent) return "direct (plaintext env)";
   return "not configured";
 }
@@ -300,7 +300,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             <p className="text-zinc-700 dark:text-zinc-200">
               Credential:{" "}
               {status.apiKeyHelper !== null
-                ? "Keychain via apiKeyHelper"
+                ? "credential file via apiKeyHelper"
                 : status.apiKeyPresent || status.authTokenPresent
                   ? "plaintext env (see warning)"
                   : "none"}
@@ -442,7 +442,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           hint={
             selected === null && !isCustom
               ? "Enabled once a provider is selected."
-              : "Stored in the macOS Keychain when saving. Never written to logs or backups in plaintext."
+              : "Stored as an owner-only file (0600) in Application Support when saving. Never written to logs or backups in plaintext."
           }
         >
           <ApiKeyField
@@ -605,7 +605,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
         </div>
         {selected !== null && (
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-            The API key is stored in the macOS Keychain and handed to Claude Code via an
+            The API key is stored in an owner-only file (0600) and handed to Claude Code via an
             apiKeyHelper script — it is never written into settings.json.
           </p>
         )}

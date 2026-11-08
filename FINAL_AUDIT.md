@@ -12,7 +12,7 @@
 > Not ready to distribute, and not yet proven on a clean Mac.
 
 The app does what it claims for the Anthropic-API-compatible provider path: it stores the key in the
-Keychain, writes only the keys it owns, backs up before writing, writes atomically, verifies by read-back,
+an owner-only credential file, writes only the keys it owns, backs up before writing, writes atomically, verifies by read-back,
 and can roll back. Those claims are backed by 203 Rust and 120 TypeScript tests executed in this audit.
 
 It cannot ship because of four external/release items, not because of test failures:
@@ -45,8 +45,7 @@ cargo fmt --check                              # PASS
 cargo clippy --all-targets -- -D warnings      # PASS (0 warnings)
 cargo test                                     # 185 unit + 7 adversarial + 7 crash + 6 lifecycle
                                                # + 14 malformed + 6 property-based + 11 secret/network
-                                               # + 1 keychain fallback = 236 passed, 0 failed,
-                                               # 4 ignored (live network / real keychain, opt-in)
+                                               # = 233 passed, 0 failed, 3 ignored (live network, opt-in)
 npm run lint                                   # PASS
 npm run format:check                           # PASS
 npx tsc --noEmit                               # PASS
@@ -67,7 +66,7 @@ Claims-vs-code check (T67): 53 test identifiers cited in audits → **0 missing*
 ### Verified controls
 | Control | Evidence |
 |---|---|
-| Credential in Keychain only; settings file holds a helper path | `save_apply` tests, T60 (`settings_json_never_contains_the_credential`) |
+| Credential in a 0600 file outside `~/.claude`; settings file holds a helper path | `save_apply` tests, T60 (`settings_json_never_contains_the_credential`) |
 | Helper script `0700`, only validated provider id interpolated | T59/T66; provider ids now must start alphanumeric |
 | URL policy: https only (loopback http for dev), no credentials in URL, no wildcard/link-local hosts, control chars refused | T59/T60 |
 | Secret-shaped values refused as model ids (a pasted key cannot be written in plaintext) | T60 |
@@ -95,7 +94,8 @@ Claims-vs-code check (T67): 53 test identifiers cited in audits → **0 missing*
    user from adding them.
 4. **Linux-only advisories remain** in the lockfile (`glib`, `zbus`, `zvariant`, `proc-macro-error`). Not in
    the macOS graph today; they will become relevant if a Linux build is attempted.
-5. **No app hardening against a compromised local account** — the Keychain ACL is the trust boundary.
+5. **No app hardening against a compromised local account** — filesystem permissions are the trust boundary
+   now that credentials are a 0600 file (see G13); any process running as the user can read them.
 6. **The apply lock is advisory** (a lock file, not `flock`): it serialises our own writers, not an external
    editor, which is still only caught by the mtime check.
 7. **Secret-shape detection has a 16-character floor**, so a truncated paste like `sk-ant-` is not flagged.
@@ -113,7 +113,16 @@ Two field defects, both reproduced and fixed (`docs/audits/G11-G12-field-defects
 - **G11 (blocking):** "keychain access refused by the OS" made Save & Apply impossible. The message threw
   away the OSStatus; it now reports it. A `FallbackStore` retries through `/usr/bin/security` (secret on
   stdin, absolute binary path, validated identifiers) only when the framework refuses — proven with a real
-  login-keychain round-trip.
+  login-keychain round-trip. Superseded by G13 below.
+
+## Round 4 — credential storage replaced at the owner's request
+**G13:** the Keychain path is gone. macOS refused `SecItemAdd` for the bundled app and no signing
+configuration reproduced or fixed it, so credentials now live in an **owner-only file** (dir 0700,
+file 0600) under `~/Library/Application Support/ClaudeConfigManager/secrets/`, written atomically,
+refusing symlinks, refusing a loosened file on read. The helper script reads that file and fails
+closed when it is missing or world-readable. The `keyring` dependency and all Keychain code were
+removed. The honest trade-off is stated in the user guide: this protects against other users, cloud
+sync and leaks, **not** against another process running as you (same as `~/.ssh` keys).
 
 ## Round 2 (gap closure after "did you audit every aspect?")
 `docs/audits/GAPS-CLOSURE.md` records ten gaps found by that question, eight closed in code here:

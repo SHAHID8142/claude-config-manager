@@ -21,8 +21,7 @@ pub mod config_writer;
 pub mod credential_handoff;
 pub mod credential_service;
 pub mod environment_check;
-pub mod fallback_store;
-pub mod keychain_store;
+pub mod file_secret_store;
 pub mod model_discovery;
 pub mod model_discovery_service;
 pub mod presets;
@@ -30,7 +29,6 @@ pub mod provider_catalog;
 pub mod redact;
 pub mod save_apply;
 pub mod secret_store;
-pub mod security_cli_store;
 
 /// Structured error payload crossing the UI boundary (T11 contract).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -90,12 +88,11 @@ fn save_and_apply(
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
-    // G11: framework first, `security` CLI second — a platform refusal must not
-    // make Save & Apply impossible when the same item is readable by the helper.
-    let store: Arc<dyn secret_store::SecretStore> = Arc::new(fallback_store::FallbackStore::new(
-        Box::new(keychain_store::KeychainStore::new()),
-        Box::new(security_cli_store::SecurityCliStore::new()),
-    ));
+    // Credentials live in an owner-only file (0600) under Application Support.
+    // The Keychain path was dropped: macOS refused it for the shipped bundle and
+    // there was no way to sign around it (docs/audits/G13-file-credentials.md).
+    let store: Arc<dyn secret_store::SecretStore> =
+        Arc::new(file_secret_store::FileSecretStore::for_home(&home));
     let svc = save_apply::SaveApplyService::for_production(&home, store);
     // T45: role overrides are optional; absent = leave the managed env key
     // untouched (never invent a mapping).
@@ -156,11 +153,9 @@ fn discover_models(
     credential: Option<String>,
 ) -> Result<Vec<model_discovery::ModelEntry>, CommandError> {
     let store: Option<&dyn secret_store::SecretStore> = if credential.is_none() {
-        // Keychain-backed resolution behind a temporary instance (with the same
-        // CLI fallback the apply path uses).
-        Some(&fallback_store::FallbackStore::new(
-            Box::new(keychain_store::KeychainStore::new()),
-            Box::new(security_cli_store::SecurityCliStore::new()),
+        // Same file-backed store the apply path writes to.
+        Some(&file_secret_store::FileSecretStore::for_home(
+            &std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default()),
         ))
     } else {
         None
