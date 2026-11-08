@@ -29,25 +29,25 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-20 | Multiple credentials per provider (backend) | done | `4fc37fe` |
 | V2-21 | Credential management + masked selection UI | done | `a3ed54c` |
 | V2-22 | Credential priority + enable/disable | done | `docs/V2/V2-22-priority.md` |
-| V2-23 | Multiple routing targets | done | `docs/V2/V2-23-routing-and-failover.md` |
-| V2-24 | Compact priority editor | done | `docs/V2/V2-23-routing-and-failover.md` |
-| V2-25 | Migration/permission/redaction/isolation tests | done | `docs/V2/V2-23-routing-and-failover.md` |
+| V2-23 | Multiple routing targets | done | `3597a19` |
+| V2-24 | Compact priority editor | done | `3597a19` |
+| V2-25 | Migration/permission/redaction/isolation tests | done | `3597a19` |
 | V2-26 | Router decision: own Rust proxy (ADR-003) | done | `docs/decisions/ADR-003` |
-| V2-27 | Third-party consent + download verification | n/a — nothing is downloaded | `docs/V2/V2-23-routing-and-failover.md` |
-| V2-28 | Router config generation | done | `routing_config.rs` |
-| V2-29 | Loopback routing + startup | done | `proxy.rs` |
-| V2-30 | Helper shutdown/restart/recovery | done | `proxy.rs` + `proxy_stop` |
-| V2-31 | Routing endpoint into Claude Code config | done | `apply_routed` |
-| V2-32 | Routing health checks | partial — on-demand status only | `proxy_status` |
-| V2-33 | Provider error-classification rules | done | `failover.rs` |
-| V2-34 | Rate-limit / quota-exhaustion detection | done | `failover.rs` |
-| V2-35 | Bounded retry + cooldown | done | `failover.rs` |
-| V2-36 | Ordered credential/model fallback | done | `failover::candidates` |
-| V2-37 | Cross-provider fallback | done | `proxy::forward` |
-| V2-38 | Auto Failover UI toggle | done | `RoutingPanel.tsx` |
-| V2-39 | Routing status + safe diagnostics | done | `ProxyStatus` |
-| V2-40 | Exhausted/invalid/timeout/5xx tests | done | `tests/proxy_loopback.rs` |
-| V2-41 | Streaming, tools, replay safety, recovery | done | `proxy::stream_response` |
+| V2-27 | Third-party consent + download verification | n/a — nothing is downloaded | `3597a19` |
+| V2-28 | Router config generation | done | `3597a19` |
+| V2-29 | Loopback routing + startup | done | `3597a19` |
+| V2-30 | Helper shutdown/restart/recovery | done | `3597a19` |
+| V2-31 | Routing endpoint into Claude Code config | done | `3597a19` |
+| V2-32 | Routing health checks | partial — on-demand status only | `3597a19` |
+| V2-33 | Provider error-classification rules | done | `3597a19` |
+| V2-34 | Rate-limit / quota-exhaustion detection | done | `3597a19` |
+| V2-35 | Bounded retry + cooldown | done | `3597a19` |
+| V2-36 | Ordered credential/model fallback | done | `3597a19` |
+| V2-37 | Cross-provider fallback | done | `3597a19` |
+| V2-38 | Auto Failover UI toggle | done | `3597a19` |
+| V2-39 | Routing status + safe diagnostics | done | `3597a19` |
+| V2-40 | Exhausted/invalid/timeout/5xx tests | done | `3597a19` |
+| V2-41 | Streaming, tools, replay safety, recovery | done | `3597a19` |
 | V2-42 | Direct-mode workflow test | todo | — |
 | V2-43 | Routed-mode workflow test | todo | — |
 | V2-44 | Credential/migration/localhost/log audit | todo | — |
