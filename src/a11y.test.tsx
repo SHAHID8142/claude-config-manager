@@ -14,6 +14,11 @@ import { RoutingPanel } from "./components/RoutingPanel";
 import { createMockIpc } from "./lib/ipc-mock";
 import { providerSummaryFixtures } from "./lib/fixtures/providers";
 
+/** The sidebar is a macOS settings list: one screen at a time. */
+async function goTo(label: string) {
+  await userEvent.click(screen.getByRole("button", { name: label }));
+}
+
 function renderApp() {
   const ipc = createMockIpc({
     handlers: {
@@ -38,11 +43,14 @@ describe("document structure (T62)", () => {
 
   it("gives every form control an accessible name", async () => {
     renderApp();
+    await goTo("Provider");
     await screen.findByLabelText("Provider", { selector: "select" });
+    // Not every screen has every kind of control; the invariant is about the
+    // ones that are actually rendered.
     const controls = [
-      ...screen.getAllByRole("textbox"),
-      ...screen.getAllByRole("combobox"),
-      ...screen.getAllByRole("button"),
+      ...screen.queryAllByRole("textbox"),
+      ...screen.queryAllByRole("combobox"),
+      ...screen.queryAllByRole("button"),
     ];
     for (const el of controls) {
       // A native <label for> association is a valid accessible name; accept it
@@ -57,6 +65,7 @@ describe("document structure (T62)", () => {
 
   it("never uses a positive tabindex (focus order stays DOM order)", async () => {
     renderApp();
+    await goTo("Provider");
     await screen.findByLabelText("Provider", { selector: "select" });
     for (const el of document.querySelectorAll("[tabindex]")) {
       expect(Number(el.getAttribute("tabindex"))).toBeLessThanOrEqual(0);
@@ -65,6 +74,7 @@ describe("document structure (T62)", () => {
 
   it("makes every key control keyboard-focusable in logical DOM order", async () => {
     renderApp();
+    await goTo("Provider");
     const provider = await screen.findByLabelText("Provider", { selector: "select" });
     // Credential and model fields are disabled until a provider is chosen, so
     // pick one first — an unreachable control is a bug, but an intentionally
@@ -74,33 +84,38 @@ describe("document structure (T62)", () => {
     // A key enables Save & Apply; a disabled control cannot take focus (by
     // design), and this test is about *reachable* controls.
     await userEvent.type(apiKey, "sk-test-key");
-    const model = screen.getByLabelText("Model", { selector: "input" });
-    const fetch = screen.getByRole("button", { name: /fetch models/i });
     const apply = screen.getByRole("button", { name: /save & apply/i });
 
     // 1. Focusable: no control is removed from the tab sequence.
-    for (const el of [provider, apiKey, model, fetch, apply]) {
+    for (const el of [provider, apiKey, apply]) {
       expect((el as HTMLElement).tabIndex).toBeGreaterThanOrEqual(0);
       el.focus();
       expect(document.activeElement).toBe(el);
     }
 
-    // 2. DOM order matches the visual/task order: provider → credential →
-    //    fetch (populate catalog) → model (choose) → apply.
-    const chain = [provider, apiKey, fetch, model, apply];
-    for (let i = 1; i < chain.length; i += 1) {
-      const position = chain[i - 1].compareDocumentPosition(chain[i]);
-      expect(
-        position & Node.DOCUMENT_POSITION_FOLLOWING,
-        `${chain[i - 1].outerHTML.slice(0, 40)} should precede ${chain[i].outerHTML.slice(0, 40)}`,
-      ).toBeTruthy();
+    // 2. DOM order matches the task order on this screen: provider → key.
+    expect(
+      provider.compareDocumentPosition(apiKey) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    // 3. The model screen keeps its own order: catalog first, then the field,
+    //    and the primary action is still after the panel.
+    await goTo("Model");
+    const fetch = screen.getByRole("button", { name: /fetch models/i });
+    const model = screen.getByLabelText("Model", { selector: "input" });
+    for (const el of [fetch, model, apply]) {
+      expect((el as HTMLElement).tabIndex).toBeGreaterThanOrEqual(0);
+      el.focus();
+      expect(document.activeElement).toBe(el);
     }
+    expect(fetch.compareDocumentPosition(model) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
 describe("announcements and decoration (T62)", () => {
-  it("marks decorative disclosure glyphs as hidden from assistive tech", () => {
+  it("marks decorative disclosure glyphs as hidden from assistive tech", async () => {
     renderApp();
+    await goTo("Model");
     const toggle = screen.getByRole("button", { name: /advanced settings/i });
     const glyph = Array.from(toggle.querySelectorAll("[aria-hidden='true']"));
     expect(glyph.length).toBeGreaterThan(0);
@@ -143,7 +158,11 @@ describe("macOS theme and small-window resilience (T62, static)", () => {
   it("never lets a long model id, URL or path force horizontal scroll", () => {
     // V2 shows long values in truncated rows (with the full value in the title
     // attribute), so the invariant is "truncate or break", not "always <code>".
-    const app = sources.find(([p]) => p.endsWith("/App.tsx"))?.[1] ?? "";
+    // Long values live on the Dashboard and the tab screens, not the shell.
+    const app = sources
+      .filter(([p]) => p.endsWith("/App.tsx") || p.includes("/tabs/"))
+      .map(([, src]) => src)
+      .join("\n");
     const longValueRows = app.match(/className="[^"]*\bmin-w-0\b[^"]*"/g) ?? [];
     expect(longValueRows.length).toBeGreaterThan(0);
     for (const row of longValueRows) {

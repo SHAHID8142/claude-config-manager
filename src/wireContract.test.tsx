@@ -102,6 +102,11 @@ function realIpc(overrides: Record<string, unknown> = {}) {
   });
 }
 
+/** The sidebar is a settings list: warnings and controls live on a screen. */
+async function goTo(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await user.click(screen.getByRole("button", { name: label }));
+}
+
 describe("real backend payloads (contract reproduction)", () => {
   it("renders without throwing and names the conflicting models", async () => {
     render(<App ipc={realIpc()} />);
@@ -134,6 +139,7 @@ describe("real backend payloads (contract reproduction)", () => {
         ] as ModelEntry[]),
     });
     render(<App ipc={ipc} />);
+    await goTo(user, "Provider");
     await screen.findByRole("combobox", { name: /Provider/i });
     await user.selectOptions(screen.getByRole("combobox", { name: /Provider/i }), "deepseek");
     await user.type(

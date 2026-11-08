@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
-import { ApiKeyField } from "./components/ApiKeyField";
-import { BridgeBadge, CapabilityBadge } from "./components/CapabilityBadge";
-import { FieldRow } from "./components/FieldRow";
 import { LoadingButton } from "./components/LoadingButton";
-import { ModelList } from "./components/ModelList";
-import { AdvancedSettings } from "./components/AdvancedSettings";
 import {
   EMPTY_ROLES,
   hasInvalidRole,
   rolesToSend,
-  type RoleKey,
   type RoleState,
 } from "./lib/roles";
-import { Section } from "./components/Section";
 import { AppHeader } from "./components/AppHeader";
-import { CredentialsPanel } from "./components/CredentialsPanel";
-import { RoutingPanel } from "./components/RoutingPanel";
+import { AppSidebar } from "./components/AppSidebar";
+import { ThemeSegmented } from "./components/ThemeSegmented";
+import { DashboardTab } from "./tabs/DashboardTab";
+import { ProviderTab } from "./tabs/ProviderTab";
+import { CredentialsTab } from "./tabs/CredentialsTab";
+import { ModelTab } from "./tabs/ModelTab";
+import { RoutingTab } from "./tabs/RoutingTab";
+import { MaintenanceTab } from "./tabs/MaintenanceTab";
+import { TAB_META, type TabId } from "./lib/tab";
 import { StatusBanner } from "./components/StatusBanner";
 import {
   checkEnvironment,
@@ -52,48 +52,13 @@ import {
   type ProxyStatus,
   type RoutingConfig,
   type TargetHealth,
-  type StatusWarning,
 } from "./lib/ipc";
-import { classifyEndpoint, endpointCheckMessage } from "./lib/endpoint";
 import { validateModelId } from "./lib/modelId";
-import { focusRing } from "./lib/focus";
-
-const inputClass = `h-9 w-full rounded-[6px] border border-control bg-surface px-2.5 text-[13px] text-ink placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`;
 
 /** Sentinels for the provider selector: presets use their real ids;
  * custom entry and the empty state use dedicated sentinels. */
 const CUSTOM_ID = "__custom__";
 const EMPTY_ID = "__none__";
-
-/** Honest mode label from the effective status (never fabricated). */
-function modeLabel(status: EffectiveStatus | null): string {
-  if (status === null) return "unknown";
-  if (!status.settingsFound) return "not configured";
-  if (status.apiKeyHelper !== null) return "direct (credential helper)";
-  if (status.apiKeyPresent || status.authTokenPresent) return "direct (plaintext env)";
-  return "not configured";
-}
-
-/** Warning text derived from the typed wire shape. */
-function warningText(w: StatusWarning): string {
-  // Unit variants arrive as plain strings; `typeof` guards before any `in`.
-  if (typeof w === "string") {
-    if (w === "helperShadowedByEnv") {
-      return "apiKeyHelper is shadowed by a plaintext env credential — remove the env key to use the helper.";
-    }
-    return "Unknown warning";
-  }
-  if ("helperShadowedByEnv" in w) {
-    return "apiKeyHelper is shadowed by a plaintext env credential — remove the env key to use the helper.";
-  }
-  if ("plaintextKeyInEnv" in w) {
-    return `${w.plaintextKeyInEnv.which} is stored in plaintext inside settings.json.`;
-  }
-  if ("modelConflict" in w) {
-    return `Model conflict: settings say "${w.modelConflict.settingModel}" but ANTHROPIC_MODEL says "${w.modelConflict.envModel}" (env wins).`;
-  }
-  return "Unknown warning";
-}
 
 export interface AppProps {
   /** Transport seam for tests; production uses the Tauri runtime. */
@@ -132,6 +97,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   // T45: role overrides start empty = "no override" and stay collapsed.
   const [roles, setRoles] = useState<RoleState>(EMPTY_ROLES);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // One screen at a time: the sidebar swaps the panel, never adds to it.
+  const [tab, setTab] = useState<TabId>("dashboard");
   // V2-12b: declared window for models Claude Code can't recognize.
   const [contextWindow, setContextWindow] = useState("");
 
@@ -481,6 +448,14 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     (apiKey.trim() === "" && !storedCredential) ||
     testingConnection;
 
+  const applyHint = canApply
+    ? "Writes ~/.claude/settings.json after a backup."
+    : selected === null && !isCustom
+      ? "Choose a provider to enable Save & Apply."
+      : apiKey.trim() === "" && !storedCredential
+        ? "Add a key (or store one under Credentials) to enable Save & Apply."
+        : "Fix the highlighted field to enable Save & Apply.";
+
   async function handleApply() {
     if (!canApply) return;
     setApplying(true);
@@ -531,550 +506,235 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-app text-ink">
+    <div className="flex h-screen flex-col overflow-hidden bg-app text-ink">
       <AppHeader status={status} />
-      <div className="mx-auto flex w-full max-w-[45rem] flex-col gap-6 px-5 pt-1 pb-32">
-
-      {loadError !== null && (
-        <StatusBanner
-          severity="error"
-          message="Could not load the provider catalog."
-          detail={loadError}
-        />
-      )}
-
-      {environment !== null && shellShadowing.length > 0 && !shellWarningDismissed && (
-        <StatusBanner
-          severity="warning"
-          message="Your shell exports ANTHROPIC settings that override this app."
-          detail={`${shellShadowing.join(", ")} — Claude Code ranks these above apiKeyHelper and settings.json. Unset them in ~/.zshrc (or your shell profile) and open a new terminal.`}
-          onDismiss={() => setShellWarningDismissed(true)}
-        />
-      )}
-      {environment !== null && !environment.cliFound && (
-        <StatusBanner
-          severity="warning"
-          message="Claude Code CLI not found on PATH."
-          detail="Settings can still be managed here, but install the Claude Code CLI to use them."
-        />
-      )}
-      {environment !== null &&
-        (environment.settingsState === "malformed_json" ||
-          environment.settingsState === "symlink") && (
-          <StatusBanner
-            severity="error"
-            message="The settings file has a problem this app will not overwrite."
-            detail={environment.settingsDetail ?? undefined}
-          />
-        )}
-
-      {/* The screen's answer comes first and full width: what Claude Code is
-          using right now. Every control below is an edit to one of these. */}
-      <section aria-label="Active configuration" className="rounded-[10px] bg-surface p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 truncate">
-            <p className="text-[12px] text-ink-muted">Claude Code is using</p>
-            <p className="mt-1 flex items-center gap-2 text-[14px] font-medium text-ink">
-              <span
-                aria-hidden="true"
-                className={`size-1.5 shrink-0 rounded-full ${
-                  status === null
-                    ? "bg-ink-subtle"
-                    : status.settingsFound
-                      ? status.warnings.length > 0
-                        ? "bg-warn"
-                        : "bg-ok"
-                      : "bg-ink-subtle"
-                }`}
-              />
-              {status === null
-                ? "Reading the current configuration…"
-                : status.settingsFound
-                  ? modeLabel(status)
-                  : "not configured yet"}
-            </p>
-          </div>
-          <span className="shrink-0 text-[12px] text-ink-subtle">live from settings.json</span>
-        </div>
-
-        {status !== null && status.settingsFound ? (
-          <dl className="mt-3.5 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-line pt-3.5 sm:grid-cols-4">
-            <div className="min-w-0 truncate">
-              <dt className="text-[11px] text-ink-subtle">Model</dt>
-              <dd className="mt-0.5 truncate text-[13px] text-ink" title={status.envModel ?? status.model ?? "not set"}>
-                {status.envModel ?? status.model ?? "not set"}
-              </dd>
-            </div>
-            <div className="min-w-0 truncate">
-              <dt className="text-[11px] text-ink-subtle">Endpoint</dt>
-              <dd className="mt-0.5 truncate text-[13px] text-ink" title={status.envBaseUrl ?? undefined}>
-                {status.envBaseUrl ?? "native Anthropic"}
-              </dd>
-            </div>
-            <div className="min-w-0 truncate">
-              <dt className="text-[11px] text-ink-subtle">Key</dt>
-              <dd className="mt-0.5 truncate text-[13px] text-ink">
-                {status.apiKeyHelper !== null
-                  ? "credential file"
-                  : status.apiKeyPresent || status.authTokenPresent
-                    ? "plaintext env"
-                    : "none"}
-              </dd>
-            </div>
-            <div className="min-w-0 truncate">
-              <dt className="text-[11px] text-ink-subtle">Context window</dt>
-              <dd className="mt-0.5 truncate text-[13px] tabular-nums text-ink">
-                {status.envMaxContextTokens === null
-                  ? "provider default"
-                  : `${Number(status.envMaxContextTokens).toLocaleString()} tokens`}
-              </dd>
-            </div>
-          </dl>
-        ) : (
-          <p className="mt-3 border-t border-line pt-3.5 text-[13px] text-ink-muted">
-            {status === null
-              ? "Reading settings.json…"
-              : "No settings file yet — the first Save & Apply creates it."}
-          </p>
-        )}
-
-        {status !== null && status.settingsFound && status.warnings.length > 0 && (
-          <ul className="mt-3 flex flex-col gap-1 border-t border-line pt-3 text-[12px] text-warn">
-            {status.warnings.map((w, i) => (
-              <li key={i}>{warningText(w)}</li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <div className="flex flex-col gap-6">
-          <Section
-            title="Provider"
-            description="Which service Claude Code talks to, and the key it authenticates with."
-          >
-            <FieldRow
-              label="Provider"
-              htmlFor="provider-select"
-              hint={
-                providers === null
-                  ? "Loading provider catalog…"
-                  : "Custom providers use your own Anthropic-compatible endpoint."
-              }
-            >
-              <select
-                id="provider-select"
-                value={selectedId}
-                disabled={providers === null}
-                onChange={(e) => {
-                  setSelectedId(e.target.value);
-                  // A model id from another provider must never carry over.
-                  setSelectedModel(null);
-                  setModels(null);
-                  setModelsFetchedFor(null);
-                  setModelsError(null);
-                }}
-                className={inputClass}
-              >
-                <option value={EMPTY_ID}>
-                  {providers === null ? "Loading…" : "Select a provider"}
-                </option>
-                {providers?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-                {providers !== null && <option value={CUSTOM_ID}>Custom…</option>}
-              </select>
-            </FieldRow>
-
-            {selected !== null && (
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <CapabilityBadge
-                  status={selected.capabilityStatus.status}
-                  sourceUrl={
-                    selected.capabilityStatus.status === "verified"
-                      ? selected.capabilityStatus.source_url
-                      : null
-                  }
-                />
-                <BridgeBadge required={selected.bridge === "required_for_open_ai_only"} />
-              </div>
-            )}
-
-            {isCustom && (
-              <>
-                <FieldRow
-                  label="Custom provider name"
-                  htmlFor="custom-name-input"
-                  hint="Shown in the UI only."
-                >
-                  <input
-                    id="custom-name-input"
-                    type="text"
-                    value={customName}
-                    onChange={(e) => setCustomName(e.target.value)}
-                    placeholder="My gateway"
-                    className={inputClass}
-                  />
-                </FieldRow>
-                <FieldRow
-                  label="Custom endpoint URL"
-                  htmlFor="custom-endpoint-input"
-                  hint="Must be an Anthropic-compatible https endpoint."
-                >
-                  <input
-                    id="custom-endpoint-input"
-                    type="url"
-                    value={customEndpoint}
-                    onChange={(e) => setCustomEndpoint(e.target.value)}
-                    placeholder="https://"
-                    className={inputClass}
-                  />
-                </FieldRow>
-                {customEndpoint !== "" &&
-                  (() => {
-                    const check = classifyEndpoint(customEndpoint);
-                    const msg = endpointCheckMessage(check);
-                    if (msg === null) return null;
-                    const isError = check.check === "invalid" || check.check === "insecure";
-                    return (
-                      <p
-                        aria-live="polite"
-                        id="custom-endpoint-check"
-                        className={`mb-2 text-xs ${isError ? "font-medium text-danger" : "text-ink-muted"}`}
-                      >
-                        {msg}
-                      </p>
-                    );
-                  })()}
-              </>
-            )}
-
-            {selected !== null && !isCustom && selected.protocol !== "open_ai_only" && (
-              <FieldRow
-                label="Endpoint URL"
-                htmlFor="endpoint-input"
-                hint="Provided by the verified preset and not editable."
-              >
-                <input
-                  id="endpoint-input"
-                  type="url"
-                  disabled
-                  value={
-                    selected.protocol === "anthropic_native" ? "https://api.anthropic.com" : ""
-                  }
-                  readOnly
-                  className={inputClass}
-                />
-              </FieldRow>
-            )}
-
-            <FieldRow
-              label="API key"
-              htmlFor="api-key-input"
-              hint={
-                selected === null && !isCustom
-                  ? "Enabled once a provider is selected."
-                  : storedCredential
-                    ? "A key is already stored for this provider — leave this blank to keep it and change only the model."
-                    : "Stored as an owner-only file (0600) in Application Support when saving. Never written to logs or backups in plaintext."
-              }
-            >
-              <ApiKeyField
-                id="api-key-input"
-                value={apiKey}
-                onChange={setApiKey}
-                disabled={selected === null && !isCustom}
-              />
-            </FieldRow>
-          </Section>
-          <Section
-            title="Credentials"
-            description="Keys stored for this provider. The first enabled one is handed to Claude Code."
-          >
-            <CredentialsPanel
-              credentials={credentialList}
-              addDisabled={selected === null && !isCustom}
-              onAdd={(label, secret) => {
-                void handleAddCredential(label, secret);
-              }}
-              onRemove={(id) => {
-                void handleRemoveCredential(id);
-              }}
-              onToggle={(id, enabled) => {
-                void handleToggleCredential(id, enabled);
-              }}
-              onPromote={(id) => {
-                void handlePromoteCredential(id);
-              }}
-              error={credentialsError}
-            />
-          </Section>
-          <Section
-            title="Failover routing"
-            description="An optional local proxy that tries your targets in order when one fails."
-          >
-            {routing === null ? (
-              <p className="text-[12.5px] text-ink-muted">Reading routing configuration…</p>
-            ) : (
-              <RoutingPanel
-                config={routing}
-                providers={providers ?? []}
-                credentials={credentials?.list ?? []}
-                onNeedCredentials={(providerId) => {
-                  void listCredentials(providerId, ipc)
-                    .then((list) => setCredentials({ providerId, list }))
-                    .catch(() => setCredentials(null));
-                }}
-                status={proxy}
-                health={routingHealth}
-                checking={checkingHealth}
-                busy={routingBusy}
-                error={routingError}
-                onChange={setRouting}
-                onSave={() => {
-                  void handleSaveRouting();
-                }}
-                onStartProxy={() => {
-                  void handleStartProxy();
-                }}
-                onStopProxy={() => {
-                  void handleStopProxy();
-                }}
-                onApplyRouted={() => {
-                  void handleApplyRouted();
-                }}
-                onCheckHealth={() => {
-                  void handleCheckRoutingHealth();
-                }}
-              />
-            )}
-          </Section>
-          <Section
-            title="Model"
-            description="What Claude Code asks for, the context window it assumes, and the role overrides in Advanced."
-          >
-            {modelsError !== null && (
-              <StatusBanner
-                severity="error"
-                message="Model discovery failed."
-                detail={modelsError}
-                onDismiss={() => setModelsError(null)}
-              />
-            )}
-            <div className="mb-2 flex items-center gap-2">
-              <LoadingButton
-                label="Fetch models"
-                pendingLabel="Fetching…"
-                pending={fetchingModels}
-                disabled={selected === null || isCustom}
-                variant="secondary"
-                onClick={() => {
-                  void handleFetchModels();
-                }}
-              />
-              {selected !== null && !isCustom && (
-                <span className="text-[11px] text-ink-subtle">
-                  Verified preset for {selected.name}
-                </span>
-              )}
-            </div>
-            {modelsFetchedFor !== null &&
-              (models !== null && models.length > 0 ? (
-                <div className="mb-2">
-                  <ModelList
-                    models={models}
-                    selectedId={selectedModel}
-                    onSelect={(id) => setSelectedModel(id)}
-                  />
-                </div>
-              ) : (
-                <p className="text-xs text-ink-muted">
-                  Catalog returned no models — use manual Model ID entry below.
-                </p>
-              ))}
-            <FieldRow
-              label="Model"
-              htmlFor="model-input"
-              hint="Selected from the catalog or entered manually; never auto-selected."
-            >
-              <input
-                id="model-input"
-                type="text"
-                value={selectedModel ?? ""}
-                readOnly={models !== null && models.length > 0}
-                disabled={selected === null && !isCustom}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                placeholder="provider-model-id"
-                aria-invalid={modelInvalid}
-                className={inputClass}
-              />
-            </FieldRow>
-            {modelInvalid && modelValidation !== null && !modelValidation.ok && (
-              <p
-                aria-live="polite"
-                id="model-input-error"
-                className="text-xs font-medium text-danger"
-              >
-                {modelValidation.message} Save &amp; Apply is disabled until this is fixed.
-              </p>
-            )}
-            {selectedModel !== null &&
-              selectedModel.trim() !== "" &&
-              !selectedModel.trim().toLowerCase().startsWith("claude") &&
-              (status?.envMaxContextTokens ?? null) === null && (
-                <p className="text-[11px] text-ink-subtle">
-                  Claude Code doesn&apos;t recognize this id and will assume a 200k window.{" "}
-                  <button
-                    type="button"
-                    className="text-accent underline-offset-2 hover:underline"
-                    onClick={() => setAdvancedOpen(true)}
-                  >
-                    Declare its real window
-                  </button>{" "}
-                  if it is larger.
-                </p>
-              )}
-            {selectedModel !== null &&
-              selectedModel.trim() !== "" &&
-              (models === null || models.length === 0) && (
-                <p className="text-xs text-ink-muted">
-                  Source: manual entry · capability data unverified (unknown).
-                </p>
-              )}
-            <AdvancedSettings
-              open={advancedOpen}
-              onToggle={() => setAdvancedOpen((v) => !v)}
-              roles={roles}
-              onChange={(key: RoleKey, value: string) => setRoles((r) => ({ ...r, [key]: value }))}
-              current={{
-                haiku: status?.envDefaultHaiku ?? null,
-                sonnet: status?.envDefaultSonnet ?? null,
-                opus: status?.envDefaultOpus ?? null,
-              }}
-              contextWindow={contextWindow}
-              onContextWindowChange={setContextWindow}
-              currentContextWindow={status?.envMaxContextTokens ?? null}
-            />
-            {roleInvalid && (
-              <p aria-live="polite" className="mt-2 text-xs font-medium text-danger">
-                A role override is invalid. Save &amp; Apply is disabled until it is fixed.
-              </p>
-            )}
-          </Section>
-        </div>
-        <Section
-          title="Actions"
-          description="Prove the stored key works, restore a backup, or check the connection."
-        >
-            {applyOutcome !== null && (
-              <StatusBanner
-                severity="success"
-                message="Configuration applied and verified."
-                detail={`Backup: ${applyOutcome.backupFileName || "(none — first run)"} · helper: ${applyOutcome.helperPath}`}
-                onDismiss={() => setApplyOutcome(null)}
-              />
-            )}
-            {applyError !== null && (
-              <StatusBanner
-                severity="error"
-                message="Save & Apply failed."
-                detail={applyError}
-                onDismiss={() => setApplyError(null)}
-              />
-            )}
-            {restoreOutcome !== null && (
-              <StatusBanner
-                severity="success"
-                message="Settings restored from the latest backup."
-                detail={`Restored: ${restoreOutcome.restoredFrom} · pre-restore copy: ${restoreOutcome.preRestoreBackup || "(none — file was missing)"}`}
-                onDismiss={() => setRestoreOutcome(null)}
-              />
-            )}
-            {restoreError !== null && (
-              <StatusBanner
-                severity="error"
-                message="Restore failed."
-                detail={restoreError}
-                onDismiss={() => setRestoreError(null)}
-              />
-            )}
-            {connectionTestError !== null && (
-              <StatusBanner
-                severity="error"
-                message="Connection test could not run."
-                detail={connectionTestError}
-                onDismiss={() => setConnectionTestError(null)}
-              />
-            )}
-            {connectionTest !== null && (
-              <StatusBanner
-                severity={connectionTest.ok ? "success" : "error"}
-                message={
-                  connectionTest.ok
-                    ? `Connection OK — ${connectionTest.message} (${connectionTest.latencyMs} ms)`
-                    : `Connection failed — ${connectionTest.message}`
-                }
-                detail={connectionTest.endpoint}
-                onDismiss={() => setConnectionTest(null)}
-              />
-            )}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <LoadingButton
-              label="Test Connection"
-              pendingLabel="Testing…"
-              pending={testingConnection}
-              disabled={testDisabled}
-              variant="secondary"
-              onClick={() => {
-                void handleTestConnection();
-              }}
-            />
-            <LoadingButton
-              label="Restore last backup"
-              pendingLabel="Restoring…"
-              pending={restoring}
-              onClick={() => {
-                void handleRestore();
-              }}
-            />
-          </div>
-          <p className="mt-3 text-[12px] leading-[1.5] text-ink-muted">
-            The API key is stored in an owner-only file (0600) and handed to Claude Code via an
-            apiKeyHelper script — it is never written into settings.json.
-          </p>
-        </Section>
-      </div>
-
-      {/* Fixed footer: the primary action must never be below the fold
-          (at 800x600 and 880x880 it was, which made Save & Apply invisible). */}
-      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-app px-5 pt-2.5 pb-3">
-        <div className="mx-auto flex max-w-[45rem] flex-wrap items-center gap-3">
-          <p className="mr-auto text-[12px] text-ink-muted">
-            {canApply
-              ? "Writes ~/.claude/settings.json after a backup."
-              : selected === null && !isCustom
-                ? "Choose a provider to enable Save & Apply."
-                : apiKey.trim() === "" && !storedCredential
-                  ? "Add a key (or store one under Credentials) to enable Save & Apply."
-                  : "Fix the highlighted field to enable Save & Apply."}
-          </p>
-          {/* "Configuration applied and verified" only proves the FILE was
-            written. This asks the provider whether the key actually works. */}
-          <LoadingButton
-            label="Save & Apply"
-            pendingLabel="Applying…"
-            pending={applying}
-            // One gate, one source of truth: `canApply` covers provider, key,
-            // model validity and role-override validity (T43/T45).
-            disabled={!canApply}
-            variant="primary"
-            onClick={() => {
-              void handleApply();
+      <div className="flex min-h-0 flex-1">
+        {/* macOS settings shape: a fixed, quiet sidebar and one scrolling panel.
+            The accent appears only on the current item's glyph. */}
+        <aside className="flex w-[11.75rem] shrink-0 flex-col border-r border-line bg-panel/80 pb-3 backdrop-blur">
+          <AppSidebar
+            active={tab}
+            onSelect={setTab}
+            badges={{
+              credentials: credentialList.length > 0 ? String(credentialList.length) : undefined,
+              routing: routing?.enabled === true ? "on" : undefined,
             }}
           />
-        </div>
+          <ThemeSegmented />
+        </aside>
+
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col break-words">
+          <div className="flex-1 overflow-y-auto">
+            <div className="mx-auto flex w-full max-w-[46rem] flex-col gap-6 px-6 pt-5 pb-6">
+              <header>
+                <h2 className="text-[19px] leading-[1.25] font-semibold tracking-[-0.01em]">
+                  {TAB_META[tab].title}
+                </h2>
+                <p className="mt-1.5 text-[12.5px] leading-[1.5] text-ink-muted">
+                  {TAB_META[tab].purpose}
+                </p>
+              </header>
+
+              {loadError !== null && (
+                <StatusBanner
+                  severity="error"
+                  message="Could not load the provider catalog."
+                  detail={loadError}
+                />
+              )}
+
+              {environment !== null && shellShadowing.length > 0 && !shellWarningDismissed && (
+                <StatusBanner
+                  severity="warning"
+                  message="Your shell exports ANTHROPIC settings that override this app."
+                  detail={`${shellShadowing.join(", ")} — Claude Code ranks these above apiKeyHelper and settings.json. Unset them in ~/.zshrc (or your shell profile) and open a new terminal.`}
+                  onDismiss={() => setShellWarningDismissed(true)}
+                />
+              )}
+
+              {environment !== null &&
+                (environment.settingsState === "malformed_json" ||
+                  environment.settingsState === "symlink") && (
+                  <StatusBanner
+                    severity="error"
+                    message="The settings file has a problem this app will not overwrite."
+                    detail={environment.settingsDetail ?? undefined}
+                  />
+                )}
+
+              {tab === "dashboard" && (
+                <DashboardTab
+                  status={status}
+                  providers={providers}
+                  selected={selected}
+                  credentials={credentialList}
+                  routing={routing}
+                  proxy={proxy}
+                  environment={environment}
+                  applyOutcome={applyOutcome}
+                  applyError={applyError}
+                  onDismissApply={() => setApplyOutcome(null)}
+                  onDismissApplyError={() => setApplyError(null)}
+                  onNavigate={setTab}
+                />
+              )}
+
+              {tab === "provider" && (
+                <ProviderTab
+                  providers={providers}
+                  selectedId={selectedId}
+                  onSelectProvider={(id) => {
+                    setSelectedId(id);
+                    // A model id from another provider must never carry over.
+                    setSelectedModel(null);
+                    setModels(null);
+                    setModelsFetchedFor(null);
+                    setModelsError(null);
+                  }}
+                  selected={selected}
+                  isCustom={isCustom}
+                  customName={customName}
+                  onCustomName={setCustomName}
+                  customEndpoint={customEndpoint}
+                  onCustomEndpoint={setCustomEndpoint}
+                  apiKey={apiKey}
+                  onApiKey={setApiKey}
+                  storedCredential={storedCredential}
+                  emptyId={EMPTY_ID}
+                  customId={CUSTOM_ID}
+                  testing={testingConnection}
+                  testDisabled={testDisabled}
+                  onTestConnection={() => {
+                    void handleTestConnection();
+                  }}
+                  testResult={connectionTest}
+                  testError={connectionTestError}
+                  onDismissTest={() => setConnectionTest(null)}
+                  onDismissTestError={() => setConnectionTestError(null)}
+                />
+              )}
+
+              {tab === "credentials" && (
+                <CredentialsTab
+                  provider={selected}
+                  isCustom={isCustom}
+                  credentials={credentialList}
+                  error={credentialsError}
+                  addDisabled={selected === null && !isCustom}
+                  onAdd={(label, secret) => {
+                    void handleAddCredential(label, secret);
+                  }}
+                  onRemove={(id) => {
+                    void handleRemoveCredential(id);
+                  }}
+                  onToggle={(id, enabled) => {
+                    void handleToggleCredential(id, enabled);
+                  }}
+                  onPromote={(id) => {
+                    void handlePromoteCredential(id);
+                  }}
+                />
+              )}
+
+              {tab === "model" && (
+                <ModelTab
+                  provider={selected}
+                  isCustom={isCustom}
+                  models={models}
+                  fetching={fetchingModels}
+                  fetchedFor={modelsFetchedFor}
+                  onFetch={() => {
+                    void handleFetchModels();
+                  }}
+                  modelsError={modelsError}
+                  onDismissModelsError={() => setModelsError(null)}
+                  selectedModel={selectedModel}
+                  onSelectModel={setSelectedModel}
+                  modelInvalid={modelInvalid}
+                  modelMessage={
+                    modelValidation !== null && !modelValidation.ok ? modelValidation.message : null
+                  }
+                  status={status}
+                  roles={roles}
+                  onRole={(key, value) => setRoles((r) => ({ ...r, [key]: value }))}
+                  roleInvalid={roleInvalid}
+                  advancedOpen={advancedOpen}
+                  onToggleAdvanced={() => setAdvancedOpen((v) => !v)}
+                  contextWindow={contextWindow}
+                  onContextWindow={setContextWindow}
+                />
+              )}
+
+              {tab === "routing" && (
+                <RoutingTab
+                  config={routing}
+                  error={routingError}
+                  providers={providers ?? []}
+                  credentials={credentials?.list ?? []}
+                  onNeedCredentials={(providerId) => {
+                    void listCredentials(providerId, ipc)
+                      .then((list) => setCredentials({ providerId, list }))
+                      .catch(() => setCredentials(null));
+                  }}
+                  status={proxy}
+                  health={routingHealth}
+                  checking={checkingHealth}
+                  busy={routingBusy}
+                  onChange={setRouting}
+                  onSave={() => {
+                    void handleSaveRouting();
+                  }}
+                  onStartProxy={() => {
+                    void handleStartProxy();
+                  }}
+                  onStopProxy={() => {
+                    void handleStopProxy();
+                  }}
+                  onApplyRouted={() => {
+                    void handleApplyRouted();
+                  }}
+                  onCheckHealth={() => {
+                    void handleCheckRoutingHealth();
+                  }}
+                />
+              )}
+
+              {tab === "maintenance" && (
+                <MaintenanceTab
+                  environment={environment}
+                  restoring={restoring}
+                  onRestore={() => {
+                    void handleRestore();
+                  }}
+                  restoreOutcome={restoreOutcome}
+                  restoreError={restoreError}
+                  onDismissRestore={() => setRestoreOutcome(null)}
+                  onDismissRestoreError={() => setRestoreError(null)}
+                  shellWarningDismissed={shellWarningDismissed}
+                  onDismissShellWarning={() => setShellWarningDismissed(true)}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* One primary action, always reachable, with the reason when it cannot run. */}
+          <div className="border-t border-line bg-app px-6 py-3">
+            <div className="mx-auto flex max-w-[46rem] items-center gap-3">
+              <p className="mr-auto text-[12px] text-ink-muted">{applyHint}</p>
+              <LoadingButton
+                label="Save & Apply"
+                pendingLabel="Applying…"
+                pending={applying}
+                disabled={!canApply}
+                variant="primary"
+                onClick={() => {
+                  void handleApply();
+                }}
+              />
+            </div>
+          </div>
+        </main>
       </div>
-    </main>
+    </div>
   );
 }

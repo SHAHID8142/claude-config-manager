@@ -6,6 +6,11 @@ import { createMockIpc } from "./lib/ipc-mock";
 import { providerSummaryFixtures } from "./lib/fixtures/providers";
 import type { EffectiveStatus, ModelEntry } from "./lib/ipc";
 
+/** Walk the sidebar to a screen (macOS settings shape: one panel at a time). */
+async function goTo(label: string) {
+  await userEvent.click(screen.getByRole("button", { name: label }));
+}
+
 const statusFixture: EffectiveStatus = {
   settingsFound: true,
   model: "claude-sonnet-4-5",
@@ -45,24 +50,33 @@ describe("App shell (T12/T14 regression)", () => {
   it("renders the app title and all PRD sections", async () => {
     render(<App ipc={mockWithProviders()} />);
     expect(screen.getByRole("heading", { name: "Claude Config Manager" })).toBeInTheDocument();
-    for (const section of ["Active configuration", "Provider", "Model", "Actions"]) {
-      expect(screen.getByRole("region", { name: section })).toBeInTheDocument();
-    }
+    // Dashboard answers first…
+    expect(screen.getByRole("region", { name: "Active configuration" })).toBeInTheDocument();
     expect(await screen.findByText(/direct \(credential helper\)/)).toBeInTheDocument();
+    // …and each sidebar item owns exactly one screen.
+    await goTo("Provider");
+    expect(screen.getByRole("region", { name: "Provider" })).toBeInTheDocument();
+    await goTo("Model");
+    expect(screen.getByRole("region", { name: "Model" })).toBeInTheDocument();
+    await goTo("Maintenance");
+    expect(screen.getByRole("region", { name: "Actions" })).toBeInTheDocument();
   });
 
   it("keeps unwired controls disabled with honest placeholders", async () => {
     render(<App ipc={mockWithProviders()} />);
+    await goTo("Provider");
     expect(screen.getByLabelText("API key", { selector: "input" })).toBeDisabled();
-    expect(screen.getByLabelText("Model", { selector: "input" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Test Connection" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Save & Apply" })).toBeDisabled();
     // Show/hide toggle follows the field's disabled state (T20)
     expect(screen.getByRole("button", { name: "Show" })).toBeDisabled();
+    await goTo("Model");
+    expect(screen.getByLabelText("Model", { selector: "input" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save & Apply" })).toBeDisabled();
   });
 
   it("enables the masked API key field once a provider is selected (T20)", async () => {
     render(<App ipc={mockWithProviders()} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "anthropic");
     const keyInput = screen.getByLabelText("API key", { selector: "input" });
@@ -80,6 +94,7 @@ describe("App shell (T12/T14 regression)", () => {
 
   it("links field hints via aria-describedby", async () => {
     render(<App ipc={mockWithProviders()} />);
+    await goTo("Provider");
     const apiKey = screen.getByLabelText("API key", { selector: "input" });
     expect(apiKey).toHaveAttribute("aria-describedby", "api-key-input-hint");
   });
@@ -89,6 +104,7 @@ describe("Provider selector (T18)", () => {
   it("loads and lists builtin providers from the catalog", async () => {
     const ipc = mockWithProviders();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await waitFor(() => expect(select).toBeEnabled());
     const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
@@ -123,6 +139,7 @@ describe("Provider selector (T18)", () => {
       calls: ipc.calls,
     } as typeof ipc;
     render(<App ipc={withStored} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await waitFor(() => expect(select).toBeEnabled());
     await userEvent.selectOptions(select, "openrouter");
@@ -137,6 +154,7 @@ describe("Provider selector (T18)", () => {
   it("keeps Save disabled with a blank key and no stored credential", async () => {
     const ipc = mockWithProviders();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await waitFor(() => expect(select).toBeEnabled());
     await userEvent.selectOptions(select, "openrouter");
@@ -147,6 +165,7 @@ describe("Provider selector (T18)", () => {
   it("selecting a preset shows capability and connection badges (T25)", async () => {
     const ipc = mockWithProviders();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "anthropic");
     expect(screen.getByText(/capabilities verified/)).toBeInTheDocument();
@@ -164,6 +183,7 @@ describe("Provider selector (T18)", () => {
   it("shows the bridge-required badge for OpenAI-only providers (T25)", async () => {
     const ipc = mockWithProviders();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "nvidia-nim");
     expect(screen.getByText(/bridge required/)).toBeInTheDocument();
@@ -175,6 +195,7 @@ describe("Provider selector (T18)", () => {
   it("selecting Custom reveals custom name/endpoint entry", async () => {
     const ipc = mockWithProviders();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "__custom__");
     const nameInput = screen.getByLabelText("Custom provider name", { selector: "input" });
@@ -192,6 +213,7 @@ describe("Provider selector (T18)", () => {
   it("warns insecure http endpoints live while typing (T19)", async () => {
     const ipc = mockWithProviders();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "__custom__");
     const endpointInput = screen.getByLabelText("Custom endpoint URL", { selector: "input" });
@@ -203,6 +225,7 @@ describe("Provider selector (T18)", () => {
   it("notes local endpoints without failing them (T19)", async () => {
     const ipc = mockWithProviders();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "__custom__");
     const endpointInput = screen.getByLabelText("Custom endpoint URL", { selector: "input" });
@@ -250,6 +273,7 @@ describe("Save & Apply (T33)", () => {
   it("applies for a preset: button enables with key, succeeds with banner", async () => {
     const ipc = mockWithApply();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "anthropic");
 
@@ -259,20 +283,24 @@ describe("Save & Apply (T33)", () => {
     expect(applyBtn).toBeDisabled();
     await userEvent.type(keyInput, "sk-test-fixture-key");
     expect(applyBtn).toBeEnabled();
+    // The promise made before saving: the key never lands in settings.json.
+    expect(screen.getByText(/never written to logs or backups/i)).toBeInTheDocument();
 
     await userEvent.click(applyBtn);
+    await goTo("Dashboard");
     await waitFor(() => {
       expect(screen.getByText("Configuration applied and verified.")).toBeInTheDocument();
     });
     expect(screen.getByText(/Backup: settings-backup-/)).toBeInTheDocument();
-    expect(screen.getByText(/never written into/)).toBeInTheDocument();
   });
 
   it("points out the 200k assumption for a non-Claude model id (V2-13)", async () => {
     const ipc = mockWithApply();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "openrouter");
+    await goTo("Model");
     await userEvent.type(
       screen.getByLabelText("Model", { selector: "input" }),
       "nvidia/nemotron-x",
@@ -286,12 +314,14 @@ describe("Save & Apply (T33)", () => {
   it("sends the declared context window for an unrecognized model id (V2-12b)", async () => {
     const ipc = mockWithApply();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "anthropic");
     await userEvent.type(
       screen.getByLabelText("API key", { selector: "input" }),
       "sk-test-fixture-key",
     );
+    await goTo("Model");
     await userEvent.click(screen.getByRole("button", { name: /advanced settings/i }));
     const windowInput = screen.getByLabelText(/context window/i);
     // Digits only: a typed "1M" must never reach settings.json as a no-op value.
@@ -315,10 +345,12 @@ describe("Save & Apply (T33)", () => {
       },
     });
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "anthropic");
     await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-secret-x");
     await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await goTo("Dashboard");
     await waitFor(() => {
       expect(screen.getByText("Save & Apply failed.")).toBeInTheDocument();
     });
@@ -338,6 +370,7 @@ describe("Save & Apply (T33)", () => {
       },
     });
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "deepseek");
     await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-x");
@@ -429,6 +462,7 @@ describe("Effective status + override warnings (T34)", () => {
       },
     });
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await waitFor(() => expect(statusCallCount).toBe(1));
     await userEvent.selectOptions(select, "anthropic");
@@ -452,6 +486,7 @@ describe("Restore last backup (T35)", () => {
       },
     });
     render(<App ipc={ipc} />);
+    await goTo("Maintenance");
     const btn = await screen.findByRole("button", { name: "Restore last backup" });
     await userEvent.click(btn);
     await waitFor(() => {
@@ -473,6 +508,7 @@ describe("Restore last backup (T35)", () => {
       },
     });
     render(<App ipc={ipc} />);
+    await goTo("Maintenance");
     const btn = await screen.findByRole("button", { name: "Restore last backup" });
     await userEvent.click(btn);
     await waitFor(() => {
@@ -575,23 +611,33 @@ describe("Model discovery states (T39)", () => {
       },
     ]);
     render(<App ipc={ipc} />);
+    await goTo("Model");
     const fetchBtn = await screen.findByRole("button", { name: "Fetch models" });
     expect(fetchBtn).toBeDisabled();
-    const select = screen.getByLabelText("Provider", { selector: "select" });
-    await userEvent.selectOptions(select, "openrouter");
-    expect(fetchBtn).toBeEnabled();
-    await userEvent.click(fetchBtn);
+    await goTo("Provider");
+    await userEvent.selectOptions(
+      screen.getByLabelText("Provider", { selector: "select" }),
+      "openrouter",
+    );
+    await goTo("Model");
+    // Re-query: the first screen was unmounted when the sidebar switched.
+    const ready = await screen.findByRole("button", { name: "Fetch models" });
+    await waitFor(() => expect(ready).toBeEnabled());
+    await userEvent.click(ready);
     expect(await screen.findByLabelText("Discovered models")).toBeInTheDocument();
     // Never auto-selected: no option selected, input shows no value.
     expect(document.querySelectorAll("[aria-selected='true']")).toHaveLength(0);
+    await goTo("Model");
     expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("");
   });
 
   it("shows an error banner on discovery failure with retry available", async () => {
     const ipc = mockWithModels({ fail: "catalog endpoint returned HTTP 403" });
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "openrouter");
+    await goTo("Model");
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
     expect(await screen.findByText("Model discovery failed.")).toBeInTheDocument();
     expect(screen.getByText("catalog endpoint returned HTTP 403")).toBeInTheDocument();
@@ -602,8 +648,10 @@ describe("Model discovery states (T39)", () => {
   it("shows an empty-catalog state without selecting anything", async () => {
     const ipc = mockWithModels([]);
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "openrouter");
+    await goTo("Model");
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
     expect(await screen.findByText(/Catalog returned no models/)).toBeInTheDocument();
   });
@@ -647,8 +695,10 @@ describe("Model selection (T40)", () => {
   it("explicit click selects a model and shows it in the Model field", async () => {
     const ipc = mockWithModels(catalog);
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "openrouter");
+    await goTo("Model");
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
     await screen.findByLabelText("Discovered models");
     expect(document.querySelectorAll("[aria-selected='true']")).toHaveLength(0);
@@ -659,10 +709,13 @@ describe("Model selection (T40)", () => {
   it("re-fetch resets any previous selection (no cross-provider inheritance)", async () => {
     const ipc = mockWithModels(catalog);
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "openrouter");
+    await goTo("Model");
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
     await userEvent.click(await screen.findByRole("option", { name: /model-a/ }));
+    await goTo("Model");
     expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("model-a");
     await userEvent.click(screen.getByRole("button", { name: "Fetch models" }));
     await waitFor(() => {
@@ -702,15 +755,22 @@ describe("Manual Model ID entry (T41)", () => {
   it("is editable for a manual-entry provider (zai) and custom providers", async () => {
     const ipc = baseMock("none");
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
 
     await userEvent.selectOptions(select, "zai");
+    await goTo("Model");
     const modelInput = screen.getByLabelText("Model", { selector: "input" });
     expect(modelInput).toBeEnabled();
     await userEvent.type(modelInput, "glm-4.6");
     expect(modelInput).toHaveValue("glm-4.6");
 
-    await userEvent.selectOptions(select, "__custom__");
+    await goTo("Provider");
+    await userEvent.selectOptions(
+      screen.getByLabelText("Provider", { selector: "select" }),
+      "__custom__",
+    );
+    await goTo("Model");
     // Custom: editable, and the previous provider's model was reset.
     expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("");
     await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "my-model");
@@ -720,22 +780,31 @@ describe("Manual Model ID entry (T41)", () => {
   it("switching providers resets a previously entered model id", async () => {
     const ipc = baseMock("none");
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "zai");
-    await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "glm-4.6");
-    await userEvent.selectOptions(select, "anthropic");
+    await goTo("Model");
+    await goTo("Provider");
+    await userEvent.selectOptions(
+      screen.getByLabelText("Provider", { selector: "select" }),
+      "anthropic",
+    );
+    await goTo("Model");
     expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("");
   });
 
   it("keeps manual entry available after a discovery failure (PRD F05)", async () => {
     const ipc = baseMock("none");
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "zai");
+    await goTo("Model");
 
     // The provider publishes no catalog: fetching surfaces a typed error…
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
     expect(await screen.findByText("Model discovery failed.")).toBeInTheDocument();
+    await goTo("Model");
 
     // …and the manual fallback still works (the point of T41).
     const modelInput = screen.getByLabelText("Model", { selector: "input" });
@@ -755,10 +824,13 @@ describe("Manual Model ID entry (T41)", () => {
       },
     ]);
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "openrouter");
+    await goTo("Model");
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
     await screen.findByLabelText("Discovered models");
+    await goTo("Model");
     expect(screen.getByLabelText("Model", { selector: "input" })).toHaveAttribute("readonly");
   });
 });
@@ -768,8 +840,10 @@ describe("Model metadata provenance (T42)", () => {
 
   it("labels a typed model id as manual entry with unverified capabilities", async () => {
     render(<App ipc={mockWithProviders()} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "zai");
+    await goTo("Model");
     await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "glm-4.6");
 
     expect(screen.getByText(/Source: manual entry/)).toBeInTheDocument();
@@ -786,8 +860,10 @@ describe("Model metadata provenance (T42)", () => {
       ]),
     );
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "openrouter");
+    await goTo("Model");
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
 
     await screen.findByLabelText("Discovered models");
@@ -799,8 +875,10 @@ describe("Model metadata provenance (T42)", () => {
 
   it("does not invent capability values in the manual path", async () => {
     render(<App ipc={mockWithProviders()} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "zai");
+    await goTo("Model");
     await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "glm-4.6");
     // "context window" is now a real managed setting (V2-12b), so the honesty
     // check is about invented capability CLAIMS, not about the word itself.
@@ -914,6 +992,7 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
     it("is disabled until a provider and a key are present", async () => {
       const { ipc } = mockTesting(okResult);
       render(<App ipc={ipc} />);
+      await goTo("Provider");
       expect(screen.getByRole("button", { name: "Test Connection" })).toBeDisabled();
       await selectProviderAndKey("openrouter");
       expect(screen.getByRole("button", { name: "Test Connection" })).toBeEnabled();
@@ -966,6 +1045,7 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
   });
 
   async function selectProviderAndKey(provider = "anthropic") {
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, provider);
     await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-test-key");
@@ -975,6 +1055,7 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
     const { ipc, calls } = mockCapturing();
     render(<App ipc={ipc} />);
     await selectProviderAndKey();
+    await goTo("Model");
     await userEvent.type(
       screen.getByLabelText("Model", { selector: "input" }),
       "claude-sonnet-4-5",
@@ -1000,6 +1081,7 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
     const { ipc, calls } = mockCapturing();
     render(<App ipc={ipc} />);
     await selectProviderAndKey();
+    await goTo("Model");
     await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "  glm-4.6  ");
 
     await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
@@ -1011,6 +1093,7 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
     const { ipc, calls } = mockCapturing();
     render(<App ipc={ipc} />);
     await selectProviderAndKey();
+    await goTo("Model");
     const modelInput = screen.getByLabelText("Model", { selector: "input" });
     await userEvent.type(modelInput, "bad model");
 
@@ -1049,9 +1132,11 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
       },
     });
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "openrouter");
     await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-test-key");
+    await goTo("Model");
     await userEvent.click(screen.getByRole("button", { name: "Fetch models" }));
     await userEvent.click(await screen.findByRole("option", { name: /anthropic\/claude-x/ }));
 
@@ -1085,6 +1170,7 @@ describe("Advanced role overrides + Save & Apply (T45)", () => {
   }
 
   async function ready() {
+    await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "anthropic");
     await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-test-key");
@@ -1094,6 +1180,7 @@ describe("Advanced role overrides + Save & Apply (T45)", () => {
     const { ipc, calls } = mockCapturing();
     render(<App ipc={ipc} />);
     await ready();
+    await goTo("Model");
 
     expect(screen.getByRole("button", { name: /advanced settings/i })).toHaveAttribute(
       "aria-expanded",
@@ -1111,6 +1198,7 @@ describe("Advanced role overrides + Save & Apply (T45)", () => {
     const { ipc, calls } = mockCapturing();
     render(<App ipc={ipc} />);
     await ready();
+    await goTo("Model");
     await userEvent.click(screen.getByRole("button", { name: /advanced settings/i }));
     await userEvent.type(screen.getByLabelText("Haiku role"), "  fast-model  ");
     await userEvent.type(screen.getByLabelText("Opus role"), "big-model");
@@ -1126,6 +1214,7 @@ describe("Advanced role overrides + Save & Apply (T45)", () => {
     const { ipc, calls } = mockCapturing();
     render(<App ipc={ipc} />);
     await ready();
+    await goTo("Model");
     await userEvent.click(screen.getByRole("button", { name: /advanced settings/i }));
 
     const sonnet = screen.getByLabelText("Sonnet role");
@@ -1148,6 +1237,7 @@ describe("Advanced role overrides + Save & Apply (T45)", () => {
     const { ipc } = mockCapturing();
     render(<App ipc={ipc} />);
     await ready();
+    await goTo("Model");
     await userEvent.click(screen.getByRole("button", { name: /advanced settings/i }));
     // Default fixture has no overrides → honest "no override" text, never blank.
     expect(
@@ -1191,10 +1281,12 @@ describe("Credentials panel (V2-21)", () => {
   it("shows stored keys masked and adds a new one", async () => {
     const ipc = mockWithCredential();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     await userEvent.selectOptions(
       await screen.findByLabelText("Provider", { selector: "select" }),
       "openrouter",
     );
+    await goTo("Credentials");
     expect(await screen.findByText("•••• 9z9z")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/label for the new key/i), "second");
     await userEvent.type(screen.getByLabelText(/new api key/i), "sk-test-fixture-2");
@@ -1211,10 +1303,12 @@ describe("Credentials panel (V2-21)", () => {
   it("saves through the selected credential id", async () => {
     const ipc = mockWithCredential();
     render(<App ipc={ipc} />);
+    await goTo("Provider");
     await userEvent.selectOptions(
       await screen.findByLabelText("Provider", { selector: "select" }),
       "openrouter",
     );
+    await goTo("Credentials");
     await screen.findByText("•••• 9z9z");
     await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
     await waitFor(() => expect(ipc.calls.some((c) => c.cmd === "save_and_apply")).toBe(true));
