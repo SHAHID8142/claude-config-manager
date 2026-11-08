@@ -43,13 +43,14 @@ recorded in `TASK_PROGRESS.md` (no placeholders — verified in the T01–T41 sw
 ```bash
 cargo fmt --check                              # PASS
 cargo clippy --all-targets -- -D warnings      # PASS (0 warnings)
-cargo test                                     # 177 unit + 7 adversarial + 7 crash + 6 lifecycle
+cargo test                                     # 185 unit + 7 adversarial + 7 crash + 6 lifecycle
                                                # + 14 malformed + 6 property-based + 11 secret/network
-                                               # = 228 passed, 0 failed, 3 ignored (live network, opt-in)
+                                               # + 1 keychain fallback = 237 passed, 0 failed,
+                                               # 4 ignored (live network / real keychain, opt-in)
 npm run lint                                   # PASS
 npm run format:check                           # PASS
 npx tsc --noEmit                               # PASS
-npx vitest run                                 # 120 passed / 12 files
+npx vitest run                                 # 124 passed / 14 files
 npm run build                                  # PASS (240 kB bundle)
 scripts/dep-audit.sh                           # PASS — 0 advisories in the macOS graph
 cargo test live_nvidia_nim   -- --ignored      # PASS — 84 models fetched live
@@ -101,6 +102,18 @@ Claims-vs-code check (T67): 53 test identifiers cited in audits → **0 missing*
 6. **CI has never run** (GitHub billing lock), so the pipeline itself is unproven; all evidence is local.
 
 ---
+
+## Round 3 — defects reported by the owner from real use
+Two field defects, both reproduced and fixed (`docs/audits/G11-G12-field-defects.md`):
+- **G12 (critical):** Save & Apply blanked the window. Serde emits unit variants as bare strings; the UI used
+  `"x" in w` on a string, throwing during render and unmounting the tree. Also fixed the same block's
+  `undefined` text (struct-variant fields were not camel-cased). `ErrorBoundary` now guarantees a blank
+  window is impossible. Verified by rendering against payloads captured from the Rust DTOs and by
+  inspecting the running bundle.
+- **G11 (blocking):** "keychain access refused by the OS" made Save & Apply impossible. The message threw
+  away the OSStatus; it now reports it. A `FallbackStore` retries through `/usr/bin/security` (secret on
+  stdin, absolute binary path, validated identifiers) only when the framework refuses — proven with a real
+  login-keychain round-trip.
 
 ## Round 2 (gap closure after "did you audit every aspect?")
 `docs/audits/GAPS-CLOSURE.md` records ten gaps found by that question, eight closed in code here:
