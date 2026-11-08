@@ -9,12 +9,15 @@
 use crate::provider_catalog::{ProviderTemplate, parse_template};
 
 const ANTHROPIC_PRESET: &str = include_str!("../presets/anthropic.json");
+const OPENROUTER_PRESET: &str = include_str!("../presets/openrouter.json");
 
 /// All bundled provider templates, in display order.
 pub fn load_builtin_presets() -> Vec<ProviderTemplate> {
     vec![
         parse_template(ANTHROPIC_PRESET)
             .expect("bundled anthropic preset must be valid (checked by tests)"),
+        parse_template(OPENROUTER_PRESET)
+            .expect("bundled openrouter preset must be valid (checked by tests)"),
     ]
 }
 
@@ -26,7 +29,7 @@ mod tests {
     #[test]
     fn builtin_anthropic_preset_parses_and_validates() {
         let presets = load_builtin_presets();
-        assert_eq!(presets.len(), 1);
+        assert!(presets.len() >= 2, "anthropic + openrouter minimum");
         let t = &presets[0];
         assert_eq!(t.id, "anthropic");
         assert_eq!(t.name, "Anthropic");
@@ -75,5 +78,36 @@ mod tests {
         let len = ids.len();
         ids.dedup();
         assert_eq!(ids.len(), len, "preset ids must be unique");
+    }
+
+    #[test]
+    fn openrouter_preset_is_direct_compat_with_public_discovery() {
+        let presets = load_builtin_presets();
+        let t = presets
+            .iter()
+            .find(|p| p.id == "openrouter")
+            .expect("openrouter preset present");
+        assert_eq!(t.protocol, Protocol::AnthropicCompat);
+        assert_eq!(t.bridge, BridgeRequirement::NotRequired);
+        assert_eq!(t.auth, crate::provider_catalog::AuthStyle::BearerToken);
+        assert_eq!(
+            t.direct_base_url.as_deref(),
+            Some("https://openrouter.ai/api")
+        );
+        match &t.discovery {
+            DiscoverySpec::Endpoint {
+                url,
+                requires_auth,
+                list_selector,
+            } => {
+                assert_eq!(url, "https://openrouter.ai/api/v1/models");
+                assert!(
+                    !requires_auth,
+                    "models endpoint is public (live-verified HTTP 200)"
+                );
+                assert_eq!(list_selector, "data");
+            }
+            other => panic!("expected endpoint discovery, got {other:?}"),
+        }
     }
 }

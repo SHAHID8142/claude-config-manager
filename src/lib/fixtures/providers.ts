@@ -45,7 +45,29 @@ export const anthropicPreset: ProviderTemplateFixture = {
   docs_url: "https://platform.claude.com/docs/en/api/models-list",
 };
 
-export const builtinPresetFixtures: ProviderTemplateFixture[] = [anthropicPreset];
+/** T24: OpenRouter preset — mirrors src-tauri/presets/openrouter.json. */
+export const openRouterPreset: ProviderTemplateFixture = {
+  schema_version: 1,
+  id: "openrouter",
+  name: "OpenRouter",
+  auth: "bearer_token",
+  protocol: "anthropic_compat",
+  bridge: "not_required",
+  direct_base_url: "https://openrouter.ai/api",
+  discovery: {
+    kind: "endpoint",
+    url: "https://openrouter.ai/api/v1/models",
+    requires_auth: false,
+    list_selector: "data",
+  },
+  capability_status: {
+    status: "verified",
+    source_url: "https://openrouter.ai/docs/api-reference/messages",
+  },
+  docs_url: "https://openrouter.ai/docs/cookbook/coding-agents/claude-code-integration",
+};
+
+export const builtinPresetFixtures: ProviderTemplateFixture[] = [anthropicPreset, openRouterPreset];
 
 /** T18: the provider list the UI receives via `list_providers`, mirrored
  * from the Rust `ProviderSummary` wire shape (camelCase). */
@@ -60,5 +82,16 @@ export const providerSummaryFixtures: ProviderSummary[] = [
       source_url: "https://platform.claude.com/docs/en/api/models-list",
     },
     docsUrl: "https://platform.claude.com/docs/en/api/models-list",
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    protocol: "anthropic_compat",
+    bridge: "not_required",
+    capabilityStatus: {
+      status: "verified",
+      source_url: "https://openrouter.ai/docs/api-reference/messages",
+    },
+    docsUrl: "https://openrouter.ai/docs/cookbook/coding-agents/claude-code-integration",
   },
 ];

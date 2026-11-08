@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "openrouter",
+  "name": "OpenRouter",
+  "auth": "bearer_token",
+  "protocol": "anthropic_compat",
+  "bridge": "not_required",
+  "direct_base_url": "https://openrouter.ai/api",
+  "discovery": {
+    "kind": "endpoint",
+    "url": "https://openrouter.ai/api/v1/models",
+    "requires_auth": false,
+    "list_selector": "data"
+  },
+  "capability_status": {
+    "status": "verified",
+    "source_url": "https://openrouter.ai/docs/api-reference/messages"
+  },
+  "docs_url": "https://openrouter.ai/docs/cookbook/coding-agents/claude-code-integration"
+}
