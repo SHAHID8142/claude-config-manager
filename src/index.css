@@ -1,1 +1,14 @@
 @import "tailwindcss";
+
+/* Follow the OS appearance for native controls and scrollbars (T13).
+   Tailwind's `dark:` variant defaults to the `prefers-color-scheme` media
+   query, so the UI tracks the system theme with no runtime toggle. */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+}
