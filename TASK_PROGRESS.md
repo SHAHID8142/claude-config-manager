@@ -58,7 +58,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | Task | Status | Date | Commit | Push | Notes |
 |------|--------|------|--------|------|-------|
 | T26 Read-only global config locator | ✅ | 2026-11-08 | (T26 commit) | ✓ | CLAUDE_CONFIG_DIR honored; symlink refusal; 7 locator tests; Rust 60/60 |
-| T27 Parse + preserve unrelated settings | ⬜ | — | — | — | — |
+| T27 Parse + preserve unrelated settings | ✅ | 2026-11-08 | (T27 commit) | ✓ | strict JSON; preserve_order; no-content-in-errors; 9 tests; Rust 69/69 |
 | T28 Targeted merge + schema validation | ⬜ | — | — | — | — |
 | T29 Secure backup + permissions + redaction | ⬜ | — | — | — | — |
 | T30 Atomic writes, concurrent detection, rollback | ⬜ | — | — | — | — |
