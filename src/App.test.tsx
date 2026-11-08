@@ -731,3 +731,122 @@ describe("Model metadata provenance (T42)", () => {
     expect(document.body.textContent).not.toMatch(/context window|vision|reasoning|tokens/i);
   });
 });
+
+describe("Model selection validation + Save & Apply integration (T43)", () => {
+  const outcomeFixture = {
+    settingsPath: "/tmp/fixture/.claude/settings.json",
+    backupFileName: "settings-backup-1700000000000000000.json",
+    helperPath: "/tmp/fixture/helpers/anthropic.sh",
+    appliedKeys: ["model", "apiKeyHelper"],
+  };
+
+  function mockCapturing() {
+    const calls: Array<Record<string, unknown>> = [];
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        save_and_apply: (args) => {
+          calls.push(args ?? {});
+          return Promise.resolve(outcomeFixture);
+        },
+      },
+    });
+    return { ipc, calls };
+  }
+
+  async function selectProviderAndKey(provider = "anthropic") {
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, provider);
+    await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-test-key");
+  }
+
+  it("sends the typed model id to save_and_apply", async () => {
+    const { ipc, calls } = mockCapturing();
+    render(<App ipc={ipc} />);
+    await selectProviderAndKey();
+    await userEvent.type(
+      screen.getByLabelText("Model", { selector: "input" }),
+      "claude-sonnet-4-5",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].model).toBe("claude-sonnet-4-5");
+    expect(calls[0].providerId).toBe("anthropic");
+  });
+
+  it("sends null when no model is chosen (never a guessed default)", async () => {
+    const { ipc, calls } = mockCapturing();
+    render(<App ipc={ipc} />);
+    await selectProviderAndKey();
+
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].model).toBeNull();
+  });
+
+  it("trims a padded model id before sending it", async () => {
+    const { ipc, calls } = mockCapturing();
+    render(<App ipc={ipc} />);
+    await selectProviderAndKey();
+    await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "  glm-4.6  ");
+
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].model).toBe("glm-4.6");
+  });
+
+  it("blocks apply on an invalid model id and explains why (negative)", async () => {
+    const { ipc, calls } = mockCapturing();
+    render(<App ipc={ipc} />);
+    await selectProviderAndKey();
+    const modelInput = screen.getByLabelText("Model", { selector: "input" });
+    await userEvent.type(modelInput, "bad model");
+
+    expect(screen.getByRole("button", { name: "Save & Apply" })).toBeDisabled();
+    expect(modelInput).toHaveAttribute("aria-invalid", "true");
+    const error = screen.getByText(/printable ASCII/);
+    expect(error).toBeInTheDocument();
+    expect(error).toHaveAttribute("aria-live", "polite");
+    expect(calls).toHaveLength(0);
+
+    // Fixing the id re-enables apply.
+    await userEvent.clear(modelInput);
+    await userEvent.type(modelInput, "badmodel");
+    expect(screen.getByRole("button", { name: "Save & Apply" })).toBeEnabled();
+    expect(screen.queryByText(/printable ASCII/)).not.toBeInTheDocument();
+  });
+
+  it("applies a model chosen from a fetched catalog", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        save_and_apply: (args) => {
+          calls.push(args ?? {});
+          return Promise.resolve(outcomeFixture);
+        },
+        discover_models: () =>
+          Promise.resolve([
+            {
+              id: "anthropic/claude-x",
+              displayName: "Claude X",
+              capabilityStatus: "unknown",
+              source: "https://openrouter.ai/api/v1/models",
+            },
+          ]),
+      },
+    });
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "openrouter");
+    await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-test-key");
+    await userEvent.click(screen.getByRole("button", { name: "Fetch models" }));
+    await userEvent.click(await screen.findByRole("option", { name: /anthropic\/claude-x/ }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].model).toBe("anthropic/claude-x");
+    expect(calls[0].baseUrl).toBe("https://openrouter.ai/api");
+  });
+});

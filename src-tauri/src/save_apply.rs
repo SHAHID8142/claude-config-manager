@@ -90,6 +90,11 @@ impl SaveApplyService {
         // --- Input validation (nothing touched yet) ---
         crate::credential_handoff::validate_provider_id(provider_id)
             .map_err(|_| ApplyError::InvalidInput("invalid provider id".into()))?;
+        // T43: normalize once, then validate the EXACT value we will write.
+        // `validate_model_id` judges the trimmed form, so validating an
+        // untrimmed input would let `"  claude-sonnet-4-5  "` through and
+        // persist padded whitespace that Claude Code cannot resolve.
+        let model: Option<&str> = model.map(str::trim).filter(|m| !m.is_empty());
         if let Some(m) = model {
             crate::config_merge::validate_model_id(m)
                 .map_err(|e| ApplyError::InvalidInput(e.to_string()))?;
@@ -389,6 +394,41 @@ mod tests {
             r#"{"model":"old-model","env":{"CLAUDE_CODE_X":"1"}}"#
         );
         assert!(!home.join("helpers").join("anthropic.sh").exists());
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn model_input_is_normalized_before_write() {
+        let (home, store) = fixture("trim");
+        let settings = home.join(".claude/settings.json");
+        let svc = service(&home, store);
+
+        // Padded id: validated AND written in trimmed form (T43).
+        svc.apply("anthropic", Some("  claude-sonnet-4-5  "), None, Some(FAKE_KEY))
+            .expect("apply padded");
+        let doc: Value =
+            serde_json::from_str(&fs::read_to_string(&settings).expect("read")).expect("json");
+        assert_eq!(
+            doc["model"], "claude-sonnet-4-5",
+            "padded input must not persist whitespace"
+        );
+
+        // Whitespace-only id means "no model selected": the existing managed
+        // value is left untouched rather than replaced with junk.
+        svc.apply("anthropic", Some("   "), None, Some(FAKE_KEY))
+            .expect("apply blank");
+        let doc: Value =
+            serde_json::from_str(&fs::read_to_string(&settings).expect("read")).expect("json");
+        assert_eq!(doc["model"], "claude-sonnet-4-5");
+
+        // Invalid characters are still rejected before any write.
+        let before = fs::read_to_string(&settings).expect("read");
+        assert!(matches!(
+            svc.apply("anthropic", Some("bad model\n"), None, Some(FAKE_KEY)),
+            Err(ApplyError::InvalidInput(_))
+        ));
+        assert_eq!(fs::read_to_string(&settings).expect("read"), before);
+
         let _ = fs::remove_dir_all(&home);
     }
 

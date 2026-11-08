@@ -25,6 +25,7 @@ import {
   type StatusWarning,
 } from "./lib/ipc";
 import { classifyEndpoint, endpointCheckMessage } from "./lib/endpoint";
+import { validateModelId } from "./lib/modelId";
 import { focusRing } from "./lib/focus";
 
 const inputClass = `w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 placeholder-zinc-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 ${focusRing}`;
@@ -159,9 +160,15 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const isCustom = selectedId === CUSTOM_ID;
   const selected = providers?.find((p) => p.id === selectedId) ?? null;
 
+  // T43: one validation result drives both the inline message and the
+  // Save & Apply gate, so the UI can never offer an apply we would reject.
+  const modelValidation = selectedModel === null ? null : validateModelId(selectedModel);
+  const modelInvalid = modelValidation !== null && !modelValidation.ok;
+
   const canApply =
     (selected !== null || (isCustom && customEndpoint.trim() !== "")) &&
     apiKey.trim() !== "" &&
+    !modelInvalid &&
     !applying;
 
   async function handleApply() {
@@ -175,6 +182,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
         {
           providerId: isCustom ? "custom" : (selected?.id ?? ""),
           baseUrl,
+          // Only a validated (trimmed) id is ever sent; blank means "no model".
+          model: modelValidation?.ok ? modelValidation.value : undefined,
           apiKey: apiKey.trim(),
         },
         ipc,
@@ -476,9 +485,19 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             disabled={selected === null && !isCustom}
             onChange={(e) => setSelectedModel(e.target.value)}
             placeholder="provider-model-id"
+            aria-invalid={modelInvalid}
             className={inputClass}
           />
         </FieldRow>
+        {modelInvalid && modelValidation !== null && !modelValidation.ok && (
+          <p
+            aria-live="polite"
+            id="model-input-error"
+            className="text-xs font-medium text-red-600 dark:text-red-400"
+          >
+            {modelValidation.message} Save &amp; Apply is disabled until this is fixed.
+          </p>
+        )}
         {selectedModel !== null &&
           selectedModel.trim() !== "" &&
           (models === null || models.length === 0) && (
@@ -529,7 +548,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             label="Save & Apply"
             pendingLabel="Applying…"
             pending={applying}
-            disabled={(selected === null && !isCustom) || apiKey.trim() === ""}
+            disabled={(selected === null && !isCustom) || apiKey.trim() === "" || modelInvalid}
             variant="primary"
             onClick={() => {
               void handleApply();

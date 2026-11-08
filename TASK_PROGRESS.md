@@ -79,7 +79,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T40 Searchable model list, NEVER auto-select | ✅ | 2026-11-08 | 12118e7 | ✓ | ModelList filter+chips; explicit-click selection; refetch resets; TS 78/78 |
 | T41 Manual Model ID entry | ✅ | 2026-11-08 | e975258 | ✓ | Editable field for no-catalog/custom/failed-discovery providers; provider switch resets catalog+model; failure-path test added; Rust 142+7, TS 82/82 |
 | T42 Model metadata with source/unknown labels | ✅ | 2026-11-08 | f83d4dc | ✓ | Provenance = verified template URL (payload cannot set it); fixed 4-field wire shape; manual-entry label; Rust 143+7, TS 87/87 |
-| T43 Model selection validation + Save&Apply integration | ⬜ | — | — | — | — |
+| T43 Model selection validation + Save&Apply integration | ✅ | 2026-11-08 | (T43 commit) | ✓ | TS mirror of validate_model_id gates apply; model sent trimmed/null; fixed Rust raw-vs-trimmed write defect; Rust 144+7, TS 98/98 |
 | T44 Additional discovery adapters, one per commit | ⬜ | — | — | — | — |
 | T45 Advanced settings panel, default-no-override | ⬜ | — | — | — | — |
 | T46 Verified model-role mapping if needed | ⬜ | — | — | — | — |
@@ -120,4 +120,4 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 ## Blockers / open items
 
-None currently. Next task: **T43**.
+None currently. Next task: **T44**.
