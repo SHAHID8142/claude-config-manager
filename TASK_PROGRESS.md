@@ -114,7 +114,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T65 Real macOS clean-install + smoke tests | ⬜ | — | — | — | Request user evidence if machine unavailable; report NOT VERIFIED otherwise |
 | T66 Helper restart / GUI closure / uninstall / restore | ✅ | 2026-11-08 | dadd19c | ✓ | 6-case suite executes the REAL helper script vs fake `security`: idempotent, fails closed, stderr isolated, 0700. Apply proven synchronous (GUI close safe). Uninstall = manual procedure + contract test (no command — T58 blocked). Rust 201 total |
 | T67 Full regression + independent review | ✅ | 2026-11-08 | 46645fe | ✓ | Fresh run: Rust 201 pass/0 fail/2 ignored, TS 120/120, lint/format/typecheck/build/clippy clean, dep-audit PASS. Automated claim check: 53 cited test names, 0 missing. Unverified items listed explicitly (T47–T58, T65, T10 CI, macOS GUI, project license) |
-| T68 User guide + troubleshooting + bridge limits + Windows notes | ✅ | 2026-11-08 | <hash> | ✓ | docs/USER_GUIDE.md: managed-key table, first run, apply transaction, role overrides, backup/restore, uninstall, troubleshooting table, limitations, planned bridge constraints, Windows porting matrix |
+| T68 User guide + troubleshooting + bridge limits + Windows notes | ✅ | 2026-11-08 | ce40f4d | ✓ | docs/USER_GUIDE.md: managed-key table, first run, apply transaction, role overrides, backup/restore, uninstall, troubleshooting table, limitations, planned bridge constraints, Windows porting matrix |
 | T69 FINAL_AUDIT.md | ⬜ | — | — | — | — |
 | T70 Final push + clean state verification | ⬜ | — | — | — | — |
 
