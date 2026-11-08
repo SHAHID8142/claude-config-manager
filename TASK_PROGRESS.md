@@ -31,7 +31,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 |------|--------|------|--------|------|-------|
 | T08 Init minimal Tauri 2 + React + TS + Tailwind app | ✅ | 2026-11-08 | (T08 commit) | ✓ | Tauri 2.12.5; restrictive CSP; opener plugin removed; lockfiles committed; npm+cargo gates green |
 | T09 Formatting, lint, TS/Rust checks, test runners | ✅ | 2026-11-08 | (T09 commit) | ✓ | ESLint9+Prettier+Vitest; clippy/fmt; check:all green; minimatch advisory fixed via override (audit 0) |
-| T10 CI workflow: checks, secret scan, dependency audit | ✅ | 2026-11-08 | (T10 commit) | ✓ | 3 jobs (frontend/rust/security); gitleaks; npm+cargo audit; live-run evidence via gh run |
+| T10 CI workflow: checks, secret scan, dependency audit | ✅ (CI exec pending) | 2026-11-08 | 9b46d8f | ✓ | Workflow valid; GitHub Actions blocked by account billing lock (user action needed: github.com/settings/billing); local gates enforced per task; re-verify at T63 |
 | T11 Typed UI↔Rust command contracts with mocks | ⬜ | — | — | — | — |
 | T12 Minimal single-window layout | ⬜ | — | — | — | — |
 | T13 Light/dark system theme + responsive sizing | ⬜ | — | — | — | — |

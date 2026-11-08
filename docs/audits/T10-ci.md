@@ -22,5 +22,7 @@
 ## Acceptance criteria
 - [x] CI for available checks, secret scanning, dependency audit
 
-### Addendum — CI run evidence (updated after push)
-- Run recorded below in TASK_PROGRESS T10 row and in the push report. (gh run view output appended here when completed.)
+### Addendum — CI run evidence (2026-11-08)
+- Run 42436371092: **FAILED before start — "The job was not started because your account is locked due to a billing issue."** All 3 jobs blocked by GitHub account state, not by workflow content.
+- Workflow syntax locally validated (YAML parse, 3 jobs).
+- **Limitation recorded:** CI execution evidence pending until the repository owner resolves the GitHub billing lock (user-side action; Actions are free for public repos once unlocked). All local gates remain the enforced evidence (`check:all` green per task). CI re-verification will be re-run at T63/T67 or on the next push after the lock is resolved.
