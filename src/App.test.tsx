@@ -576,3 +576,88 @@ describe("Model selection (T40)", () => {
     });
   });
 });
+
+describe("Manual Model ID entry (T41)", () => {
+  function baseMock(discoverOutcome: "none" | ModelEntry[]) {
+    return createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        check_environment: () =>
+          Promise.resolve({
+            cliFound: true,
+            cliVersion: "2.1.246",
+            cliVersionWarning: null,
+            settingsState: "ok",
+            settingsDetail: null,
+            configDirWritable: true,
+          }),
+        discover_models: () =>
+          discoverOutcome === "none"
+            ? Promise.reject({
+                kind: "invalid_input",
+                // Mirrors Rust `DiscoveryError::InvalidEndpoint` for Z.AI
+                // (DiscoverySpec::None) surfaced through save/apply guards.
+                message: "provider template declares no catalog endpoint",
+              })
+            : Promise.resolve(discoverOutcome),
+      },
+    });
+  }
+
+  it("is editable for a manual-entry provider (zai) and custom providers", async () => {
+    const ipc = baseMock("none");
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+
+    await userEvent.selectOptions(select, "zai");
+    const modelInput = screen.getByLabelText("Model", { selector: "input" });
+    expect(modelInput).toBeEnabled();
+    await userEvent.type(modelInput, "glm-4.6");
+    expect(modelInput).toHaveValue("glm-4.6");
+
+    await userEvent.selectOptions(select, "__custom__");
+    // Custom: editable, and the previous provider's model was reset.
+    expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("");
+    await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "my-model");
+    expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("my-model");
+  });
+
+  it("switching providers resets a previously entered model id", async () => {
+    const ipc = baseMock("none");
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "zai");
+    await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "glm-4.6");
+    await userEvent.selectOptions(select, "anthropic");
+    expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("");
+  });
+
+  it("keeps manual entry available after a discovery failure (PRD F05)", async () => {
+    const ipc = baseMock("none");
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "zai");
+
+    // The provider publishes no catalog: fetching surfaces a typed error…
+    await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
+    expect(await screen.findByText("Model discovery failed.")).toBeInTheDocument();
+
+    // …and the manual fallback still works (the point of T41).
+    const modelInput = screen.getByLabelText("Model", { selector: "input" });
+    expect(modelInput).toBeEnabled();
+    expect(modelInput).not.toHaveAttribute("readonly");
+    await userEvent.type(modelInput, "glm-4.6");
+    expect(modelInput).toHaveValue("glm-4.6");
+  });
+
+  it("stays read-only while a populated catalog is displayed (T40 path)", async () => {
+    const ipc = baseMock([{ id: "m-1", displayName: null, capabilityStatus: "unknown" }]);
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "openrouter");
+    await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
+    await screen.findByLabelText("Discovered models");
+    expect(screen.getByLabelText("Model", { selector: "input" })).toHaveAttribute("readonly");
+  });
+});

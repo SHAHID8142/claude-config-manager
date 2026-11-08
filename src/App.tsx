@@ -303,7 +303,14 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             id="provider-select"
             value={selectedId}
             disabled={providers === null}
-            onChange={(e) => setSelectedId(e.target.value)}
+            onChange={(e) => {
+              setSelectedId(e.target.value);
+              // A model id from another provider must never carry over.
+              setSelectedModel(null);
+              setModels(null);
+              setModelsFetchedFor(null);
+              setModelsError(null);
+            }}
             className={inputClass}
           >
             <option value={EMPTY_ID}>
@@ -466,7 +473,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             type="text"
             value={selectedModel ?? ""}
             readOnly={models !== null && models.length > 0}
-            disabled={models === null || models.length === 0}
+            disabled={selected === null && !isCustom}
+            onChange={(e) => setSelectedModel(e.target.value)}
             placeholder="provider-model-id"
             className={inputClass}
           />
