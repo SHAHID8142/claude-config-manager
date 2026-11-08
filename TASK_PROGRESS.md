@@ -60,7 +60,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T26 Read-only global config locator | ✅ | 2026-11-08 | (T26 commit) | ✓ | CLAUDE_CONFIG_DIR honored; symlink refusal; 7 locator tests; Rust 60/60 |
 | T27 Parse + preserve unrelated settings | ✅ | 2026-11-08 | (T27 commit) | ✓ | strict JSON; preserve_order; no-content-in-errors; 9 tests; Rust 69/69 |
 | T28 Targeted merge + schema validation | ✅ | 2026-11-08 | (T28 commit) | ✓ | DesiredSettings gate-before-write; env-level preservation; 12 tests; Rust 81/81 |
-| T29 Secure backup + permissions + redaction | ⬜ | — | — | — | — |
+| T29 Secure backup + permissions + redaction | ✅ | 2026-11-08 | (T29 commit) | ✓ | 0600 byte-exact backups; metadata-only listings; symlink refusal; 7 tests; Rust 88/88 |
 | T30 Atomic writes, concurrent detection, rollback | ⬜ | — | — | — | — |
 | T31 Symlink/traversal/permission negative tests | ⬜ | — | — | — | — |
 | T32 Credential handoff per verified docs | ⬜ | — | — | — | STOP condition: unresolved secure persistent handoff |

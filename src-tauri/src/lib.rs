@@ -9,6 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod config_backup;
 pub mod config_locator;
 pub mod config_merge;
 pub mod config_reader;
