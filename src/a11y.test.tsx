@@ -139,13 +139,20 @@ describe("macOS theme and small-window resilience (T62, static)", () => {
     }
   });
 
-  it("wraps long unbreakable values instead of forcing horizontal scroll", () => {
+  it("never lets a long model id, URL or path force horizontal scroll", () => {
+    // V2 shows long values in truncated rows (with the full value in the title
+    // attribute), so the invariant is "truncate or break", not "always <code>".
     const app = sources.find(([p]) => p.endsWith("/App.tsx"))?.[1] ?? "";
-    // Every <code> that renders a model id / URL / path must be breakable.
-    const codeTags = app.match(/<code className="[^"]*"/g) ?? [];
-    expect(codeTags.length).toBeGreaterThan(0);
-    for (const tag of codeTags) {
-      expect(tag).toContain("break-all");
+    const longValueRows = app.match(/className="[^"]*\bmin-w-0\b[^"]*"/g) ?? [];
+    expect(longValueRows.length).toBeGreaterThan(0);
+    for (const row of longValueRows) {
+      expect(row, "long values must truncate or break inside a min-w-0 box").toMatch(
+        /truncate|break-(all|words)/,
+      );
+    }
+    const nowrap = app.match(/className="[^"]*whitespace-nowrap[^"]*"/g) ?? [];
+    for (const cls of nowrap) {
+      expect(cls).toContain("truncate");
     }
   });
 

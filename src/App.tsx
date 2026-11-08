@@ -13,6 +13,7 @@ import {
   type RoleState,
 } from "./lib/roles";
 import { Section } from "./components/Section";
+import { AppHeader } from "./components/AppHeader";
 import { StatusBanner } from "./components/StatusBanner";
 import {
   checkEnvironment,
@@ -265,20 +266,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-4 bg-app px-6 pt-3 pb-28 text-ink">
-      <header
-        data-tauri-drag-region
-        className="flex h-11 items-center justify-between pl-16 select-none"
-      >
-        <h1 className="text-[15px] font-semibold tracking-[-0.01em] text-ink">
-          Claude Config Manager
-        </h1>
-        <span
-          aria-label="Connection mode"
-          className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400"
-        >
-          mode: {modeLabel(status)}
-        </span>
-      </header>
+      <AppHeader status={status} />
 
       {loadError !== null && (
         <StatusBanner
@@ -315,48 +303,50 @@ export default function App({ ipc = defaultIpc }: AppProps) {
 
       <Section title="Active configuration">
         {status === null ? (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Reading current configuration…</p>
+          <p className="text-[13px] text-ink-muted">Reading current configuration…</p>
         ) : status.settingsFound ? (
-          <div className="flex flex-col gap-1 text-sm">
-            <p className="text-zinc-700 dark:text-zinc-200">
-              Model:{" "}
-              <code className="break-all rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+          <dl className="flex flex-col gap-1.5 text-[13px]">
+            <div className="flex items-baseline gap-2">
+              <dt className="w-20 shrink-0 text-ink-subtle">Model</dt>
+              <dd className="min-w-0 truncate font-mono text-ink">
                 {status.envModel ?? status.model ?? "not set"}
-              </code>
-              {status.model !== null &&
-                status.envModel !== null &&
-                status.model !== status.envModel && (
-                  <span className="ml-1 text-xs text-amber-700 dark:text-amber-300">
-                    (settings value overridden by ANTHROPIC_MODEL env)
-                  </span>
-                )}
-            </p>
-            {status.envBaseUrl !== null && (
-              <p className="text-zinc-700 dark:text-zinc-200">
-                Endpoint:{" "}
-                <code className="break-all rounded bg-zinc-100 px-1 dark:bg-zinc-800">
-                  {status.envBaseUrl}
-                </code>
+              </dd>
+            </div>
+            {status.envModel !== null && status.model !== status.envModel && (
+              <p className="pl-22 text-xs text-warn">
+                ANTHROPIC_MODEL is overriding the settings value.
               </p>
             )}
-            <p className="text-zinc-700 dark:text-zinc-200">
-              Credential:{" "}
-              {status.apiKeyHelper !== null
-                ? "credential file via apiKeyHelper"
-                : status.apiKeyPresent || status.authTokenPresent
-                  ? "plaintext env (see warning)"
-                  : "none"}
-            </p>
+            {status.envBaseUrl !== null && (
+              <div className="flex items-baseline gap-2">
+                <dt className="w-20 shrink-0 text-ink-subtle">Endpoint</dt>
+                <dd className="min-w-0 truncate text-ink-muted">{status.envBaseUrl}</dd>
+              </div>
+            )}
+            <div className="flex items-baseline gap-2">
+              <dt className="w-20 shrink-0 text-ink-subtle">Credential</dt>
+              <dd className="min-w-0 break-words text-ink-muted">
+                {status.apiKeyHelper !== null
+                  ? "credential file via apiKeyHelper"
+                  : status.apiKeyPresent || status.authTokenPresent
+                    ? "plaintext env"
+                    : "none"}
+              </dd>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <dt className="w-20 shrink-0 text-ink-subtle">Mode</dt>
+              <dd className="min-w-0 break-words text-ink-muted">{modeLabel(status)}</dd>
+            </div>
             {status.warnings.length > 0 && (
-              <ul className="mt-1 list-inside list-disc text-xs text-amber-700 dark:text-amber-300">
+              <ul className="mt-1 flex flex-col gap-1 text-xs text-warn">
                 {status.warnings.map((w, i) => (
                   <li key={i}>{warningText(w)}</li>
                 ))}
               </ul>
             )}
-          </div>
+          </dl>
         ) : (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="text-[13px] text-ink-muted">
             No settings file yet — the first Save &amp; Apply creates it.
           </p>
         )}

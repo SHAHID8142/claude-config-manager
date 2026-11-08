@@ -45,7 +45,7 @@ describe("App shell (T12/T14 regression)", () => {
     for (const section of ["Active configuration", "Provider", "Model", "Actions"]) {
       expect(screen.getByRole("region", { name: section })).toBeInTheDocument();
     }
-    expect(await screen.findByText(/mode: direct \(credential helper\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/direct \(credential helper\)/)).toBeInTheDocument();
   });
 
   it("keeps unwired controls disabled with honest placeholders", async () => {
@@ -332,7 +332,7 @@ describe("Effective status + override warnings (T34)", () => {
       envBaseUrl: "http://127.0.0.1:31415",
     });
     render(<App ipc={ipc} />);
-    expect(await screen.findByText(/Endpoint:/)).toBeInTheDocument();
+    expect(await screen.findByText("Endpoint")).toBeInTheDocument();
     expect(screen.getByText("http://127.0.0.1:31415")).toBeInTheDocument();
   });
 
@@ -796,7 +796,7 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
       },
     });
     render(<App ipc={ipc} />);
-    await screen.findByText(/mode: direct/);
+    await screen.findByText(/direct \(credential helper\)/);
     expect(screen.queryByText(/Your shell exports ANTHROPIC settings/)).not.toBeInTheDocument();
   });
 
