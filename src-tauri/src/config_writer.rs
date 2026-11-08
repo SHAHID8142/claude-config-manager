@@ -159,6 +159,16 @@ where
     let original = if was_missing {
         Vec::new()
     } else {
+        // G5: never load an unbounded document just to back it up.
+        let size = std::fs::metadata(path)
+            .map_err(|e| ConfigError::Io(e.to_string()))?
+            .len();
+        if size > crate::config_reader::SETTINGS_MAX_BYTES {
+            return Err(ConfigError::TooLarge {
+                size,
+                limit: crate::config_reader::SETTINGS_MAX_BYTES,
+            });
+        }
         std::fs::read(path).map_err(|e| ConfigError::Io(e.to_string()))?
     };
     let new_bytes = serialize(doc)?.into_bytes();

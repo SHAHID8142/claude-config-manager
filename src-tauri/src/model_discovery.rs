@@ -449,6 +449,52 @@ mod tests {
         req.to_lowercase()
     }
 
+    /// G5: an endless catalog response must be cut off at the cap instead of
+    /// being read into memory. The fixture streams more than the cap and never
+    /// closes, so a missing cap would hang or allocate unbounded.
+    #[test]
+    fn oversized_catalog_body_is_cut_off_at_the_cap() {
+        use std::io::Write;
+        use std::net::TcpListener;
+
+        let server = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = server.local_addr().expect("addr").port();
+        std::thread::spawn(move || {
+            for stream in server.incoming().take(1) {
+                let mut stream = stream.expect("accept");
+                let mut buf = [0u8; 2048];
+                let _ = std::io::Read::read(&mut stream, &mut buf);
+                let _ = stream.write_all(
+                    b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ntransfer-encoding: chunked\r\n\r\n",
+                );
+                // Stream repeatedly past the cap without finishing the body.
+                let chunk = b"{\"data\":[";
+                for _ in 0..(MAX_RESPONSE_BYTES / chunk.len() + 64) {
+                    if stream
+                        .write_all(format!("{:x}\r\n", chunk.len()).as_bytes())
+                        .is_err()
+                    {
+                        return;
+                    }
+                    if stream.write_all(chunk).is_err() || stream.write_all(b"\r\n").is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+
+        let err = http_get(
+            &format!("http://127.0.0.1:{port}/v1/models"),
+            AuthStyle::ApiKey,
+            None,
+        )
+        .expect_err("an oversized body must be refused");
+        assert!(
+            err.to_string().contains("too large"),
+            "expected a size error, got {err}"
+        );
+    }
+
     /// G2: a redirecting catalog must not cause the credential to be sent
     /// anywhere else — not even to a loopback port, standing in for "another
     /// host". The second server records any request it sees.

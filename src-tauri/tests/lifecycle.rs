@@ -142,6 +142,9 @@ fn apply_path_spawns_no_background_worker_so_gui_closure_is_safe() {
     // call: the pipeline is synchronous. Guard against a future regression that
     // would make closing the window abort a half-written config.
     let src = include_str!("../src/save_apply.rs");
+    // Only the shipping code counts: the test module may spawn threads (the G4
+    // concurrency test does), production must not.
+    let production = src.split("#[cfg(test)]").next().expect("module body");
     for forbidden in [
         "thread::spawn",
         "tokio::spawn",
@@ -149,7 +152,7 @@ fn apply_path_spawns_no_background_worker_so_gui_closure_is_safe() {
         "std::process::Command::new",
     ] {
         assert!(
-            !src.contains(forbidden),
+            !production.contains(forbidden),
             "save_apply must stay synchronous — found {forbidden}"
         );
     }

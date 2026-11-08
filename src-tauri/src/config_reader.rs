@@ -25,6 +25,12 @@ pub enum ConfigError {
     MalformedJson(String),
     /// Top-level JSON is valid but not an object.
     MalformedShape(&'static str),
+    /// The document exceeds `SETTINGS_MAX_BYTES` (G5). Carries the size only —
+    /// never any of the content.
+    TooLarge {
+        size: u64,
+        limit: u64,
+    },
     /// A value failed schema validation before any write (T28 gate).
     ValidationFailed(String),
     /// The file changed between snapshot and write — another process edited it.
@@ -44,6 +50,10 @@ impl std::fmt::Display for ConfigError {
                     "settings file contains invalid JSON — not overwritten; fix it manually first"
                 )
             }
+            ConfigError::TooLarge { size, limit } => write!(
+                f,
+                "the settings file is {size} bytes, larger than the {limit} byte limit — refusing to touch it"
+            ),
             ConfigError::MalformedShape(k) => {
                 write!(f, "settings file must contain a JSON object, found {k}")
             }
@@ -63,6 +73,13 @@ impl std::fmt::Display for ConfigError {
 impl std::error::Error for ConfigError {}
 
 /// Read the global settings file as a JSON object value.
+/// Hard cap on the settings document (G5).
+///
+/// Real files are a few KiB. A multi-megabyte `settings.json` is either not a
+/// settings file or is hostile, and reading it into memory before discovering
+/// that is exactly the kind of avoidable failure this app refuses to have.
+pub const SETTINGS_MAX_BYTES: u64 = 8 * 1024 * 1024;
+
 pub fn read_settings(path: &Path) -> Result<Value, ConfigError> {
     let locator = ConfigLocator::new();
     match locator.inspect(path) {
@@ -79,6 +96,17 @@ pub fn read_settings(path: &Path) -> Result<Value, ConfigError> {
         .map_err(|e| ConfigError::Io(e.to_string()))?
     {
         return Err(ConfigError::SymlinkRefused);
+    }
+
+    // Size gate before reading (G5): refuse rather than allocate first.
+    let size = std::fs::metadata(path)
+        .map_err(|e| ConfigError::Io(e.to_string()))?
+        .len();
+    if size > SETTINGS_MAX_BYTES {
+        return Err(ConfigError::TooLarge {
+            size,
+            limit: SETTINGS_MAX_BYTES,
+        });
     }
 
     let raw = std::fs::read_to_string(path).map_err(|e| match e.kind() {
@@ -123,6 +151,8 @@ pub fn unrelated_keys(doc: &Value, managed_keys: &[&str]) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use std::time::SystemTime;
+
     use super::*;
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
@@ -153,6 +183,69 @@ mod tests {
         assert_eq!(doc["model"], "claude-x");
         assert_eq!(doc["customKey"]["nested"], true);
         fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    /// G5: an oversized document is refused before it is read into memory.
+    #[test]
+    fn oversized_settings_file_is_refused_with_the_size_in_the_message() {
+        use std::io::Write;
+        let dir = std::env::temp_dir().join(format!(
+            "ccm-g5-size-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("settings.json");
+        let mut f = fs::File::create(&path).expect("create");
+        f.write_all(br#"{"model":"#).expect("prefix");
+        // One byte over the cap; content validity is irrelevant, size is checked first.
+        let filler = vec![b' '; (SETTINGS_MAX_BYTES + 1) as usize];
+        f.write_all(&filler).expect("filler");
+        f.write_all(br#""x"}"#).expect("suffix");
+        f.sync_all().expect("sync");
+        drop(f);
+
+        let err = read_settings(&path).expect_err("must refuse");
+        assert!(
+            matches!(err, ConfigError::TooLarge { size, limit }
+                if size > limit && limit == SETTINGS_MAX_BYTES),
+            "expected TooLarge, got {err:?}"
+        );
+        let msg = err.to_string();
+        assert!(msg.contains("byte limit"), "unexpected message: {msg}");
+        assert!(msg.contains(&SETTINGS_MAX_BYTES.to_string()));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// G5: a deeply nested document must produce an error, not a stack overflow.
+    #[test]
+    fn deeply_nested_json_is_rejected_not_a_stack_overflow() {
+        let dir = std::env::temp_dir().join(format!(
+            "ccm-g5-nest-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("settings.json");
+        let depth = 5_000;
+        let mut text = String::from("{\"a\":");
+        text.push_str(&"[".repeat(depth));
+        text.push_str(&"]".repeat(depth));
+        text.push('}');
+        fs::write(&path, &text).expect("write");
+
+        let err = read_settings(&path).expect_err("deep nesting must be refused");
+        assert!(
+            matches!(err, ConfigError::MalformedJson(_)),
+            "expected a parse error, got {err:?}"
+        );
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

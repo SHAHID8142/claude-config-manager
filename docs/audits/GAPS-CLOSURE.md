@@ -10,7 +10,7 @@ the reason — never silently dropped.
 | G2 | Credential-redirect safety relied on an unasserted `ureq` default | ✅ closed |
 | G3 | No property-based testing of the merge contract | ✅ closed |
 | G4 | No single-instance lock: two applies can race | ✅ closed |
-| G5 | No size/scale limits (huge settings file, huge catalog body) | pending |
+| G5 | No size/scale limits (huge settings file, huge catalog body) | ✅ closed |
 | G6 | Settings JSON dialect assumed strict (JSON5/comments would be refused) | pending |
 | G7 | Real GUI / VoiceOver / contrast / clean-Mac launch | **BLOCKED** (no signed build, no machine evidence) |
 | G8 | Bridge mode fidelity (streaming, tools, vision, reasoning) | **BLOCKED** (feature absent, T47–T58) |
@@ -126,3 +126,31 @@ unrelated env key intact, and no lock file remains. Full suite re-run 5× with n
 - A crash within the 5 s window means a user-visible "another apply is running" for up to 5 s. Accepted:
   better a short wait than two writers.
 - The UI does not yet grey out the button while an apply is in flight (the backend refuses correctly).
+
+---
+
+## G5 — size and scale limits
+
+**Gap class:** no bound on what the app would try to load. A `settings.json` of any size was read fully into
+memory before being judged; only the catalog HTTP body had a cap.
+
+**Change:**
+- `config_reader::SETTINGS_MAX_BYTES = 8 MiB`, checked from metadata **before** reading, in both the read path
+  and the write path (so a huge file can never be "backed up" into memory).
+- New `ConfigError::TooLarge { size, limit }` — reporting the real size, while keeping the existing promise
+  that error text never contains file *content*.
+- Discovery body cap (5 MiB) now has a test that actually streams past it.
+
+**Evidence:**
+- `oversized_settings_file_is_refused_with_the_size_in_the_message` (8 MiB + 1 → `TooLarge`, both numbers in
+  the message)
+- `deeply_nested_json_is_rejected_not_a_stack_overflow` (5 000 nested arrays → parse error, no crash)
+- `oversized_catalog_body_is_cut_off_at_the_cap` (server streams past the cap and never finishes → explicit
+  "too large")
+
+**Honest note:** while writing the oversized-file test I discovered the size message was being swallowed —
+`MalformedJson`'s `Display` deliberately hides its payload, so the first version silently degraded to "invalid
+JSON". That is why the dedicated variant exists; the test asserts the structured variant, not just the text.
+
+**Residual:** 8 MiB is a judgement call; a legitimate file that big would be refused (with a clear message)
+rather than silently truncated. The limit is a constant, not user-tunable.
