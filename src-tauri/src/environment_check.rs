@@ -292,15 +292,25 @@ fn parse_shell_env(output: &str) -> Vec<ShellEnvVar> {
 /// diagnostic, never a blocker.
 fn probe_shell_env() -> Vec<ShellEnvVar> {
     let script = format!(
-        r#"for v in {}; do eval "val=\$$v"; if [ -n "${{val+x}}" ]; then echo "$v=${{#val}}"; fi; done"#,
+        r#"for v in {}; do if val=$(printenv "$v"); then echo "$v=${{#val}}"; fi; done"#,
         SHADOWABLE_ENV.join(" ")
     );
     for shell in ["/bin/zsh", "/bin/bash"] {
         if !Path::new(shell).exists() {
             continue;
         }
+        // Clear the inherited environment: this must report what the user's
+        // SHELL FILES export, not what the process that happened to launch the
+        // app carried over (a stale token from a parent terminal produced a
+        // false warning once already).
         let mut child = match Command::new(shell)
             .args(["-lic", &script])
+            .env_clear()
+            .env("HOME", std::env::var("HOME").unwrap_or_default())
+            .env("USER", std::env::var("USER").unwrap_or_default())
+            .env("SHELL", shell)
+            .env("TERM", "dumb")
+            .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())

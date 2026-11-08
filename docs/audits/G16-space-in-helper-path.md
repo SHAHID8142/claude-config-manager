@@ -32,6 +32,13 @@ was invoked by path (`Command::new(script)`), never through the value Claude Cod
 - End-to-end after reinstall: `sh ~/.claude-config-manager/helpers/<id>.sh` prints the key and
   `claude` authenticates.
 
+## Follow-up false positive found on the fresh install
+The first fresh launch still warned "ANTHROPIC_AUTH_TOKEN (36 chars)" — because the probe shell
+**inherited** the variable from the terminal that launched the app, and the shell snippet could not tell
+"exported but empty" from "unset". Both fixed: the probe runs with a cleared environment (HOME/USER/SHELL/
+TERM/PATH only) and uses `printenv` to distinguish set-empty from unset. A process that inherits a stale
+token now reports `shell_env: []` unless the user's shell **files** actually export it.
+
 ## Lesson recorded
 Every path that gets **executed by a third-party tool** must be treated as untrusted input for
 quoting purposes: verify it by running exactly what the tool runs (here: the unquoted path), not
