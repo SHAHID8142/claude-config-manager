@@ -140,7 +140,16 @@ impl SaveApplyService {
         api_key: Option<&str>,
         roles: &RoleOverrides,
     ) -> Result<ApplyOutcome, ApplyError> {
-        self.apply_with_window(provider_id, model, base_url, api_key, roles, None, false, None)
+        self.apply_with_window(
+            provider_id,
+            model,
+            base_url,
+            api_key,
+            roles,
+            None,
+            false,
+            None,
+        )
     }
 
     /// [`Self::apply_with_roles`] plus the declared context window
@@ -199,12 +208,6 @@ impl SaveApplyService {
         let mut applied_keys: Vec<String> = Vec::new();
         let live_secrets: Vec<String> = api_key.map(|k| vec![k.to_string()]).unwrap_or_default();
         let secret_refs: Vec<&str> = live_secrets.iter().map(|s| s.as_str()).collect();
-        let redact = |e: ApplyError| -> ApplyError {
-            match e {
-                ApplyError::Io(m) => ApplyError::Io(redact_secrets(&m, &secret_refs)),
-                other => other,
-            }
-        };
 
         // --- Credential storage (Keychain via the store) ---
         let creds = CredentialService::new(self.store.as_ref());
@@ -234,6 +237,101 @@ impl SaveApplyService {
             .map_err(|e| ApplyError::Backup(e.to_string()))?;
         applied_keys.push("apiKeyHelper".to_string());
 
+        // --- Merge (T28) ---
+        let desired = DesiredSettings {
+            model: model.map(|m| m.to_string()),
+            env_base_url: base_url.map(|b| b.to_string()),
+            // M1: a previously applied provider endpoint must not survive a
+            // switch to one that has none (native Anthropic) — the key would
+            // otherwise be sent to the previous provider.
+            clear_env_base_url: base_url.is_none(),
+            api_key_helper: Some(helper_path.to_string_lossy().to_string()),
+            // The credential now lives in the helper only; plaintext env keys
+            // would outrank it and silently make the stored key dead weight.
+            clear_env_credentials: true,
+            // Same reasoning for the model: ANTHROPIC_MODEL wins over
+            // settings.model, so a stale `auto` would silently override the pick.
+            clear_env_model: model.is_some(),
+            env_default_haiku: roles.haiku,
+            env_default_sonnet: roles.sonnet,
+            env_default_opus: roles.opus,
+            env_max_context_tokens: context_window.map(|n| n.to_string()),
+            clear_env_max_context_tokens: reset_window,
+            ..Default::default()
+        };
+
+        self.write_desired(desired, applied_keys, &secret_refs)
+    }
+
+    /// V2-31: point Claude Code at the loopback failover proxy.
+    ///
+    /// The helper script returns the proxy's bearer token, the base URL is the
+    /// loopback listener, and every provider credential stays in the owner-only
+    /// store: the proxy is the only component that reads them.
+    pub fn apply_routed(
+        &self,
+        port: u16,
+        token: &str,
+        model: Option<&str>,
+    ) -> Result<ApplyOutcome, ApplyError> {
+        // Same one-apply-at-a-time guarantee as every other entry point.
+        let _lock = crate::apply_lock::ApplyLock::acquire(&self.lock_dir())
+            .map_err(|e| ApplyError::Io(e.to_string()))?;
+        let model: Option<&str> = model.map(str::trim).filter(|m| !m.is_empty());
+        if let Some(m) = model {
+            crate::config_merge::validate_model_id(m)
+                .map_err(|e| ApplyError::InvalidInput(e.to_string()))?;
+        }
+        if token.len() < 16 {
+            return Err(ApplyError::InvalidInput("proxy token is too short".into()));
+        }
+        // Store the token exactly like a provider credential so the same
+        // permission checks and the same helper template apply.
+        let store = crate::file_secret_store::FileSecretStore::for_home(&self.home);
+        store
+            .set_secret(
+                "com.claude-config-manager.proxy",
+                crate::secret_store::PROXY_ACCOUNT,
+                token,
+            )
+            .map_err(|e| ApplyError::Io(e.to_string()))?;
+        let script = generate_helper_script_for("proxy", crate::secret_store::PROXY_ACCOUNT)
+            .map_err(|e| ApplyError::Io(e.to_string()))?;
+        let helper_path = install_helper_script(&self.helpers_dir, "proxy", &script)
+            .map_err(|e| ApplyError::Backup(e.to_string()))?;
+
+        let desired = DesiredSettings {
+            model: model.map(|m| m.to_string()),
+            env_base_url: Some(format!("http://127.0.0.1:{port}")),
+            clear_env_base_url: false,
+            api_key_helper: Some(helper_path.to_string_lossy().to_string()),
+            clear_env_credentials: true,
+            clear_env_model: model.is_some(),
+            ..Default::default()
+        };
+        let mut applied = vec!["apiKeyHelper".to_string(), "ANTHROPIC_BASE_URL".to_string()];
+        if model.is_some() {
+            applied.push("model".to_string());
+        }
+        let outcome = self.write_desired(desired, applied, &[token])?;
+        Ok(outcome)
+    }
+
+    /// Shared commit stage: read, merge, back up, write atomically, verify.
+    fn write_desired(
+        &self,
+        desired: DesiredSettings,
+        applied_keys: Vec<String>,
+        secret_refs: &[&str],
+    ) -> Result<ApplyOutcome, ApplyError> {
+        // Callers already hold the apply lock (see `apply_with_window`).
+        let redact = |e: ApplyError| -> ApplyError {
+            match e {
+                ApplyError::Io(m) => ApplyError::Io(redact_secrets(&m, secret_refs)),
+                other => other,
+            }
+        };
+        let mut applied_keys = applied_keys;
         // --- Locate + read current settings ---
         let locator = ConfigLocator::new();
         let settings_path = locator.locate(&self.home, self.config_dir_override.as_deref());
@@ -257,28 +355,6 @@ impl SaveApplyService {
             Err(e) => return Err(redact(ApplyError::Io(e.to_string()))),
         };
 
-        // --- Merge (T28) ---
-        let desired = DesiredSettings {
-            model: model.map(|m| m.to_string()),
-            env_base_url: base_url.map(|b| b.to_string()),
-            // M1: a previously applied provider endpoint must not survive a
-            // switch to one that has none (native Anthropic) — the key would
-            // otherwise be sent to the previous provider.
-            clear_env_base_url: base_url.is_none(),
-            api_key_helper: Some(helper_path.to_string_lossy().to_string()),
-            // The credential now lives in the helper only; plaintext env keys
-            // would outrank it and silently make the stored key dead weight.
-            clear_env_credentials: true,
-            // Same reasoning for the model: ANTHROPIC_MODEL wins over
-            // settings.model, so a stale `auto` would silently override the pick.
-            clear_env_model: model.is_some(),
-            env_default_haiku: roles.haiku,
-            env_default_sonnet: roles.sonnet,
-            env_default_opus: roles.opus,
-            env_max_context_tokens: context_window.map(|n| n.to_string()),
-            clear_env_max_context_tokens: reset_window,
-            ..Default::default()
-        };
         let next = apply_desired(&current, &desired).map_err(|e| redact(ApplyError::Config(e)))?;
         for k in ["model", "env", "apiKeyHelper"] {
             if next.get(k) != current.get(k) {
@@ -311,7 +387,7 @@ impl SaveApplyService {
         Ok(ApplyOutcome {
             settings_path: settings_path.to_string_lossy().to_string(),
             backup_file_name: backup_name,
-            helper_path: helper_path.to_string_lossy().to_string(),
+            helper_path: desired.api_key_helper.clone().unwrap_or_default(),
             applied_keys,
         })
     }
@@ -356,6 +432,46 @@ mod tests {
     }
 
     const FAKE_KEY: &str = "sk-ant-api03-FAKE-000";
+
+    #[test]
+    fn routed_mode_points_claude_code_at_the_loopback_proxy() {
+        let (home, store) = fixture("routed");
+        let svc = service(&home, store);
+        let token = "0123456789abcdef0123456789abcdef";
+        let out = svc
+            .apply_routed(51234, token, Some("nvidia/nemotron-3-ultra"))
+            .expect("routed apply");
+
+        let written: Value =
+            serde_json::from_str(&fs::read_to_string(home.join(".claude/settings.json")).unwrap())
+                .expect("json");
+        // Loopback only, and no plaintext credential anywhere in settings.
+        assert_eq!(
+            written["env"]["ANTHROPIC_BASE_URL"],
+            "http://127.0.0.1:51234"
+        );
+        assert!(written["env"].get("ANTHROPIC_AUTH_TOKEN").is_none());
+        assert!(written["env"].get("ANTHROPIC_API_KEY").is_none());
+        assert_eq!(written["model"], "nvidia/nemotron-3-ultra");
+        assert!(out.helper_path.ends_with("proxy.sh"));
+
+        // The token lives in a 0600 file and the helper returns it verbatim.
+        let secret = home.join(".claude-config-manager/secrets/proxy.secret");
+        let mode = fs::metadata(&secret)
+            .expect("token file")
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o600, "proxy token must be owner-only");
+        let script_path = home.join(&out.helper_path);
+        let output = std::process::Command::new("sh")
+            .arg(&script_path)
+            .env("HOME", &home)
+            .output()
+            .expect("run helper");
+        assert!(output.status.success(), "helper failed: {:?}", output);
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), token);
+    }
 
     #[test]
     fn full_pipeline_happy_path() {

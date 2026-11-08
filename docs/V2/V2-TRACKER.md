@@ -17,37 +17,37 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-08 | Reusable icon-button component | done | `d278306` |
 | V2-09 | Accessible tooltip + help popover | done | `1b9b45a` |
 | V2-10 | Input, dropdown, button, switch restyle | done | `addd480` |
-| V2-11 | Compact form layout, responsive behavior | done | committed |
-| V2-12 | Simplified provider + credential UI | todo | — |
-| V2-13 | Simplified model selection UI | todo | — |
-| V2-14 | Status / loading / error / confirmation feedback | todo | — |
-| V2-15 | Advanced settings disclosure | done | next |
-| V2-16 | Light/dark themes + accessibility verification | todo | — |
-| V2-17 | App icon integration + validation | todo | — |
-| V2-18 | Credential-ID + provider-profile schemas | done | `docs/V2/V2-18-credential-schema.md` |
-| V2-19 | Backward-compatible credential store migration | done | `docs/V2/V2-19-migration.md` |
-| V2-20 | Multiple credentials per provider (backend) | done | `docs/V2/V2-20-multi-credential-vault.md` |
-| V2-21 | Credential management + masked selection UI | done | `docs/V2/V2-21-credentials-ui.md` |
+| V2-11 | Compact form layout, responsive behavior | done | `81267e2` |
+| V2-12 | Simplified provider + credential UI | done | `2c0a9b6` + `2a21665` |
+| V2-13 | Simplified model selection UI | done | `699652e` |
+| V2-14 | Status / loading / error / confirmation feedback | done | `39e8752` |
+| V2-15 | Advanced settings disclosure | done | `3a8c7f1` |
+| V2-16 | Light/dark themes + accessibility verification | done | `d2bfe14` + `4a93f0d` |
+| V2-17 | App icon integration + validation | done | `2966a0c` |
+| V2-18 | Credential-ID + provider-profile schemas | done | `ef3e17e` |
+| V2-19 | Backward-compatible credential store migration | done | `cd32510` |
+| V2-20 | Multiple credentials per provider (backend) | done | `4fc37fe` |
+| V2-21 | Credential management + masked selection UI | done | `a3ed54c` |
 | V2-22 | Credential priority + enable/disable | done | `docs/V2/V2-22-priority.md` |
-| V2-23 | Multiple routing targets | todo | — |
-| V2-24 | Compact priority editor | todo | — |
-| V2-25 | Migration/permission/redaction/isolation tests | todo | — |
-| V2-26 | Verify router release + integration contract | todo | — |
-| V2-27 | Third-party consent + pinned download verification | todo | — |
-| V2-28 | Router config generation | todo | — |
-| V2-29 | Loopback routing + startup | todo | — |
-| V2-30 | Helper shutdown/restart/recovery/GUI-close | todo | — |
-| V2-31 | Routing endpoint into Claude Code config | todo | — |
-| V2-32 | Routing health checks | todo | — |
-| V2-33 | Provider error-classification rules | todo | — |
-| V2-34 | Rate-limit / quota-exhaustion detection | todo | — |
-| V2-35 | Bounded retry + cooldown | todo | — |
-| V2-36 | Ordered credential/model fallback | todo | — |
-| V2-37 | Cross-provider fallback | todo | — |
-| V2-38 | Auto Failover UI toggle | todo | — |
-| V2-39 | Routing status + safe diagnostics | todo | — |
-| V2-40 | Exhausted/invalid/timeout/5xx tests | todo | — |
-| V2-41 | Streaming, tools, replay safety, recovery | todo | — |
+| V2-23 | Multiple routing targets | done | `docs/V2/V2-23-routing-and-failover.md` |
+| V2-24 | Compact priority editor | done | `docs/V2/V2-23-routing-and-failover.md` |
+| V2-25 | Migration/permission/redaction/isolation tests | done | `docs/V2/V2-23-routing-and-failover.md` |
+| V2-26 | Router decision: own Rust proxy (ADR-003) | done | `docs/decisions/ADR-003` |
+| V2-27 | Third-party consent + download verification | n/a — nothing is downloaded | `docs/V2/V2-23-routing-and-failover.md` |
+| V2-28 | Router config generation | done | `routing_config.rs` |
+| V2-29 | Loopback routing + startup | done | `proxy.rs` |
+| V2-30 | Helper shutdown/restart/recovery | done | `proxy.rs` + `proxy_stop` |
+| V2-31 | Routing endpoint into Claude Code config | done | `apply_routed` |
+| V2-32 | Routing health checks | partial — on-demand status only | `proxy_status` |
+| V2-33 | Provider error-classification rules | done | `failover.rs` |
+| V2-34 | Rate-limit / quota-exhaustion detection | done | `failover.rs` |
+| V2-35 | Bounded retry + cooldown | done | `failover.rs` |
+| V2-36 | Ordered credential/model fallback | done | `failover::candidates` |
+| V2-37 | Cross-provider fallback | done | `proxy::forward` |
+| V2-38 | Auto Failover UI toggle | done | `RoutingPanel.tsx` |
+| V2-39 | Routing status + safe diagnostics | done | `ProxyStatus` |
+| V2-40 | Exhausted/invalid/timeout/5xx tests | done | `tests/proxy_loopback.rs` |
+| V2-41 | Streaming, tools, replay safety, recovery | done | `proxy::stream_response` |
 | V2-42 | Direct-mode workflow test | todo | — |
 | V2-43 | Routed-mode workflow test | todo | — |
 | V2-44 | Credential/migration/localhost/log audit | todo | — |

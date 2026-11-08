@@ -301,3 +301,70 @@ export async function discoverModels(
     credential: credential ?? null,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Failover routing + loopback proxy (V2-23/26/30/31). Targets carry credential
+// IDs only, never key material.
+// ---------------------------------------------------------------------------
+
+export interface RouteTarget {
+  id: string;
+  providerId: string;
+  credentialId: string | null;
+  model: string | null;
+  baseUrl: string;
+  enabled: boolean;
+}
+
+export interface RoutingConfig {
+  version: number;
+  enabled: boolean;
+  targets: RouteTarget[];
+}
+
+export interface ProxyInfo {
+  port: number;
+  token: string;
+  helperPath: string;
+}
+
+export interface ProxyStatus {
+  running: boolean;
+  port: number | null;
+  requests: number;
+  fallbacks: number;
+  failures: number;
+  lastTarget: string | null;
+  lastError: string | null;
+  cooling: string[];
+}
+
+export async function getRouting(ipc: IpcLike = defaultIpc): Promise<RoutingConfig> {
+  return ipc.invoke<RoutingConfig>("get_routing");
+}
+
+export async function saveRouting(
+  config: RoutingConfig,
+  ipc: IpcLike = defaultIpc,
+): Promise<void> {
+  return ipc.invoke<void>("save_routing", { config });
+}
+
+export async function proxyStart(ipc: IpcLike = defaultIpc): Promise<ProxyInfo> {
+  return ipc.invoke<ProxyInfo>("proxy_start");
+}
+
+export async function proxyStop(ipc: IpcLike = defaultIpc): Promise<boolean> {
+  return ipc.invoke<boolean>("proxy_stop");
+}
+
+export async function proxyStatus(ipc: IpcLike = defaultIpc): Promise<ProxyStatus | null> {
+  return ipc.invoke<ProxyStatus | null>("proxy_status");
+}
+
+export async function applyRoutedMode(
+  model: string | null,
+  ipc: IpcLike = defaultIpc,
+): Promise<ApplyOutcome> {
+  return ipc.invoke<ApplyOutcome>("apply_routed_mode", { model });
+}

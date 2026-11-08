@@ -140,13 +140,22 @@ impl DesiredSettings {
         for (key, value) in self.env_writes() {
             match key {
                 "ANTHROPIC_BASE_URL" => {
-                    if matches!(
-                        classify_endpoint(value),
-                        crate::provider_catalog::EndpointCheck::Invalid(_)
-                            | crate::provider_catalog::EndpointCheck::Insecure
-                    ) {
+                    // V2-31: the failover proxy is loopback http by design.
+                    // Anything else that is not https is still refused: a remote
+                    // http endpoint would put the key on the wire in clear text.
+                    let loopback = value.starts_with("http://127.0.0.1:")
+                        || value.starts_with("http://localhost:")
+                        || value == "http://127.0.0.1"
+                        || value == "http://localhost";
+                    if !loopback
+                        && matches!(
+                            classify_endpoint(value),
+                            crate::provider_catalog::EndpointCheck::Invalid(_)
+                                | crate::provider_catalog::EndpointCheck::Insecure
+                        )
+                    {
                         return Err(ConfigError::ValidationFailed(format!(
-                            "{key}: endpoint must be a valid https URL"
+                            "{key}: endpoint must be a valid https URL (loopback http is allowed for the local proxy)"
                         )));
                     }
                 }
@@ -303,6 +312,22 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v.clone()))
                 .collect(),
         )
+    }
+
+    #[test]
+    fn loopback_proxy_url_is_allowed_but_remote_http_is_not() {
+        let ok = DesiredSettings {
+            env_base_url: Some("http://127.0.0.1:51234".into()),
+            ..Default::default()
+        };
+        let next = apply_desired(&obj(&[]), &ok).expect("loopback allowed");
+        assert_eq!(next["env"]["ANTHROPIC_BASE_URL"], "http://127.0.0.1:51234");
+
+        let bad = DesiredSettings {
+            env_base_url: Some("http://openrouter.ai/api".into()),
+            ..Default::default()
+        };
+        assert!(apply_desired(&obj(&[]), &bad).is_err());
     }
 
     #[test]

@@ -15,6 +15,7 @@ import {
 import { Section } from "./components/Section";
 import { AppHeader } from "./components/AppHeader";
 import { CredentialsPanel } from "./components/CredentialsPanel";
+import { RoutingPanel } from "./components/RoutingPanel";
 import { StatusBanner } from "./components/StatusBanner";
 import {
   checkEnvironment,
@@ -32,6 +33,12 @@ import {
   restoreLastBackup,
   saveAndApply,
   isCommandError,
+  getRouting,
+  saveRouting,
+  proxyStart,
+  proxyStop,
+  proxyStatus,
+  applyRoutedMode,
   type ApplyOutcome,
   type ConnectionTestResult,
   type CredentialView,
@@ -41,6 +48,8 @@ import {
   type ModelEntry,
   type ProviderSummary,
   type RestoreOutcome,
+  type ProxyStatus,
+  type RoutingConfig,
   type StatusWarning,
 } from "./lib/ipc";
 import { classifyEndpoint, endpointCheckMessage } from "./lib/endpoint";
@@ -135,6 +144,101 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     list: CredentialView[];
   } | null>(null);
   const [credentialsError, setCredentialsError] = useState<string | null>(null);
+  // V2-23/30: failover chain and proxy state, independent of the provider pick.
+  const [routing, setRouting] = useState<RoutingConfig | null>(null);
+  const [routingError, setRoutingError] = useState<string | null>(null);
+  const [proxy, setProxy] = useState<ProxyStatus | null>(null);
+  const [routingBusy, setRoutingBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRouting(ipc)
+      .then((cfg) => {
+        if (!cancelled) setRouting(cfg);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setRoutingError(
+            isCommandError(err) ? err.message : "The routing configuration could not be read.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ipc]);
+
+  useEffect(() => {
+    let cancelled = false;
+    proxyStatus(ipc)
+      .then((st) => {
+        if (!cancelled) setProxy(st);
+      })
+      .catch(() => {
+        /* The proxy may never have been started; that is not an error. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ipc, routingBusy]);
+
+  async function handleSaveRouting() {
+    if (routing === null) return;
+    setRoutingBusy(true);
+    setRoutingError(null);
+    try {
+      await saveRouting(routing, ipc);
+    } catch (err: unknown) {
+      setRoutingError(
+        isCommandError(err) ? err.message : "The routing chain could not be saved.",
+      );
+    } finally {
+      setRoutingBusy(false);
+    }
+  }
+
+  async function handleStartProxy() {
+    setRoutingBusy(true);
+    setRoutingError(null);
+    try {
+      await proxyStart(ipc);
+      setProxy(await proxyStatus(ipc));
+    } catch (err: unknown) {
+      setRoutingError(isCommandError(err) ? err.message : "The proxy could not be started.");
+    } finally {
+      setRoutingBusy(false);
+    }
+  }
+
+  async function handleStopProxy() {
+    setRoutingBusy(true);
+    setRoutingError(null);
+    try {
+      await proxyStop(ipc);
+      setProxy(await proxyStatus(ipc));
+    } catch (err: unknown) {
+      setRoutingError(isCommandError(err) ? err.message : "The proxy could not be stopped.");
+    } finally {
+      setRoutingBusy(false);
+    }
+  }
+
+  async function handleApplyRouted() {
+    setRoutingBusy(true);
+    setRoutingError(null);
+    try {
+      const outcome = await applyRoutedMode(selectedModel, ipc);
+      setApplyOutcome(outcome);
+      setProxy(await proxyStatus(ipc));
+      setStatus(await readStatus(ipc));
+    } catch (err: unknown) {
+      setRoutingError(
+        isCommandError(err) ? err.message : "Claude Code could not be pointed at the proxy.",
+      );
+    } finally {
+      setRoutingBusy(false);
+    }
+  }
 
   async function handleFetchModels() {
     if (selected === null || isCustom) return;
@@ -602,6 +706,38 @@ export default function App({ ipc = defaultIpc }: AppProps) {
               }}
               error={credentialsError}
             />
+          </Section>
+          <Section title="Failover routing">
+            {routing === null ? (
+              <p className="text-[12.5px] text-ink-muted">Reading routing configuration…</p>
+            ) : (
+              <RoutingPanel
+                config={routing}
+                providers={providers ?? []}
+                credentials={credentials?.list ?? []}
+                onNeedCredentials={(providerId) => {
+                  void listCredentials(providerId, ipc)
+                    .then((list) => setCredentials({ providerId, list }))
+                    .catch(() => setCredentials(null));
+                }}
+                status={proxy}
+                busy={routingBusy}
+                error={routingError}
+                onChange={setRouting}
+                onSave={() => {
+                  void handleSaveRouting();
+                }}
+                onStartProxy={() => {
+                  void handleStartProxy();
+                }}
+                onStopProxy={() => {
+                  void handleStopProxy();
+                }}
+                onApplyRouted={() => {
+                  void handleApplyRouted();
+                }}
+              />
+            )}
           </Section>
           <Section title="Model">
             {modelsError !== null && (

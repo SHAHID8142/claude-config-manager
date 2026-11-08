@@ -105,9 +105,11 @@ describe("Provider selector (T18)", () => {
     // auto-selected provider then asks whether a key is stored (V2-12a).
     expect(ipc.calls.map((c) => c.cmd).sort()).toEqual([
       "check_environment",
+      "get_routing",
       "has_credential",
       "list_credentials",
       "list_providers",
+      "proxy_status",
       "read_status",
     ]);
   });

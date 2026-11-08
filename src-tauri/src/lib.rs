@@ -25,12 +25,15 @@ pub mod credential_migration;
 pub mod credential_service;
 pub mod credential_vault;
 pub mod environment_check;
+pub mod failover;
 pub mod file_secret_store;
 pub mod model_discovery;
 pub mod model_discovery_service;
 pub mod presets;
 pub mod provider_catalog;
+pub mod proxy;
 pub mod redact;
+pub mod routing_config;
 pub mod save_apply;
 pub mod secret_store;
 
@@ -155,6 +158,137 @@ fn save_and_apply(
         save_apply::ApplyError::NoCredential => CommandError::invalid_input(e.to_string()),
         other => CommandError::io(other.to_string()),
     })
+}
+
+/// Process-wide proxy handle. `None` means the proxy is stopped.
+///
+/// The proxy only ever exists while the owner has routing enabled; stopping the
+/// app (or pressing Stop) drops the listener with it, so no port stays open.
+#[derive(Default)]
+struct AppState {
+    proxy: std::sync::Mutex<Option<proxy::ProxyHandle>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProxyInfo {
+    port: u16,
+    /// Loopback bearer token. It is a per-process secret, never a provider key.
+    token: String,
+    helper_path: String,
+}
+
+fn home_dir() -> Result<std::path::PathBuf, CommandError> {
+    std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))
+}
+
+/// V2-23: read the ordered routing chain (metadata only, no secrets).
+#[tauri::command]
+fn get_routing() -> Result<routing_config::RoutingConfig, CommandError> {
+    let home = home_dir()?;
+    routing_config::load(&home).map_err(|e| CommandError::io(e.to_string()))
+}
+
+/// V2-23: replace the routing chain. Validation fails closed: nothing is
+/// written unless the whole chain is accepted.
+#[tauri::command]
+fn save_routing(config: routing_config::RoutingConfig) -> Result<(), CommandError> {
+    let home = home_dir()?;
+    config
+        .validate()
+        .map_err(|e| CommandError::invalid_input(e.to_string()))?;
+    routing_config::save(&home, &config).map_err(|e| CommandError::io(e.to_string()))
+}
+
+/// V2-26: start the loopback proxy on an ephemeral port.
+#[tauri::command]
+fn proxy_start(state: tauri::State<'_, AppState>) -> Result<ProxyInfo, CommandError> {
+    let home = home_dir()?;
+    let mut slot = state
+        .proxy
+        .lock()
+        .map_err(|_| CommandError::io("proxy state poisoned"))?;
+    if let Some(existing) = slot.as_ref() {
+        return Ok(ProxyInfo {
+            port: existing.port,
+            token: existing.token.clone(),
+            helper_path: credential_handoff::default_helpers_dir(&home)
+                .join("proxy.sh")
+                .to_string_lossy()
+                .to_string(),
+        });
+    }
+    let handle = proxy::start(home.clone()).map_err(CommandError::io)?;
+    let info = ProxyInfo {
+        port: handle.port,
+        token: handle.token.clone(),
+        helper_path: credential_handoff::default_helpers_dir(&home)
+            .join("proxy.sh")
+            .to_string_lossy()
+            .to_string(),
+    };
+    *slot = Some(handle);
+    Ok(info)
+}
+
+/// Stop the proxy and release the port.
+#[tauri::command]
+fn proxy_stop(state: tauri::State<'_, AppState>) -> Result<bool, CommandError> {
+    let mut slot = state
+        .proxy
+        .lock()
+        .map_err(|_| CommandError::io("proxy state poisoned"))?;
+    if let Some(mut handle) = slot.take() {
+        handle.shutdown();
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+/// V2-30: live proxy counters for the UI (no bodies, no credentials).
+#[tauri::command]
+fn proxy_status(
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<proxy::ProxyStatus>, CommandError> {
+    let slot = state
+        .proxy
+        .lock()
+        .map_err(|_| CommandError::io("proxy state poisoned"))?;
+    Ok(slot.as_ref().map(|h| h.status()))
+}
+
+/// V2-31: point Claude Code at the proxy (base URL + token helper).
+#[tauri::command]
+fn apply_routed_mode(
+    state: tauri::State<'_, AppState>,
+    model: Option<String>,
+) -> Result<save_apply::ApplyOutcome, CommandError> {
+    let home = home_dir()?;
+    let cfg = routing_config::load(&home).map_err(|e| CommandError::io(e.to_string()))?;
+    if !cfg.enabled {
+        return Err(CommandError::invalid_input(
+            "failover routing is disabled — enable it before applying routed mode",
+        ));
+    }
+    if cfg.targets.is_empty() {
+        return Err(CommandError::invalid_input(
+            "add at least one routing target first",
+        ));
+    }
+    let mut slot = state
+        .proxy
+        .lock()
+        .map_err(|_| CommandError::io("proxy state poisoned"))?;
+    if slot.is_none() {
+        *slot = Some(proxy::start(home.clone()).map_err(CommandError::io)?);
+    }
+    let handle = slot.as_ref().expect("proxy just started");
+    let store = std::sync::Arc::new(file_secret_store::FileSecretStore::for_home(&home));
+    let svc = save_apply::SaveApplyService::for_production(&home, store);
+    svc.apply_routed(handle.port, &handle.token, model.as_deref())
+        .map_err(|e| CommandError::io(e.to_string()))
 }
 
 /// T34 contract: read-back effective status with override warnings.
@@ -312,9 +446,10 @@ fn vault() -> Result<credential_vault::CredentialVault, CommandError> {
 
 fn vault_error(e: credential_vault::VaultError) -> CommandError {
     match e {
-        credential_vault::VaultError::Invalid(m) | credential_vault::VaultError::Index(
-            credential_index::IndexError::Invalid(m),
-        ) => CommandError::invalid_input(m),
+        credential_vault::VaultError::Invalid(m)
+        | credential_vault::VaultError::Index(credential_index::IndexError::Invalid(m)) => {
+            CommandError::invalid_input(m)
+        }
         other => CommandError::io(other.to_string()),
     }
 }
@@ -359,6 +494,7 @@ fn promote_credential(credential_id: String) -> Result<bool, CommandError> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             list_providers,
@@ -369,6 +505,12 @@ pub fn run() {
             discover_models,
             test_connection,
             has_credential,
+            get_routing,
+            save_routing,
+            proxy_start,
+            proxy_stop,
+            proxy_status,
+            apply_routed_mode,
             list_credentials,
             add_credential,
             remove_credential,

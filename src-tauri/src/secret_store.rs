@@ -37,6 +37,11 @@ impl std::error::Error for SecretError {}
 
 /// Storage-agnostic credential vault. All methods are blocking and must be
 /// called from a context where brief blocking is acceptable (Tauri commands).
+/// V2-31: the loopback proxy's bearer token is stored like any other secret,
+/// under this fixed account, so the same permission checks and helper template
+/// apply. It is not a provider credential and is never sent upstream.
+pub const PROXY_ACCOUNT: &str = "proxy";
+
 pub trait SecretStore: Send + Sync {
     /// Store or replace the secret for `account` under `service`.
     fn set_secret(&self, service: &str, account: &str, secret: &str) -> Result<(), SecretError>;
