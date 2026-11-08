@@ -4,6 +4,7 @@ import {
   builtinPresetFixtures,
   deepSeekPreset,
   openRouterPreset,
+  zaiPreset,
 } from "./providers";
 
 describe("builtin preset fixtures (T17)", () => {

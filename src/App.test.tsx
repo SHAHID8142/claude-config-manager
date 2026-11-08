@@ -67,6 +67,7 @@ describe("Provider selector (T18)", () => {
       "Anthropic",
       "OpenRouter",
       "DeepSeek",
+      "Z.AI",
       "Custom…",
     ]);
     expect(ipc.calls.map((c) => c.cmd)).toEqual(["list_providers"]);
