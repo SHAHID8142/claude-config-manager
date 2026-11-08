@@ -3,6 +3,7 @@ import { RoutingPanel } from "../components/RoutingPanel";
 import { Section } from "../components/Section";
 import type {
   CredentialView,
+  HelperStatus,
   ProviderSummary,
   ProxyStatus,
   RoutingConfig,
@@ -23,6 +24,10 @@ export interface RoutingTabProps {
   onSave: () => void;
   onStartProxy: () => void;
   onStopProxy: () => void;
+  /** V3-07/V3-09: detached helper state (proves routing works after the GUI quits). */
+  helper: HelperStatus | null;
+  onRestartProxy: () => void;
+  onToggleLoginStart: (enabled: boolean) => void;
   onApplyRouted: () => void;
   onCheckHealth: () => void;
 }
@@ -32,8 +37,80 @@ export interface RoutingTabProps {
  * panel is one component so the chain can never be saved half-edited.
  */
 export function RoutingTab(props: RoutingTabProps) {
+  const helper = props.helper;
   return (
     <div className="flex flex-col gap-6">
+      {helper !== null && (
+        <Section
+          title="Proxy helper"
+          description="Routed mode needs a process that stays up after this window closes. It listens on loopback only."
+        >
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={
+                  helper.running
+                    ? "size-2 rounded-full bg-ok"
+                    : helper.stale
+                      ? "size-2 rounded-full bg-warn"
+                      : "size-2 rounded-full bg-ink-subtle"
+                }
+              />
+              <p className="text-[13px] text-ink" role="status">
+                {helper.message}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={props.onStartProxy}
+                disabled={props.busy || helper.running}
+                className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover disabled:opacity-50"
+              >
+                Start helper
+              </button>
+              <button
+                type="button"
+                onClick={props.onStopProxy}
+                disabled={props.busy || (!helper.running && !helper.stale)}
+                className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover disabled:opacity-50"
+              >
+                Stop helper
+              </button>
+              <button
+                type="button"
+                onClick={props.onRestartProxy}
+                disabled={props.busy}
+                className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover disabled:opacity-50"
+              >
+                Restart
+              </button>
+            </div>
+            <label className="flex items-start gap-2 text-[12.5px] text-ink">
+              <input
+                type="checkbox"
+                checked={helper.loginStart}
+                onChange={(e) => props.onToggleLoginStart(e.target.checked)}
+                disabled={props.busy}
+                className="mt-0.5"
+              />
+              <span>
+                Start the helper when I log in
+                <span className="block text-[11.5px] text-ink-muted">
+                  Installs a user LaunchAgent in ~/Library/LaunchAgents. No administrator
+                  rights, and it can be removed here at any time.
+                </span>
+              </span>
+            </label>
+            {helper.stale && (
+              <p className="text-[12px] text-warn">
+                The helper is not answering. Restart it before relying on routed mode.
+              </p>
+            )}
+          </div>
+        </Section>
+      )}
       <Section
         title="Chain"
         description="Try these targets in order. A target cools down after it fails, and cooling targets are skipped without ever leaving the chain empty."

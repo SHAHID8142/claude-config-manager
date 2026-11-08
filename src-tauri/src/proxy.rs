@@ -43,7 +43,7 @@ fn err_body(kind: &str, message: &str) -> String {
 }
 
 /// Live status for the UI. Contains no credentials and no response bodies.
-#[derive(Debug, Clone, Default, serde::Serialize)]
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProxyStatus {
     pub running: bool,
@@ -55,6 +55,9 @@ pub struct ProxyStatus {
     pub last_error: Option<String>,
     /// Target ids currently in cooldown (never key material).
     pub cooling: Vec<String>,
+    /// Owning process. The GUI uses it to prove that the pid in its state file
+    /// is the process actually answering on this port before signalling it.
+    pub pid: u32,
 }
 
 pub struct ProxyHandle {
@@ -116,7 +119,7 @@ impl Drop for ProxyHandle {
     }
 }
 
-fn random_token() -> String {
+pub fn random_token() -> String {
     // Two independent RandomState hashers seeded from the OS, mixed with the
     // clock and pid: 128 bits of hex, sufficient for a loopback bearer token.
     let now = std::time::SystemTime::now()
@@ -134,15 +137,37 @@ fn random_token() -> String {
     out
 }
 
-/// Start the proxy on an ephemeral loopback port.
+/// Start the proxy on an ephemeral loopback port with a fresh token.
 pub fn start(home: PathBuf) -> Result<ProxyHandle, String> {
-    let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(|e| format!("bind: {e}"))?;
+    start_with(home, None, None)
+}
+
+/// Start the proxy on a preferred loopback port with a caller-supplied token.
+///
+/// The helper uses this so a restart keeps both the port Claude Code is already
+/// pointed at and the bearer token its helper script already contains. If the
+/// preferred port is taken the OS picks another one and the caller must repoint
+/// Claude Code (that is what `apply_routed_mode` does).
+pub fn start_with(
+    home: PathBuf,
+    preferred_port: Option<u16>,
+    token: Option<String>,
+) -> Result<ProxyHandle, String> {
+    let bind = |port: u16| TcpListener::bind(("127.0.0.1", port));
+    let listener = match preferred_port {
+        Some(p) => match bind(p) {
+            Ok(l) => l,
+            Err(_) => bind(0).map_err(|e| format!("bind: {e}"))?,
+        },
+        None => bind(0).map_err(|e| format!("bind: {e}"))?,
+    };
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-    let token = random_token();
+    let token = token.unwrap_or_else(random_token);
     let shutdown = Arc::new(AtomicBool::new(false));
     let status = Arc::new(Mutex::new(ProxyStatus {
         running: true,
         port: Some(port),
+        pid: std::process::id(),
         ..Default::default()
     }));
     let cooldowns = Arc::new(Mutex::new(Cooldowns::new()));
@@ -309,6 +334,7 @@ impl Ctx {
     fn snapshot(&self) -> ProxyStatus {
         let mut s = self.status.lock().map(|s| s.clone()).unwrap_or_default();
         s.running = !self.shutdown.load(Ordering::SeqCst);
+        s.pid = std::process::id();
         let now = Instant::now();
         if let (Ok(mut c), Ok(cfg)) = (self.cooldowns.lock(), routing_config::load(&self.home)) {
             s.cooling = cfg

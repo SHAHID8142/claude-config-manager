@@ -38,6 +38,9 @@ import {
   proxyStart,
   proxyStop,
   proxyStatus,
+  proxyRestart,
+  helperStatus,
+  helperLoginStart,
   applyRoutedMode,
   checkRoutingHealth,
   type ApplyOutcome,
@@ -49,6 +52,7 @@ import {
   type ModelEntry,
   type ProviderSummary,
   type RestoreOutcome,
+  type HelperStatus,
   type ProxyStatus,
   type RoutingConfig,
   type TargetHealth,
@@ -118,6 +122,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [routingError, setRoutingError] = useState<string | null>(null);
   const [proxy, setProxy] = useState<ProxyStatus | null>(null);
   const [routingBusy, setRoutingBusy] = useState(false);
+  const [helper, setHelper] = useState<HelperStatus | null>(null);
   const [routingHealth, setRoutingHealth] = useState<TargetHealth[] | null>(null);
   const [checkingHealth, setCheckingHealth] = useState(false);
 
@@ -147,6 +152,13 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       })
       .catch(() => {
         /* The proxy may never have been started; that is not an error. */
+      });
+    helperStatus(ipc)
+      .then((hs) => {
+        if (!cancelled) setHelper(hs);
+      })
+      .catch(() => {
+        /* Older backend without the helper command: stay silent. */
       });
     return () => {
       cancelled = true;
@@ -203,6 +215,40 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       setProxy(await proxyStatus(ipc));
     } catch (err: unknown) {
       setRoutingError(isCommandError(err) ? err.message : "The proxy could not be stopped.");
+    } finally {
+      setRoutingBusy(false);
+    }
+  }
+
+  async function handleRestartProxy() {
+    setRoutingBusy(true);
+    setRoutingError(null);
+    try {
+      await proxyRestart(ipc);
+      setProxy(await proxyStatus(ipc));
+      setHelper(await helperStatus(ipc));
+    } catch (err: unknown) {
+      setRoutingError(
+        isCommandError(err) ? err.message : "The proxy helper could not be restarted.",
+      );
+    } finally {
+      setRoutingBusy(false);
+    }
+  }
+
+  async function handleToggleLoginStart(enabled: boolean) {
+    setRoutingBusy(true);
+    setRoutingError(null);
+    try {
+      setHelper(await helperLoginStart(enabled, ipc));
+    } catch (err: unknown) {
+      setRoutingError(
+        isCommandError(err)
+          ? err.message
+          : enabled
+            ? "The login agent could not be installed."
+            : "The login agent could not be removed.",
+      );
     } finally {
       setRoutingBusy(false);
     }
@@ -689,6 +735,13 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                   }}
                   onStopProxy={() => {
                     void handleStopProxy();
+                  }}
+                  helper={helper}
+                  onRestartProxy={() => {
+                    void handleRestartProxy();
+                  }}
+                  onToggleLoginStart={(enabled: boolean) => {
+                    void handleToggleLoginStart(enabled);
                   }}
                   onApplyRouted={() => {
                     void handleApplyRouted();

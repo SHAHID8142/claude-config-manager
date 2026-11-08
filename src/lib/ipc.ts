@@ -324,8 +324,17 @@ export interface RoutingConfig {
 
 export interface ProxyInfo {
   port: number;
-  token: string;
   helperPath: string;
+}
+
+/** V3-07/V3-09: the detached proxy helper, as the backend sees it. */
+export interface HelperStatus {
+  running: boolean;
+  stale: boolean;
+  pid: number | null;
+  port: number | null;
+  loginStart: boolean;
+  message: string;
 }
 
 export interface ProxyStatus {
@@ -335,6 +344,8 @@ export interface ProxyStatus {
   fallbacks: number;
   failures: number;
   lastTarget: string | null;
+  /** owning process id, so the app can prove a state file is not stale */
+  pid?: number;
   lastError: string | null;
   cooling: string[];
 }
@@ -360,6 +371,22 @@ export async function proxyStop(ipc: IpcLike = defaultIpc): Promise<boolean> {
 
 export async function proxyStatus(ipc: IpcLike = defaultIpc): Promise<ProxyStatus | null> {
   return ipc.invoke<ProxyStatus | null>("proxy_status");
+}
+
+export async function proxyRestart(ipc: IpcLike = defaultIpc): Promise<ProxyInfo> {
+  return ipc.invoke<ProxyInfo>("proxy_restart");
+}
+
+export async function helperStatus(ipc: IpcLike = defaultIpc): Promise<HelperStatus> {
+  return ipc.invoke<HelperStatus>("helper_status");
+}
+
+/** Explicit opt-in: true installs the user LaunchAgent, false removes it. */
+export async function helperLoginStart(
+  enabled: boolean,
+  ipc: IpcLike = defaultIpc,
+): Promise<HelperStatus> {
+  return ipc.invoke<HelperStatus>("helper_login_start", { enabled });
 }
 
 export async function applyRoutedMode(

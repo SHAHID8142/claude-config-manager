@@ -13,12 +13,12 @@ an owner decision · `not verified` = no claim made.
 | V3-02 | Verify known defects | done | `docs/V3/V3-02-defects.md` — 6 confirmed, 1 reclassified |
 | V3-03 | Regression baseline for confirmed defects | done | `src-tauri/tests/v3_regressions.rs`, `src/v3-regressions.test.tsx` |
 | V3-04 | Helper lifecycle design | done | `docs/V3/V3-04-helper-lifecycle.md` |
-| V3-05 | Separate proxy from GUI | pending | |
-| V3-06 | Secure helper startup | pending | |
-| V3-07 | Lifecycle management (start/stop/restart/health/recovery) | pending | |
-| V3-08 | Persist routed configuration | pending | |
-| V3-09 | Restart/reboot behaviour + explicit login start | pending | |
-| V3-10 | Lifecycle regression tests | pending | |
+| V3-05 | Separate proxy from GUI | done | `src-tauri/src/helper.rs`, `main.rs` `--proxy-helper` branch |
+| V3-06 | Secure helper startup | done | loopback bind, 0600 token/state, no shell interpolation |
+| V3-07 | Lifecycle management (start/stop/restart/health/recovery) | done | helper_status/proxy_start/proxy_stop/proxy_restart commands |
+| V3-08 | Persist routed configuration | done | `proxy-helper.port` + persistent token |
+| V3-09 | Restart/reboot behaviour + explicit login start | done | `helper_login_start`, opt-in checkbox |
+| V3-10 | Lifecycle regression tests | done | `src-tauri/tests/helper_lifecycle.rs` 5 tests |
 | V3-11 | Compatibility matrix | pending | |
 | V3-12 | Evaluate open-source bridges | pending | |
 | V3-13 | Adapter interface | pending | |

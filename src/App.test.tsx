@@ -124,6 +124,7 @@ describe("Provider selector (T18)", () => {
     expect(ipc.calls.map((c) => c.cmd).sort()).toEqual([
       "check_environment",
       "get_routing",
+      "helper_status",
       "list_providers",
       "proxy_status",
       "read_status",

@@ -27,6 +27,7 @@ pub mod credential_vault;
 pub mod environment_check;
 pub mod failover;
 pub mod file_secret_store;
+pub mod helper;
 pub mod model_discovery;
 pub mod model_discovery_service;
 pub mod presets;
@@ -160,21 +161,10 @@ fn save_and_apply(
     })
 }
 
-/// Process-wide proxy handle. `None` means the proxy is stopped.
-///
-/// The proxy only ever exists while the owner has routing enabled; stopping the
-/// app (or pressing Stop) drops the listener with it, so no port stays open.
-#[derive(Default)]
-struct AppState {
-    proxy: std::sync::Mutex<Option<proxy::ProxyHandle>>,
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ProxyInfo {
     port: u16,
-    /// Loopback bearer token. It is a per-process secret, never a provider key.
-    token: String,
     helper_path: String,
 }
 
@@ -202,61 +192,76 @@ fn save_routing(config: routing_config::RoutingConfig) -> Result<(), CommandErro
     routing_config::save(&home, &config).map_err(|e| CommandError::io(e.to_string()))
 }
 
-/// V2-26: start the loopback proxy on an ephemeral port.
+/// V3-05: start the detached proxy helper. Idempotent: a verified helper that
+/// is already running is returned unchanged.
 #[tauri::command]
-fn proxy_start(state: tauri::State<'_, AppState>) -> Result<ProxyInfo, CommandError> {
+fn proxy_start() -> Result<ProxyInfo, CommandError> {
     let home = home_dir()?;
-    let mut slot = state
-        .proxy
-        .lock()
-        .map_err(|_| CommandError::io("proxy state poisoned"))?;
-    if let Some(existing) = slot.as_ref() {
-        return Ok(ProxyInfo {
-            port: existing.port,
-            token: existing.token.clone(),
-            helper_path: credential_handoff::default_helpers_dir(&home)
-                .join("proxy.sh")
-                .to_string_lossy()
-                .to_string(),
-        });
-    }
-    let handle = proxy::start(home.clone()).map_err(CommandError::io)?;
-    let info = ProxyInfo {
-        port: handle.port,
-        token: handle.token.clone(),
+    let st = helper::start(&home).map_err(CommandError::io)?;
+    Ok(ProxyInfo {
+        port: st.port,
         helper_path: credential_handoff::default_helpers_dir(&home)
             .join("proxy.sh")
             .to_string_lossy()
             .to_string(),
-    };
-    *slot = Some(handle);
-    Ok(info)
+    })
 }
 
-/// Stop the proxy and release the port.
+/// Stop the helper. Only a pid that answers on its own port is signalled.
 #[tauri::command]
-fn proxy_stop(state: tauri::State<'_, AppState>) -> Result<bool, CommandError> {
-    let mut slot = state
-        .proxy
-        .lock()
-        .map_err(|_| CommandError::io("proxy state poisoned"))?;
-    if let Some(mut handle) = slot.take() {
-        handle.shutdown();
-        return Ok(true);
+fn proxy_stop() -> Result<bool, CommandError> {
+    let home = home_dir()?;
+    helper::stop(&home).map_err(CommandError::io)
+}
+
+/// V3-07: restart (used when the helper is stale or the app was updated).
+#[tauri::command]
+fn proxy_restart() -> Result<ProxyInfo, CommandError> {
+    let home = home_dir()?;
+    let st = helper::restart(&home).map_err(CommandError::io)?;
+    Ok(ProxyInfo {
+        port: st.port,
+        helper_path: credential_handoff::default_helpers_dir(&home)
+            .join("proxy.sh")
+            .to_string_lossy()
+            .to_string(),
+    })
+}
+
+/// V2-30 counters, now read from the helper's `/healthz` instead of memory.
+#[tauri::command]
+fn proxy_status() -> Result<Option<proxy::ProxyStatus>, CommandError> {
+    let home = home_dir()?;
+    let st = helper::status(&home);
+    if !st.running {
+        return Ok(None);
     }
-    Ok(false)
+    let port = st
+        .port
+        .ok_or_else(|| CommandError::io("helper has no port"))?;
+    Ok(helper::health(port))
 }
 
-/// V2-30: live proxy counters for the UI (no bodies, no credentials).
+/// V3-09: whether routed mode survives a login (explicit opt-in only).
 #[tauri::command]
-fn proxy_status(
-    state: tauri::State<'_, AppState>,
-) -> Result<Option<proxy::ProxyStatus>, CommandError> {
-    let slot = state
-        .proxy
-        .lock()
-        .map_err(|_| CommandError::io("proxy state poisoned"))?;
-    Ok(slot.as_ref().map(|h| h.status()))
+fn helper_status() -> Result<helper::HelperStatus, CommandError> {
+    Ok(helper::status(&home_dir()?))
+}
+
+/// V3-09: install (`true`) or remove (`false`) the user LaunchAgent.
+///
+/// This is the only persistent-artifact action in the app, it is never called
+/// implicitly, and it writes only under `~/Library/LaunchAgents` plus the
+/// owner's own `~/.claude-config-manager` directory.
+#[tauri::command]
+fn helper_login_start(enabled: bool) -> Result<helper::HelperStatus, CommandError> {
+    let home = home_dir()?;
+    if enabled {
+        helper::install_login_agent(&home).map_err(CommandError::io)?;
+    } else {
+        helper::uninstall_login_agent(&home).map_err(CommandError::io)?;
+    }
+    Ok(helper::status(&home))
 }
 
 /// V2-32: one health result per routing target.
@@ -320,10 +325,7 @@ fn check_routing_health() -> Result<Vec<TargetHealth>, CommandError> {
 
 /// V2-31: point Claude Code at the proxy (base URL + token helper).
 #[tauri::command]
-fn apply_routed_mode(
-    state: tauri::State<'_, AppState>,
-    model: Option<String>,
-) -> Result<save_apply::ApplyOutcome, CommandError> {
+fn apply_routed_mode(model: Option<String>) -> Result<save_apply::ApplyOutcome, CommandError> {
     let home = home_dir()?;
     let cfg = routing_config::load(&home).map_err(|e| CommandError::io(e.to_string()))?;
     if !cfg.enabled {
@@ -336,17 +338,13 @@ fn apply_routed_mode(
             "add at least one routing target first",
         ));
     }
-    let mut slot = state
-        .proxy
-        .lock()
-        .map_err(|_| CommandError::io("proxy state poisoned"))?;
-    if slot.is_none() {
-        *slot = Some(proxy::start(home.clone()).map_err(CommandError::io)?);
-    }
-    let handle = slot.as_ref().expect("proxy just started");
+    // V3-08: the helper must be reachable when the owner comes back to Claude
+    // Code, so applying routed mode also makes sure it is up.
+    let st = helper::start(&home).map_err(CommandError::io)?;
+    let token = helper::ensure_token(&home).map_err(CommandError::io)?;
     let store = std::sync::Arc::new(file_secret_store::FileSecretStore::for_home(&home));
     let svc = save_apply::SaveApplyService::for_production(&home, store);
-    svc.apply_routed(handle.port, &handle.token, model.as_deref())
+    svc.apply_routed(st.port, &token, model.as_deref())
         .map_err(|e| CommandError::io(e.to_string()))
 }
 
@@ -553,7 +551,6 @@ fn promote_credential(credential_id: String) -> Result<bool, CommandError> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             list_providers,
@@ -568,7 +565,10 @@ pub fn run() {
             save_routing,
             proxy_start,
             proxy_stop,
+            proxy_restart,
             proxy_status,
+            helper_status,
+            helper_login_start,
             apply_routed_mode,
             check_routing_health,
             list_credentials,
