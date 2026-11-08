@@ -135,3 +135,21 @@ export interface RestoreOutcome {
 export async function restoreLastBackup(ipc: IpcLike = defaultIpc): Promise<RestoreOutcome> {
   return ipc.invoke<RestoreOutcome>("restore_last_backup");
 }
+
+// ---------------------------------------------------------------------------
+// `check_environment` (T36) — CLI presence/version + settings diagnostics.
+// ---------------------------------------------------------------------------
+
+export interface EnvironmentReport {
+  cliFound: boolean;
+  cliVersion: string | null;
+  cliVersionWarning: string | null;
+  /** ok | first_run | malformed_json | not_a_file | symlink | unreadable */
+  settingsState: string;
+  settingsDetail: string | null;
+  configDirWritable: boolean;
+}
+
+export async function checkEnvironment(ipc: IpcLike = defaultIpc): Promise<EnvironmentReport> {
+  return ipc.invoke<EnvironmentReport>("check_environment");
+}

@@ -22,6 +22,15 @@ function mockWithProviders(status = statusFixture) {
     handlers: {
       list_providers: () => Promise.resolve(providerSummaryFixtures),
       read_status: () => Promise.resolve(status),
+      check_environment: () =>
+        Promise.resolve({
+          cliFound: true,
+          cliVersion: "2.1.246",
+          cliVersionWarning: null,
+          settingsState: "ok",
+          settingsDetail: null,
+          configDirWritable: true,
+        }),
     },
   });
 }
@@ -87,7 +96,11 @@ describe("Provider selector (T18)", () => {
       "Custom…",
     ]);
     // read_status fires first (status effect), then the catalog loads.
-    expect(ipc.calls.map((c) => c.cmd).sort()).toEqual(["list_providers", "read_status"]);
+    expect(ipc.calls.map((c) => c.cmd).sort()).toEqual([
+      "check_environment",
+      "list_providers",
+      "read_status",
+    ]);
   });
 
   it("selecting a preset shows capability and connection badges (T25)", async () => {
@@ -392,5 +405,59 @@ describe("Restore last backup (T35)", () => {
       expect(screen.getByText("Restore failed.")).toBeInTheDocument();
     });
     expect(screen.getByText("no backups available to restore")).toBeInTheDocument();
+  });
+});
+
+describe("Environment diagnostics (T36)", () => {
+  it("warns when the Claude Code CLI is missing", async () => {
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        check_environment: () =>
+          Promise.resolve({
+            cliFound: false,
+            cliVersion: null,
+            cliVersionWarning: null,
+            settingsState: "first_run",
+            settingsDetail: null,
+            configDirWritable: true,
+          }),
+      },
+    });
+    render(<App ipc={ipc} />);
+    expect(await screen.findByText("Claude Code CLI not found on PATH.")).toBeInTheDocument();
+  });
+
+  it("flags malformed settings as never-overwrite", async () => {
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        check_environment: () =>
+          Promise.resolve({
+            cliFound: true,
+            cliVersion: "2.1.246",
+            cliVersionWarning: null,
+            settingsState: "malformed_json",
+            settingsDetail: "settings file contains invalid JSON",
+            configDirWritable: true,
+          }),
+      },
+    });
+    render(<App ipc={ipc} />);
+    expect(
+      await screen.findByText(/settings file has a problem this app will not overwrite/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("settings file contains invalid JSON")).toBeInTheDocument();
+  });
+
+  it("shows no environment banners when everything is healthy", async () => {
+    const ipc = mockWithProviders();
+    render(<App ipc={ipc} />);
+    await waitFor(() => {
+      expect(screen.queryByText("Claude Code CLI not found on PATH.")).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText(/settings file has a problem/i)).not.toBeInTheDocument();
   });
 });

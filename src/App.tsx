@@ -6,6 +6,7 @@ import { LoadingButton } from "./components/LoadingButton";
 import { Section } from "./components/Section";
 import { StatusBanner } from "./components/StatusBanner";
 import {
+  checkEnvironment,
   defaultIpc,
   listProviders,
   readStatus,
@@ -14,6 +15,7 @@ import {
   isCommandError,
   type ApplyOutcome,
   type EffectiveStatus,
+  type EnvironmentReport,
   type IpcLike,
   type ProviderSummary,
   type RestoreOutcome,
@@ -78,6 +80,21 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [restoring, setRestoring] = useState(false);
   const [restoreOutcome, setRestoreOutcome] = useState<RestoreOutcome | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  const [environment, setEnvironment] = useState<EnvironmentReport | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    checkEnvironment(ipc)
+      .then((env) => {
+        if (!cancelled) setEnvironment(env);
+      })
+      .catch(() => {
+        /* Environment probe is best-effort. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ipc]);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,6 +195,23 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           detail={loadError}
         />
       )}
+
+      {environment !== null && !environment.cliFound && (
+        <StatusBanner
+          severity="warning"
+          message="Claude Code CLI not found on PATH."
+          detail="Settings can still be managed here, but install the Claude Code CLI to use them."
+        />
+      )}
+      {environment !== null &&
+        (environment.settingsState === "malformed_json" ||
+          environment.settingsState === "symlink") && (
+          <StatusBanner
+            severity="error"
+            message="The settings file has a problem this app will not overwrite."
+            detail={environment.settingsDetail ?? undefined}
+          />
+        )}
 
       <Section title="Active configuration">
         {status === null ? (

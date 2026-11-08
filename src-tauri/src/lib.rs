@@ -19,6 +19,7 @@ pub mod config_status;
 pub mod config_writer;
 pub mod credential_handoff;
 pub mod credential_service;
+pub mod environment_check;
 pub mod keychain_store;
 pub mod presets;
 pub mod provider_catalog;
@@ -118,6 +119,15 @@ fn restore_last_backup() -> Result<config_restore::RestoreOutcome, CommandError>
         .map_err(|e| CommandError::io(e.to_string()))
 }
 
+/// T36 contract: environment diagnostics (CLI presence/version, settings state).
+#[tauri::command]
+fn check_environment() -> Result<environment_check::EnvironmentReport, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    Ok(environment_check::check_environment(&home, None))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -126,7 +136,8 @@ pub fn run() {
             list_providers,
             save_and_apply,
             read_status,
-            restore_last_backup
+            restore_last_backup,
+            check_environment
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
