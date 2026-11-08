@@ -3,6 +3,7 @@ import { ApiKeyField } from "./components/ApiKeyField";
 import { BridgeBadge, CapabilityBadge } from "./components/CapabilityBadge";
 import { FieldRow } from "./components/FieldRow";
 import { LoadingButton } from "./components/LoadingButton";
+import { ModelList } from "./components/ModelList";
 import { Section } from "./components/Section";
 import { StatusBanner } from "./components/StatusBanner";
 import {
@@ -87,12 +88,14 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [fetchingModels, setFetchingModels] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
   const [modelsFetchedFor, setModelsFetchedFor] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
 
   async function handleFetchModels() {
     if (selected === null || isCustom) return;
     setFetchingModels(true);
     setModelsError(null);
     setModelsFetchedFor(null);
+    setSelectedModel(null); // a fresh catalog never inherits a selection
     try {
       // Pass the typed key only if the catalog needs it; otherwise the
       // backend resolves the stored credential itself.
@@ -441,24 +444,29 @@ export default function App({ ipc = defaultIpc }: AppProps) {
         </div>
         {modelsFetchedFor !== null &&
           (models !== null && models.length > 0 ? (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {models.length} models discovered. Selection UI arrives with the next task; nothing is
-              auto-selected.
-            </p>
+            <div className="mb-2">
+              <ModelList
+                models={models}
+                selectedId={selectedModel}
+                onSelect={(id) => setSelectedModel(id)}
+              />
+            </div>
           ) : (
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Catalog returned no models — manual Model ID entry arrives with the next task.
+              Catalog returned no models — use manual Model ID entry below.
             </p>
           ))}
         <FieldRow
           label="Model"
           htmlFor="model-input"
-          hint="Model discovery and selection arrive with the model milestone; nothing is ever auto-selected."
+          hint="Selected from the catalog or entered manually; never auto-selected."
         >
           <input
             id="model-input"
             type="text"
-            disabled
+            value={selectedModel ?? ""}
+            readOnly={models !== null && models.length > 0}
+            disabled={models === null || models.length === 0}
             placeholder="provider-model-id"
             className={inputClass}
           />

@@ -497,9 +497,10 @@ describe("Model discovery states (T39)", () => {
     await userEvent.selectOptions(select, "openrouter");
     expect(fetchBtn).toBeEnabled();
     await userEvent.click(fetchBtn);
-    expect(await screen.findByText(/2 models discovered/)).toBeInTheDocument();
-    // Never auto-selected: the model input stays disabled/empty.
-    expect(screen.getByLabelText("Model", { selector: "input" })).toBeDisabled();
+    expect(await screen.findByLabelText("Discovered models")).toBeInTheDocument();
+    // Never auto-selected: no option selected, input shows no value.
+    expect(document.querySelectorAll("[aria-selected='true']")).toHaveLength(0);
+    expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("");
   });
 
   it("shows an error banner on discovery failure with retry available", async () => {
@@ -521,6 +522,57 @@ describe("Model discovery states (T39)", () => {
     await userEvent.selectOptions(select, "openrouter");
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
     expect(await screen.findByText(/Catalog returned no models/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Model", { selector: "input" })).toBeDisabled();
+  });
+});
+
+describe("Model selection (T40)", () => {
+  function mockWithModels(models: ModelEntry[]) {
+    return createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        check_environment: () =>
+          Promise.resolve({
+            cliFound: true,
+            cliVersion: "2.1.246",
+            cliVersionWarning: null,
+            settingsState: "ok",
+            settingsDetail: null,
+            configDirWritable: true,
+          }),
+        discover_models: () => Promise.resolve(models),
+      },
+    });
+  }
+
+  const catalog: ModelEntry[] = [
+    { id: "model-a", displayName: "Model A", capabilityStatus: "unknown" },
+    { id: "model-b", displayName: null, capabilityStatus: "unknown" },
+  ];
+
+  it("explicit click selects a model and shows it in the Model field", async () => {
+    const ipc = mockWithModels(catalog);
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "openrouter");
+    await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
+    await screen.findByLabelText("Discovered models");
+    expect(document.querySelectorAll("[aria-selected='true']")).toHaveLength(0);
+    await userEvent.click(screen.getByRole("option", { name: /model-a/ }));
+    expect(await screen.findByLabelText("Model", { selector: "input" })).toHaveValue("model-a");
+  });
+
+  it("re-fetch resets any previous selection (no cross-provider inheritance)", async () => {
+    const ipc = mockWithModels(catalog);
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "openrouter");
+    await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
+    await userEvent.click(await screen.findByRole("option", { name: /model-a/ }));
+    expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("model-a");
+    await userEvent.click(screen.getByRole("button", { name: "Fetch models" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("");
+    });
   });
 });
