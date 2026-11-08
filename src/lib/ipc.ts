@@ -163,6 +163,8 @@ export interface ModelEntry {
   displayName: string | null;
   /** Always "unknown" at discovery time — never invented (F12). */
   capabilityStatus: "unknown";
+  /** Provenance: the verified catalog URL this record was read from (T42). */
+  source: string;
 }
 
 export async function discoverModels(

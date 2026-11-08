@@ -31,6 +31,9 @@ pub struct ModelEntry {
     pub display_name: Option<String>,
     /// Always `unknown` at discovery time — capabilities are never invented.
     pub capability_status: &'static str,
+    /// Provenance of this record: the verified catalog URL it was read from
+    /// (never a guess, never a synthesized capability source).
+    pub source: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -150,6 +153,9 @@ pub fn fetch_models(
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
             capability_status: "unknown",
+            // Provenance is the verified template endpoint, not the payload's
+            // self-description (a hostile catalog cannot claim its own source).
+            source: url.clone(),
         });
     }
     Ok(out)
@@ -278,6 +284,42 @@ mod tests {
         assert_eq!(models[1].display_name.as_deref(), Some("B"));
         // Capability claims are never invented.
         assert_eq!(models[0].capability_status, "unknown");
+        // Provenance is the verified template endpoint for every entry (T42).
+        let expected_source = match &spec {
+            DiscoverySpec::Endpoint { url, .. } => url.clone(),
+            DiscoverySpec::None => panic!("endpoint spec expected"),
+        };
+        for model in &models {
+            assert_eq!(model.source, expected_source);
+            assert_eq!(model.capability_status, "unknown");
+        }
+    }
+
+    #[test]
+    fn source_is_template_url_not_payload_claim() {
+        // A hostile catalog cannot set its own provenance: the `source` key in
+        // the body is ignored and the verified template URL is reported.
+        let url = spawn_one_shot(
+            "HTTP/1.1 200 OK\r\n\r\n{\"data\":[{\"id\":\"m\",\"source\":\"https://evil.example.com\",\"context_window\":999999}]}"
+                .to_string(),
+        );
+        let spec = DiscoverySpec::Endpoint {
+            url: url.clone(),
+            requires_auth: false,
+            list_selector: "data".into(),
+        };
+        let models = fetch_models(&spec, AuthStyle::ApiKey, None).expect("fetch");
+        assert_eq!(models[0].source, url, "source must be the verified endpoint");
+        assert!(!models[0].source.contains("evil.example.com"));
+        // No capability fields are carried at all — the wire shape is fixed.
+        let json = serde_json::to_value(&models[0]).expect("serialize");
+        assert_eq!(json["capabilityStatus"], "unknown");
+        assert!(json.get("contextWindow").is_none());
+        assert_eq!(
+            json.as_object().expect("object").len(),
+            4,
+            "id/displayName/capabilityStatus/source only"
+        );
     }
 
     #[test]

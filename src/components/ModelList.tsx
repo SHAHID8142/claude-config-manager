@@ -13,6 +13,11 @@ export interface ModelListProps {
 export function ModelList({ models, selectedId, onSelect }: ModelListProps) {
   const [query, setQuery] = useState("");
 
+  // Every entry in one catalog shares the same verified source (T42); we show
+  // it as provenance and never infer capability data from it.
+  const rawSource = models[0]?.source ?? "";
+  const source = rawSource.trim() === "" ? "unknown" : rawSource;
+
   const q = query.trim().toLowerCase();
   const filtered = q
     ? models.filter(
@@ -38,6 +43,10 @@ export function ModelList({ models, selectedId, onSelect }: ModelListProps) {
       <p id="model-search-hint" className="text-xs text-zinc-500 dark:text-zinc-400">
         {filtered.length} of {models.length} models shown. Click a model to select it — nothing is
         selected automatically.
+      </p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        Metadata source: <span className="font-mono">{source}</span> · capability data unverified
+        (unknown for every model).
       </p>
       {filtered.length === 0 ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400" role="status">

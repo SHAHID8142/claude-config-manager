@@ -487,8 +487,18 @@ describe("Model discovery states (T39)", () => {
 
   it("fetch button disabled without provider, enabled with one; success shows count", async () => {
     const ipc = mockWithModels([
-      { id: "model-a", displayName: "Model A", capabilityStatus: "unknown" },
-      { id: "model-b", displayName: null, capabilityStatus: "unknown" },
+      {
+        id: "model-a",
+        displayName: "Model A",
+        capabilityStatus: "unknown",
+        source: "https://openrouter.ai/api/v1/models",
+      },
+      {
+        id: "model-b",
+        displayName: null,
+        capabilityStatus: "unknown",
+        source: "https://openrouter.ai/api/v1/models",
+      },
     ]);
     render(<App ipc={ipc} />);
     const fetchBtn = await screen.findByRole("button", { name: "Fetch models" });
@@ -546,8 +556,18 @@ describe("Model selection (T40)", () => {
   }
 
   const catalog: ModelEntry[] = [
-    { id: "model-a", displayName: "Model A", capabilityStatus: "unknown" },
-    { id: "model-b", displayName: null, capabilityStatus: "unknown" },
+    {
+      id: "model-a",
+      displayName: "Model A",
+      capabilityStatus: "unknown",
+      source: "https://openrouter.ai/api/v1/models",
+    },
+    {
+      id: "model-b",
+      displayName: null,
+      capabilityStatus: "unknown",
+      source: "https://openrouter.ai/api/v1/models",
+    },
   ];
 
   it("explicit click selects a model and shows it in the Model field", async () => {
@@ -652,12 +672,62 @@ describe("Manual Model ID entry (T41)", () => {
   });
 
   it("stays read-only while a populated catalog is displayed (T40 path)", async () => {
-    const ipc = baseMock([{ id: "m-1", displayName: null, capabilityStatus: "unknown" }]);
+    const ipc = baseMock([
+      {
+        id: "m-1",
+        displayName: null,
+        capabilityStatus: "unknown",
+        source: "https://openrouter.ai/api/v1/models",
+      },
+    ]);
     render(<App ipc={ipc} />);
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "openrouter");
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
     await screen.findByLabelText("Discovered models");
     expect(screen.getByLabelText("Model", { selector: "input" })).toHaveAttribute("readonly");
+  });
+});
+
+describe("Model metadata provenance (T42)", () => {
+  const CATALOG_URL = "https://openrouter.ai/api/v1/models";
+
+  it("labels a typed model id as manual entry with unverified capabilities", async () => {
+    render(<App ipc={mockWithProviders()} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "zai");
+    await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "glm-4.6");
+
+    expect(screen.getByText(/Source: manual entry/)).toBeInTheDocument();
+    expect(screen.getByText(/capability data unverified/)).toBeInTheDocument();
+    // The manual label never claims a catalog served this id.
+    expect(screen.queryByText(CATALOG_URL)).not.toBeInTheDocument();
+  });
+
+  it("shows the verified catalog as provenance once discovery succeeds", async () => {
+    const ipc = mockWithProviders();
+    ipc.on("discover_models", () =>
+      Promise.resolve([
+        { id: "m-1", displayName: null, capabilityStatus: "unknown", source: CATALOG_URL },
+      ]),
+    );
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "openrouter");
+    await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
+
+    await screen.findByLabelText("Discovered models");
+    expect(screen.getByText(CATALOG_URL)).toBeInTheDocument();
+    expect(screen.getByText(/capability data unverified/)).toBeInTheDocument();
+    // No manual-entry label while a catalog is displayed.
+    expect(screen.queryByText(/Source: manual entry/)).not.toBeInTheDocument();
+  });
+
+  it("does not invent capability values in the manual path", async () => {
+    render(<App ipc={mockWithProviders()} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "zai");
+    await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "glm-4.6");
+    expect(document.body.textContent).not.toMatch(/context window|vision|reasoning|tokens/i);
   });
 });

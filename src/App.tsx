@@ -479,6 +479,13 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             className={inputClass}
           />
         </FieldRow>
+        {selectedModel !== null &&
+          selectedModel.trim() !== "" &&
+          (models === null || models.length === 0) && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Source: manual entry · capability data unverified (unknown).
+            </p>
+          )}
       </Section>
 
       <Section title="Actions">

@@ -3,10 +3,27 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ModelList } from "./ModelList";
 
+const CATALOG_SOURCE = "https://openrouter.ai/api/v1/models";
+
 const models = [
-  { id: "anthropic/claude-x", displayName: "Claude X", capabilityStatus: "unknown" as const },
-  { id: "deepseek/deepseek-y", displayName: null, capabilityStatus: "unknown" as const },
-  { id: "openai/gpt-z", displayName: "GPT Z", capabilityStatus: "unknown" as const },
+  {
+    id: "anthropic/claude-x",
+    displayName: "Claude X",
+    capabilityStatus: "unknown" as const,
+    source: CATALOG_SOURCE,
+  },
+  {
+    id: "deepseek/deepseek-y",
+    displayName: null,
+    capabilityStatus: "unknown" as const,
+    source: CATALOG_SOURCE,
+  },
+  {
+    id: "openai/gpt-z",
+    displayName: "GPT Z",
+    capabilityStatus: "unknown" as const,
+    source: CATALOG_SOURCE,
+  },
 ];
 
 describe("ModelList (T40)", () => {
@@ -48,5 +65,27 @@ describe("ModelList (T40)", () => {
     const selected = document.querySelectorAll("[aria-selected='true']");
     expect(selected).toHaveLength(1);
     expect(selected[0]).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+describe("Model metadata provenance (T42)", () => {
+  it("shows the verified catalog source and keeps capability data unknown", () => {
+    render(<ModelList models={models} selectedId={null} onSelect={() => {}} />);
+    expect(screen.getByText(CATALOG_SOURCE)).toBeInTheDocument();
+    expect(screen.getByText(/capability data unverified/)).toBeInTheDocument();
+    // No invented capability values anywhere in the rendered surface (F12).
+    expect(document.body.textContent).not.toMatch(/context window|vision|reasoning|tokens/i);
+  });
+
+  it("labels a missing source as unknown instead of guessing", () => {
+    render(
+      <ModelList
+        models={[{ id: "m", displayName: null, capabilityStatus: "unknown", source: "  " }]}
+        selectedId={null}
+        onSelect={() => {}}
+      />,
+    );
+    expect(screen.getByText("unknown")).toBeInTheDocument();
+    expect(screen.queryByText(CATALOG_SOURCE)).not.toBeInTheDocument();
   });
 });
