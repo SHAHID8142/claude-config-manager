@@ -14,6 +14,7 @@ pub mod config_backup;
 pub mod config_locator;
 pub mod config_merge;
 pub mod config_reader;
+pub mod config_status;
 pub mod config_writer;
 pub mod credential_handoff;
 pub mod credential_service;
@@ -94,13 +95,24 @@ fn save_and_apply(
     })
 }
 
+/// T34 contract: read-back effective status with override warnings.
+#[tauri::command]
+fn read_status() -> Result<config_status::EffectiveStatus, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let path = config_locator::ConfigLocator::new().locate(&home, None);
+    config_status::read_effective_status(&path).map_err(|e| CommandError::io(e.to_string()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             greet,
             list_providers,
-            save_and_apply
+            save_and_apply,
+            read_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

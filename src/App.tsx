@@ -8,11 +8,14 @@ import { StatusBanner } from "./components/StatusBanner";
 import {
   defaultIpc,
   listProviders,
+  readStatus,
   saveAndApply,
   isCommandError,
   type ApplyOutcome,
+  type EffectiveStatus,
   type IpcLike,
   type ProviderSummary,
+  type StatusWarning,
 } from "./lib/ipc";
 import { classifyEndpoint, endpointCheckMessage } from "./lib/endpoint";
 import { focusRing } from "./lib/focus";
@@ -25,6 +28,29 @@ const secondaryButtonClass = `rounded-md border border-zinc-300 px-3 py-1.5 text
  * custom entry and the empty state use dedicated sentinels. */
 const CUSTOM_ID = "__custom__";
 const EMPTY_ID = "__none__";
+
+/** Honest mode label from the effective status (never fabricated). */
+function modeLabel(status: EffectiveStatus | null): string {
+  if (status === null) return "unknown";
+  if (!status.settingsFound) return "not configured";
+  if (status.apiKeyHelper !== null) return "direct (Keychain helper)";
+  if (status.apiKeyPresent || status.authTokenPresent) return "direct (plaintext env)";
+  return "not configured";
+}
+
+/** Warning text derived from the typed wire shape. */
+function warningText(w: StatusWarning): string {
+  if ("helperShadowedByEnv" in w) {
+    return "apiKeyHelper is shadowed by a plaintext env credential — remove the env key to use the helper.";
+  }
+  if ("plaintextKeyInEnv" in w) {
+    return `${w.plaintextKeyInEnv.which} is stored in plaintext inside settings.json.`;
+  }
+  if ("modelConflict" in w) {
+    return `Model conflict: settings say "${w.modelConflict.settingModel}" but ANTHROPIC_MODEL says "${w.modelConflict.envModel}" (env wins).`;
+  }
+  return "Unknown warning";
+}
 
 export interface AppProps {
   /** Transport seam for tests; production uses the Tauri runtime. */
@@ -46,6 +72,21 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [applying, setApplying] = useState(false);
   const [applyOutcome, setApplyOutcome] = useState<ApplyOutcome | null>(null);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [status, setStatus] = useState<EffectiveStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    readStatus(ipc)
+      .then((s) => {
+        if (!cancelled) setStatus(s);
+      })
+      .catch(() => {
+        /* Status is best-effort; a failed read keeps the honest empty state. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ipc, applyOutcome]);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,7 +148,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           aria-label="Connection mode"
           className="rounded-full border border-zinc-300 px-2 py-0.5 text-xs text-zinc-500 dark:border-zinc-600 dark:text-zinc-400"
         >
-          mode: not configured
+          mode: {modeLabel(status)}
         </span>
       </header>
 
@@ -120,10 +161,52 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       )}
 
       <Section title="Active configuration">
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          No configuration loaded yet. Settings reading arrives with the configuration-safety
-          milestone.
-        </p>
+        {status === null ? (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Reading current configuration…</p>
+        ) : status.settingsFound ? (
+          <div className="flex flex-col gap-1 text-sm">
+            <p className="text-zinc-700 dark:text-zinc-200">
+              Model:{" "}
+              <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+                {status.envModel ?? status.model ?? "not set"}
+              </code>
+              {status.model !== null &&
+                status.envModel !== null &&
+                status.model !== status.envModel && (
+                  <span className="ml-1 text-xs text-amber-700 dark:text-amber-300">
+                    (settings value overridden by ANTHROPIC_MODEL env)
+                  </span>
+                )}
+            </p>
+            {status.envBaseUrl !== null && (
+              <p className="text-zinc-700 dark:text-zinc-200">
+                Endpoint:{" "}
+                <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+                  {status.envBaseUrl}
+                </code>
+              </p>
+            )}
+            <p className="text-zinc-700 dark:text-zinc-200">
+              Credential:{" "}
+              {status.apiKeyHelper !== null
+                ? "Keychain via apiKeyHelper"
+                : status.apiKeyPresent || status.authTokenPresent
+                  ? "plaintext env (see warning)"
+                  : "none"}
+            </p>
+            {status.warnings.length > 0 && (
+              <ul className="mt-1 list-inside list-disc text-xs text-amber-700 dark:text-amber-300">
+                {status.warnings.map((w, i) => (
+                  <li key={i}>{warningText(w)}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            No settings file yet — the first Save &amp; Apply creates it.
+          </p>
+        )}
       </Section>
 
       <Section title="Provider">

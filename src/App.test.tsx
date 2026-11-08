@@ -4,10 +4,25 @@ import userEvent from "@testing-library/user-event";
 import App from "./App";
 import { createMockIpc } from "./lib/ipc-mock";
 import { providerSummaryFixtures } from "./lib/fixtures/providers";
+import type { EffectiveStatus } from "./lib/ipc";
 
-function mockWithProviders() {
+const statusFixture: EffectiveStatus = {
+  settingsFound: true,
+  model: "claude-sonnet-4-5",
+  envModel: null,
+  envBaseUrl: null,
+  authTokenPresent: false,
+  apiKeyPresent: false,
+  apiKeyHelper: "/app/helpers/anthropic.sh",
+  warnings: [],
+};
+
+function mockWithProviders(status = statusFixture) {
   return createMockIpc({
-    handlers: { list_providers: () => Promise.resolve(providerSummaryFixtures) },
+    handlers: {
+      list_providers: () => Promise.resolve(providerSummaryFixtures),
+      read_status: () => Promise.resolve(status),
+    },
   });
 }
 
@@ -18,7 +33,7 @@ describe("App shell (T12/T14 regression)", () => {
     for (const section of ["Active configuration", "Provider", "Model", "Actions"]) {
       expect(screen.getByRole("region", { name: section })).toBeInTheDocument();
     }
-    expect(screen.getByText("mode: not configured")).toBeInTheDocument();
+    expect(await screen.findByText(/mode: direct \(Keychain helper\)/)).toBeInTheDocument();
   });
 
   it("keeps unwired controls disabled with honest placeholders", async () => {
@@ -71,7 +86,8 @@ describe("Provider selector (T18)", () => {
       "NVIDIA NIM",
       "Custom…",
     ]);
-    expect(ipc.calls.map((c) => c.cmd)).toEqual(["list_providers"]);
+    // read_status fires first (status effect), then the catalog loads.
+    expect(ipc.calls.map((c) => c.cmd).sort()).toEqual(["list_providers", "read_status"]);
   });
 
   it("selecting a preset shows capability and connection badges (T25)", async () => {
@@ -250,5 +266,87 @@ describe("Save & Apply (T33)", () => {
     await waitFor(() => expect(calls).toHaveLength(2));
     expect(calls[1].providerId).toBe("custom");
     expect(calls[1].baseUrl).toBe("https://gw.example.com");
+  });
+});
+
+describe("Effective status + override warnings (T34)", () => {
+  it("shows first-run state when no settings file exists", async () => {
+    const ipc = mockWithProviders({
+      ...statusFixture,
+      settingsFound: false,
+      model: null,
+      apiKeyHelper: null,
+    });
+    render(<App ipc={ipc} />);
+    expect(await screen.findByText(/No settings file yet/)).toBeInTheDocument();
+    expect(await screen.findByText(/mode: not configured/)).toBeInTheDocument();
+  });
+
+  it("warns when apiKeyHelper is shadowed by a plaintext env key", async () => {
+    const ipc = mockWithProviders({
+      ...statusFixture,
+      apiKeyPresent: true,
+      warnings: [
+        { helperShadowedByEnv: null },
+        { plaintextKeyInEnv: { which: "ANTHROPIC_API_KEY" } },
+      ],
+    });
+    render(<App ipc={ipc} />);
+    expect(
+      await screen.findByText(/apiKeyHelper is shadowed by a plaintext env credential/),
+    ).toBeInTheDocument();
+    expect(await screen.findByText(/ANTHROPIC_API_KEY is stored in plaintext/)).toBeInTheDocument();
+  });
+
+  it("warns on model conflict with env override", async () => {
+    const ipc = mockWithProviders({
+      ...statusFixture,
+      model: "claude-x",
+      envModel: "claude-y",
+      warnings: [{ modelConflict: { settingModel: "claude-x", envModel: "claude-y" } }],
+    });
+    render(<App ipc={ipc} />);
+    expect(
+      await screen.findByText(
+        /Model conflict: settings say "claude-x" but ANTHROPIC_MODEL says "claude-y" \(env wins\)/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("discloses current endpoint without treating it as a secret", async () => {
+    const ipc = mockWithProviders({
+      ...statusFixture,
+      envBaseUrl: "http://127.0.0.1:31415",
+    });
+    render(<App ipc={ipc} />);
+    expect(await screen.findByText(/Endpoint:/)).toBeInTheDocument();
+    expect(screen.getByText("http://127.0.0.1:31415")).toBeInTheDocument();
+  });
+
+  it("refreshes status after a successful apply", async () => {
+    let statusCallCount = 0;
+    const ipc = createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => {
+          statusCallCount += 1;
+          return Promise.resolve(statusFixture);
+        },
+        save_and_apply: () =>
+          Promise.resolve({
+            settingsPath: "/tmp/x",
+            backupFileName: "settings-backup-1.json",
+            helperPath: "/tmp/h",
+            appliedKeys: ["model"],
+          }),
+      },
+    });
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await waitFor(() => expect(statusCallCount).toBe(1));
+    await userEvent.selectOptions(select, "anthropic");
+    await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-x");
+    await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
+    await waitFor(() => expect(statusCallCount).toBeGreaterThanOrEqual(2));
   });
 });

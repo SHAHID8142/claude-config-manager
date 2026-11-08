@@ -98,3 +98,27 @@ export async function saveAndApply(
     apiKey: args.apiKey ?? null,
   });
 }
+
+// ---------------------------------------------------------------------------
+// `read_status` (T34) — effective-config read-back with override warnings.
+// ---------------------------------------------------------------------------
+
+export type StatusWarning =
+  | { helperShadowedByEnv: null }
+  | { plaintextKeyInEnv: { which: string } }
+  | { modelConflict: { settingModel: string; envModel: string } };
+
+export interface EffectiveStatus {
+  settingsFound: boolean;
+  model: string | null;
+  envModel: string | null;
+  envBaseUrl: string | null;
+  authTokenPresent: boolean;
+  apiKeyPresent: boolean;
+  apiKeyHelper: string | null;
+  warnings: StatusWarning[];
+}
+
+export async function readStatus(ipc: IpcLike = defaultIpc): Promise<EffectiveStatus> {
+  return ipc.invoke<EffectiveStatus>("read_status");
+}
