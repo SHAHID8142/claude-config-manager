@@ -134,6 +134,28 @@ mod tests {
         assert_eq!(err, DiscoveryError::CredentialRequired);
     }
 
+    /// Live verification against NVIDIA NIM's documented public catalog
+    /// (`requires_auth: false` in the preset). Opt-in (network):
+    /// `cargo test live_nvidia_nim -- --ignored --nocapture`
+    #[test]
+    #[ignore = "live network test — run manually"]
+    fn live_nvidia_nim_catalog() {
+        let models = discover_for_provider("nvidia-nim", None, None).expect("live fetch");
+        assert!(!models.is_empty(), "public catalog must list models");
+        assert!(models.iter().all(|m| m.capability_status == "unknown"));
+        assert!(
+            models
+                .iter()
+                .all(|m| m.source == "https://integrate.api.nvidia.com/v1/models"),
+            "provenance must be the verified template endpoint (T42)"
+        );
+        println!(
+            "live NVIDIA NIM catalog: {} models, first: {:?}",
+            models.len(),
+            models.first().map(|m| &m.id)
+        );
+    }
+
     /// Live verification against the documented public OpenRouter catalog.
     /// Opt-in (network): `cargo test live_openrouter -- --ignored --nocapture`
     #[test]

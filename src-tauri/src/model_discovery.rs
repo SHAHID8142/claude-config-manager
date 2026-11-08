@@ -309,7 +309,10 @@ mod tests {
             list_selector: "data".into(),
         };
         let models = fetch_models(&spec, AuthStyle::ApiKey, None).expect("fetch");
-        assert_eq!(models[0].source, url, "source must be the verified endpoint");
+        assert_eq!(
+            models[0].source, url,
+            "source must be the verified endpoint"
+        );
         assert!(!models[0].source.contains("evil.example.com"));
         // No capability fields are carried at all — the wire shape is fixed.
         let json = serde_json::to_value(&models[0]).expect("serialize");

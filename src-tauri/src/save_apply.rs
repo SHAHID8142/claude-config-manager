@@ -404,8 +404,13 @@ mod tests {
         let svc = service(&home, store);
 
         // Padded id: validated AND written in trimmed form (T43).
-        svc.apply("anthropic", Some("  claude-sonnet-4-5  "), None, Some(FAKE_KEY))
-            .expect("apply padded");
+        svc.apply(
+            "anthropic",
+            Some("  claude-sonnet-4-5  "),
+            None,
+            Some(FAKE_KEY),
+        )
+        .expect("apply padded");
         let doc: Value =
             serde_json::from_str(&fs::read_to_string(&settings).expect("read")).expect("json");
         assert_eq!(
