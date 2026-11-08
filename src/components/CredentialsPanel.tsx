@@ -51,7 +51,7 @@ export function CredentialsPanel({
           {credentials.map((c) => (
             <li
               key={c.id}
-              className="flex items-center gap-2 rounded-md border border-line bg-surface-raised px-2 py-1.5"
+              className="flex items-center gap-2 rounded-md border border-control bg-surface px-2 py-1.5"
             >
               <KeyRound aria-hidden="true" className="size-3.5 shrink-0 text-ink-subtle" />
               <span className="min-w-0 flex-1 truncate text-[12.5px] text-ink">{c.label}</span>
@@ -116,7 +116,7 @@ export function CredentialsPanel({
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Label (e.g. work)"
-            className="w-32 shrink-0 rounded border border-line bg-surface-raised px-2 py-1 text-[12px] text-ink placeholder:text-ink-subtle"
+            className="w-32 shrink-0 rounded border border-control bg-surface px-2 py-1 text-[12px] text-ink placeholder:text-ink-subtle"
           />
           <label htmlFor="new-credential-secret" className="sr-only">
             New API key
@@ -129,7 +129,7 @@ export function CredentialsPanel({
             placeholder="Paste key"
             autoComplete="off"
             spellCheck={false}
-            className="min-w-0 flex-1 rounded border border-line bg-surface-raised px-2 py-1 font-mono text-[12px] text-ink placeholder:text-ink-subtle"
+            className="min-w-0 flex-1 rounded border border-control bg-surface px-2 py-1 font-mono text-[12px] text-ink placeholder:text-ink-subtle"
           />
           <button
             type="button"

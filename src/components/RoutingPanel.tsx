@@ -36,7 +36,7 @@ export interface RoutingPanelProps {
 }
 
 const inputClass =
-  "h-8 w-full rounded-md border border-line bg-surface px-2 text-[12.5px] text-ink placeholder:text-ink-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-app";
+  "h-8 w-full rounded-[6px] border border-control bg-surface px-2 text-[12.5px] text-ink placeholder:text-ink-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-app";
 
 function reorder(targets: RouteTarget[], from: number, to: number): RouteTarget[] {
   if (to < 0 || to >= targets.length) return targets;
@@ -109,7 +109,7 @@ export function RoutingPanel({
           {onCheckHealth ? (
             <button
               type="button"
-              className="h-7 rounded-md border border-line px-2 text-[12px] text-ink hover:bg-surface-sunken disabled:opacity-50"
+              className="h-7 rounded-[6px] border border-control bg-surface px-2 text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
               onClick={onCheckHealth}
               disabled={busy || checking || config.targets.length === 0}
             >
@@ -118,7 +118,7 @@ export function RoutingPanel({
           ) : null}
           <button
             type="button"
-            className="h-7 rounded-md border border-line px-2 text-[12px] text-ink hover:bg-surface-sunken disabled:opacity-50"
+            className="h-7 rounded-[6px] border border-control bg-surface px-2 text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
             onClick={onSave}
             disabled={busy}
           >
@@ -139,7 +139,7 @@ export function RoutingPanel({
           {config.targets.map((t, i) => (
             <li
               key={t.id}
-              className="flex items-center gap-2 rounded-md border border-line bg-surface-raised px-2 py-1.5"
+              className="flex items-center gap-2 rounded-md border border-control bg-surface px-2 py-1.5"
             >
               <span className="w-4 shrink-0 text-center text-[11px] tabular-nums text-ink-subtle">
                 {i + 1}
@@ -250,7 +250,7 @@ export function RoutingPanel({
       </div>
       <button
         type="button"
-        className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-line text-[12px] text-ink hover:bg-surface-sunken disabled:opacity-50"
+        className="flex h-8 items-center justify-center gap-1.5 rounded-[6px] border border-control bg-surface text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
         onClick={addTarget}
         disabled={!canAdd || busy}
       >
@@ -271,7 +271,7 @@ export function RoutingPanel({
         <div className="flex gap-2">
           <button
             type="button"
-            className="h-8 flex-1 rounded-md border border-line bg-surface text-[12px] text-ink hover:bg-surface-sunken disabled:opacity-50"
+            className="h-8 flex-1 rounded-[6px] border border-control bg-surface text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
             onClick={onStartProxy}
             disabled={busy || status?.running === true}
           >
@@ -279,7 +279,7 @@ export function RoutingPanel({
           </button>
           <button
             type="button"
-            className="h-8 flex-1 rounded-md border border-line bg-surface text-[12px] text-ink hover:bg-surface-sunken disabled:opacity-50"
+            className="h-8 flex-1 rounded-[6px] border border-control bg-surface text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
             onClick={onStopProxy}
             disabled={busy || !status?.running}
           >
@@ -287,7 +287,7 @@ export function RoutingPanel({
           </button>
           <button
             type="button"
-            className="h-8 flex-1 rounded-md bg-accent text-[12px] text-ink-on-accent hover:bg-accent-hover disabled:opacity-50"
+            className="h-8 flex-1 rounded-[6px] bg-primary text-[12px] text-on-primary hover:bg-primary-hover disabled:opacity-50"
             onClick={onApplyRouted}
             disabled={busy || !config.enabled || config.targets.length === 0}
           >

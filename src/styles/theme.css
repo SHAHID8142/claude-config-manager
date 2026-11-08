@@ -8,21 +8,32 @@
   color-scheme: light;
 
   /* surfaces */
-  --app-bg: #fbfaf8;
+  /* Warm stone ground chosen from the product's world (a desktop tool for a
+     warm-toned CLI), one level off white; panels are white with no shadow. */
+  --app-bg: #f5f3ef;
   --surface: #ffffff;
-  --surface-muted: #f6f4f1;
+  --surface-muted: #faf9f6;
   --surface-sunken: #f1eeea;
   --surface-hover: #f4f1ed;
+  /* Settings panels: one tone step from the ground, never a border + shadow. */
+  --panel: #fbfaf8;
 
   /* lines */
-  --line: #e7e2db;
-  --line-strong: #d7d1c8;
+  --line: #e6e1d8;
+  --line-strong: #d5cfc5;
+  /* Control borders sit one step darker than a panel edge. */
+  --control: #d3ccc2;
 
   /* ink */
   --ink: #1b1a19;
   --ink-muted: #6b6661;
   --ink-subtle: #6f6a64;
   --ink-on-accent: #ffffff;
+  /* The one primary action is near-black, not the accent: the accent is kept
+     for data and the selected mark (achromatic-ledger move). */
+  --primary: #1f1e1c;
+  --primary-hover: #35332f;
+  --on-primary: #ffffff;
 
   /* accent + state */
   --accent: #b85731;
@@ -58,14 +69,19 @@
   --surface-muted: #23211f;
   --surface-sunken: #171615;
   --surface-hover: #262421;
+  --panel: #191817;
 
   --line: #322f2b;
   --line-strong: #433f3a;
+  --control: #4a4640;
 
   --ink: #f3f0eb;
   --ink-muted: #a9a29a;
   --ink-subtle: #9d968d;
   --ink-on-accent: #1d120d;
+  --primary: #f3f0eb;
+  --primary-hover: #ffffff;
+  --on-primary: #1a1918;
 
   --accent: #e58a69;
   --accent-hover: #f09b7b;
@@ -89,6 +105,11 @@
   --color-surface-hover: var(--surface-hover);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-control: var(--control);
+  --color-panel: var(--panel);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-ink-subtle: var(--ink-subtle);

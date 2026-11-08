@@ -67,7 +67,7 @@ export function ApiKeyField({
         spellCheck={false}
         placeholder="••••••••••••"
         aria-describedby={describedBy}
-        className={`w-full rounded-md border border-line bg-surface-raised px-3 py-2 font-mono text-sm text-ink-muted placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:opacity-50 dark:border-line dark:bg-surface-raised dark:text-ink ${focusRing}`}
+        className={`w-full rounded-md border border-control bg-surface px-3 py-2 font-mono text-sm text-ink-muted placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
       />
       <button
         type="button"

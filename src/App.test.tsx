@@ -101,13 +101,13 @@ describe("Provider selector (T18)", () => {
       "NVIDIA NIM",
       "Custom…",
     ]);
-    // read_status fires first (status effect), the catalog loads, and the
-    // auto-selected provider then asks whether a key is stored (V2-12a).
+    // Through the first paint only the shell probes run. The credential
+    // commands are deliberately absent: "__none__" is a UI sentinel, not a
+    // provider id, and asking the backend for it produced a red
+    // "invalid provider id" banner on first launch.
     expect(ipc.calls.map((c) => c.cmd).sort()).toEqual([
       "check_environment",
       "get_routing",
-      "has_credential",
-      "list_credentials",
       "list_providers",
       "proxy_status",
       "read_status",

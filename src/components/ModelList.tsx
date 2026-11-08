@@ -45,7 +45,7 @@ export function ModelList({ models, selectedId, onSelect }: ModelListProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Filter by id or name"
-          className={`w-full rounded-md border border-line bg-surface-raised py-1.5 pr-2.5 pl-8 text-[12.5px] text-ink placeholder:text-ink-subtle ${focusRing}`}
+          className={`w-full rounded-md border border-control bg-surface py-1.5 pr-2.5 pl-8 text-[12.5px] text-ink placeholder:text-ink-subtle ${focusRing}`}
           aria-describedby="model-search-hint"
         />
       </div>
@@ -60,7 +60,7 @@ export function ModelList({ models, selectedId, onSelect }: ModelListProps) {
       ) : (
         <ul
           aria-label="Discovered models"
-          className="max-h-56 overflow-y-auto rounded-md border border-line bg-surface-raised"
+          className="max-h-56 overflow-y-auto rounded-md border border-control bg-surface"
         >
           {filtered.map((m) => {
             const isSelected = m.id === selectedId;

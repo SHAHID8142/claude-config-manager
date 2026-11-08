@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, Settings2 } from "lucide-react";
 import { IconButton } from "./IconButton";
-import type { EffectiveStatus } from "../lib/ipc";
 import { connectionLabel } from "../lib/connectionLabel";
+import type { EffectiveStatus } from "../lib/ipc";
 import { applyTheme, loadTheme, saveTheme, type ThemeMode } from "../lib/theme";
 
 export interface AppHeaderProps {
@@ -17,7 +17,7 @@ const MODES: ReadonlyArray<{ value: ThemeMode; label: string }> = [
   { value: "dark", label: "Dark" },
 ];
 
-/** Human-readable connection state for the header pill. */
+/** Dot colour for the header pill: ok / needs attention / nothing yet. */
 function connectionTone(status: EffectiveStatus | null): string {
   if (status === null) return "bg-ink-subtle";
   if (!status.settingsFound) return "bg-ink-subtle";

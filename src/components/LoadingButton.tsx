@@ -12,8 +12,10 @@ export interface LoadingButtonProps {
 }
 
 const variants = {
-  primary: "bg-blue-600 text-white",
-  secondary: "border border-line text-ink-muted dark:border-line dark:text-ink",
+  // Near-black, not the brand hue: the accent is kept for data and the one
+  // selected mark (achromatic-ledger move).
+  primary: "bg-primary text-on-primary hover:bg-primary-hover",
+  secondary: "border border-control bg-surface text-ink hover:bg-surface-hover",
 };
 
 export function LoadingButton({
@@ -31,7 +33,7 @@ export function LoadingButton({
       onClick={onClick}
       disabled={inert}
       aria-busy={pending}
-      className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${focusRing}`}
+      className={`inline-flex h-8 items-center gap-2 rounded-[6px] px-3 text-[13px] font-medium motion-safe:transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${focusRing}`}
     >
       {pending && (
         <span

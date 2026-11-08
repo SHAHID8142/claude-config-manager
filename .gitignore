@@ -30,3 +30,5 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+# local design-review screenshots
+.taste-skill/

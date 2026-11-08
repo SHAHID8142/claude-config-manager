@@ -71,7 +71,7 @@ export function AdvancedSettings({
           >
             <input
               id="context-window-input"
-              className="w-full rounded-md border border-line bg-surface-raised px-2.5 py-1.5 font-mono text-[12.5px] text-ink outline-none focus:border-accent"
+              className="w-full rounded-[6px] border border-control bg-surface px-2.5 h-9 font-mono text-[12.5px] text-ink outline-none focus:border-accent"
               inputMode="numeric"
               placeholder="e.g. 1000000"
               value={contextWindow}
@@ -103,7 +103,7 @@ export function AdvancedSettings({
                     placeholder="No override (Claude Code default)"
                     aria-invalid={invalid}
                     aria-describedby={invalid ? `role-${key}-error` : undefined}
-                    className="w-full rounded-md border border-line bg-surface-raised px-3 py-2 text-sm text-ink-muted placeholder:text-ink-subtle dark:border-line dark:bg-surface-raised dark:text-ink"
+                    className="w-full rounded-[6px] border border-control bg-surface px-2.5 h-9 text-[13px] text-ink-muted placeholder:text-ink-subtle"
                   />
                 </FieldRow>
                 <p className="text-xs text-ink-muted">

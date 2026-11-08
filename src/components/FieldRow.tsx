@@ -22,7 +22,7 @@ export function FieldRow({ label, htmlFor, hint, children }: FieldRowProps) {
       : children;
 
   return (
-    <div className="flex flex-col gap-1.5 py-2">
+    <div className="flex flex-col gap-2 py-2">
       <label htmlFor={htmlFor} className="text-[13px] font-medium text-ink">
         {label}
       </label>

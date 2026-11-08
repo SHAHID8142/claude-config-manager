@@ -58,7 +58,7 @@ import { classifyEndpoint, endpointCheckMessage } from "./lib/endpoint";
 import { validateModelId } from "./lib/modelId";
 import { focusRing } from "./lib/focus";
 
-const inputClass = `w-full rounded-md border border-line bg-surface-raised px-3 py-2 text-sm text-ink-muted placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:opacity-50 dark:border-line dark:bg-surface-raised dark:text-ink ${focusRing}`;
+const inputClass = `h-9 w-full rounded-[6px] border border-control bg-surface px-2.5 text-[13px] text-ink placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`;
 
 /** Sentinels for the provider selector: presets use their real ids;
  * custom entry and the empty state use dedicated sentinels. */
@@ -327,7 +327,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   // exists when it does not.
   useEffect(() => {
     let cancelled = false;
-    if (selectedId === "" || selectedId === CUSTOM_ID)
+    if (selectedId === "" || selectedId === EMPTY_ID || selectedId === CUSTOM_ID)
       return () => {
         cancelled = true;
       };
@@ -346,7 +346,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   // V2-21: reload the masked credential list whenever the provider changes or a
   // mutation succeeded. A failure here must never block the rest of the screen.
   const reloadCredentials = useCallback(async () => {
-    if (selectedId === "" || selectedId === CUSTOM_ID) return;
+    if (selectedId === "" || selectedId === EMPTY_ID || selectedId === CUSTOM_ID) return;
     try {
       const list = await listCredentials(selectedId, ipc);
       setCredentials({ providerId: selectedId, list });
@@ -358,7 +358,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   }, [selectedId, ipc]);
 
   useEffect(() => {
-    if (selectedId === "" || selectedId === CUSTOM_ID) return;
+    if (selectedId === "" || selectedId === EMPTY_ID || selectedId === CUSTOM_ID) return;
     let cancelled = false;
     listCredentials(selectedId, ipc)
       .then((list) => {
@@ -377,7 +377,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   }, [selectedId, ipc]);
 
   async function handleAddCredential(label: string, secret: string) {
-    if (selectedId === "" || selectedId === CUSTOM_ID) return;
+    if (selectedId === "" || selectedId === EMPTY_ID || selectedId === CUSTOM_ID) return;
     try {
       await addCredential(selectedId, label, secret, ipc);
       setCredentialsError(null);
@@ -531,8 +531,9 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-3 bg-app px-5 pt-2 pb-24 text-ink">
+    <main className="flex min-h-screen flex-col bg-app text-ink">
       <AppHeader status={status} />
+      <div className="mx-auto flex w-full max-w-[45rem] flex-col gap-6 px-5 pt-1 pb-32">
 
       {loadError !== null && (
         <StatusBanner
@@ -567,9 +568,90 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           />
         )}
 
-      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        <div className="flex flex-col gap-3 overflow-hidden">
-          <Section title="Provider">
+      {/* The screen's answer comes first and full width: what Claude Code is
+          using right now. Every control below is an edit to one of these. */}
+      <section aria-label="Active configuration" className="rounded-[10px] bg-surface p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 truncate">
+            <p className="text-[12px] text-ink-muted">Claude Code is using</p>
+            <p className="mt-1 flex items-center gap-2 text-[14px] font-medium text-ink">
+              <span
+                aria-hidden="true"
+                className={`size-1.5 shrink-0 rounded-full ${
+                  status === null
+                    ? "bg-ink-subtle"
+                    : status.settingsFound
+                      ? status.warnings.length > 0
+                        ? "bg-warn"
+                        : "bg-ok"
+                      : "bg-ink-subtle"
+                }`}
+              />
+              {status === null
+                ? "Reading the current configuration…"
+                : status.settingsFound
+                  ? modeLabel(status)
+                  : "not configured yet"}
+            </p>
+          </div>
+          <span className="shrink-0 text-[12px] text-ink-subtle">live from settings.json</span>
+        </div>
+
+        {status !== null && status.settingsFound ? (
+          <dl className="mt-3.5 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-line pt-3.5 sm:grid-cols-4">
+            <div className="min-w-0 truncate">
+              <dt className="text-[11px] text-ink-subtle">Model</dt>
+              <dd className="mt-0.5 truncate text-[13px] text-ink" title={status.envModel ?? status.model ?? "not set"}>
+                {status.envModel ?? status.model ?? "not set"}
+              </dd>
+            </div>
+            <div className="min-w-0 truncate">
+              <dt className="text-[11px] text-ink-subtle">Endpoint</dt>
+              <dd className="mt-0.5 truncate text-[13px] text-ink" title={status.envBaseUrl ?? undefined}>
+                {status.envBaseUrl ?? "native Anthropic"}
+              </dd>
+            </div>
+            <div className="min-w-0 truncate">
+              <dt className="text-[11px] text-ink-subtle">Key</dt>
+              <dd className="mt-0.5 truncate text-[13px] text-ink">
+                {status.apiKeyHelper !== null
+                  ? "credential file"
+                  : status.apiKeyPresent || status.authTokenPresent
+                    ? "plaintext env"
+                    : "none"}
+              </dd>
+            </div>
+            <div className="min-w-0 truncate">
+              <dt className="text-[11px] text-ink-subtle">Context window</dt>
+              <dd className="mt-0.5 truncate text-[13px] tabular-nums text-ink">
+                {status.envMaxContextTokens === null
+                  ? "provider default"
+                  : `${Number(status.envMaxContextTokens).toLocaleString()} tokens`}
+              </dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="mt-3 border-t border-line pt-3.5 text-[13px] text-ink-muted">
+            {status === null
+              ? "Reading settings.json…"
+              : "No settings file yet — the first Save & Apply creates it."}
+          </p>
+        )}
+
+        {status !== null && status.settingsFound && status.warnings.length > 0 && (
+          <ul className="mt-3 flex flex-col gap-1 border-t border-line pt-3 text-[12px] text-warn">
+            {status.warnings.map((w, i) => (
+              <li key={i}>{warningText(w)}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <div className="flex flex-col gap-6">
+          <Section
+            title="Provider"
+            description="Which service Claude Code talks to, and the key it authenticates with."
+          >
             <FieldRow
               label="Provider"
               htmlFor="provider-select"
@@ -706,7 +788,10 @@ export default function App({ ipc = defaultIpc }: AppProps) {
               />
             </FieldRow>
           </Section>
-          <Section title="Credentials">
+          <Section
+            title="Credentials"
+            description="Keys stored for this provider. The first enabled one is handed to Claude Code."
+          >
             <CredentialsPanel
               credentials={credentialList}
               addDisabled={selected === null && !isCustom}
@@ -725,7 +810,10 @@ export default function App({ ipc = defaultIpc }: AppProps) {
               error={credentialsError}
             />
           </Section>
-          <Section title="Failover routing">
+          <Section
+            title="Failover routing"
+            description="An optional local proxy that tries your targets in order when one fails."
+          >
             {routing === null ? (
               <p className="text-[12.5px] text-ink-muted">Reading routing configuration…</p>
             ) : (
@@ -762,7 +850,10 @@ export default function App({ ipc = defaultIpc }: AppProps) {
               />
             )}
           </Section>
-          <Section title="Model">
+          <Section
+            title="Model"
+            description="What Claude Code asks for, the context window it assumes, and the role overrides in Advanced."
+          >
             {modelsError !== null && (
               <StatusBanner
                 severity="error"
@@ -872,58 +963,10 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             )}
           </Section>
         </div>
-        <div className="flex flex-col gap-3 overflow-hidden lg:sticky lg:top-2">
-          <Section title="Active configuration">
-            {status === null ? (
-              <p className="text-[13px] text-ink-muted">Reading current configuration…</p>
-            ) : status.settingsFound ? (
-              <dl className="flex flex-col gap-1.5 text-[13px]">
-                <div className="flex items-baseline gap-2">
-                  <dt className="w-20 shrink-0 text-ink-subtle">Model</dt>
-                  <dd className="min-w-0 truncate font-mono text-ink">
-                    {status.envModel ?? status.model ?? "not set"}
-                  </dd>
-                </div>
-                {status.envModel !== null && status.model !== status.envModel && (
-                  <p className="pl-22 text-xs text-warn">
-                    ANTHROPIC_MODEL is overriding the settings value.
-                  </p>
-                )}
-                {status.envBaseUrl !== null && (
-                  <div className="flex items-baseline gap-2">
-                    <dt className="w-20 shrink-0 text-ink-subtle">Endpoint</dt>
-                    <dd className="min-w-0 truncate text-ink-muted">{status.envBaseUrl}</dd>
-                  </div>
-                )}
-                <div className="flex items-baseline gap-2">
-                  <dt className="w-20 shrink-0 text-ink-subtle">Credential</dt>
-                  <dd className="min-w-0 break-words text-ink-muted">
-                    {status.apiKeyHelper !== null
-                      ? "credential file via apiKeyHelper"
-                      : status.apiKeyPresent || status.authTokenPresent
-                        ? "plaintext env"
-                        : "none"}
-                  </dd>
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <dt className="w-20 shrink-0 text-ink-subtle">Mode</dt>
-                  <dd className="min-w-0 break-words text-ink-muted">{modeLabel(status)}</dd>
-                </div>
-                {status.warnings.length > 0 && (
-                  <ul className="mt-1 flex flex-col gap-1 text-xs text-warn">
-                    {status.warnings.map((w, i) => (
-                      <li key={i}>{warningText(w)}</li>
-                    ))}
-                  </ul>
-                )}
-              </dl>
-            ) : (
-              <p className="text-[13px] text-ink-muted">
-                No settings file yet — the first Save &amp; Apply creates it.
-              </p>
-            )}
-          </Section>
-          <Section title="Actions">
+        <Section
+          title="Actions"
+          description="Prove the stored key works, restore a backup, or check the connection."
+        >
             {applyOutcome !== null && (
               <StatusBanner
                 severity="success"
@@ -976,64 +1019,62 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                 onDismiss={() => setConnectionTest(null)}
               />
             )}
-            {/* Fixed footer: the primary action must never be below the fold
-                (at 800x600 and 880x880 it was, which made Save & Apply invisible). */}
-            <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-app px-6 pt-2.5 pb-3">
-              <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-2">
-                {/* "Configuration applied and verified" only proves the FILE was
-                  written. This asks the provider whether the key actually works. */}
-                <LoadingButton
-                  label="Test Connection"
-                  pendingLabel="Testing…"
-                  pending={testingConnection}
-                  disabled={testDisabled}
-                  variant="secondary"
-                  onClick={() => {
-                    void handleTestConnection();
-                  }}
-                />
-                <LoadingButton
-                  label="Save & Apply"
-                  pendingLabel="Applying…"
-                  pending={applying}
-                  // One gate, one source of truth: `canApply` covers provider, key,
-                  // model validity and role-override validity (T43/T45).
-                  disabled={!canApply}
-                  variant="primary"
-                  onClick={() => {
-                    void handleApply();
-                  }}
-                />
-                <LoadingButton
-                  label="Restore last backup"
-                  pendingLabel="Restoring…"
-                  pending={restoring}
-                  onClick={() => {
-                    void handleRestore();
-                  }}
-                />
-              </div>
-            </div>
-            {selected !== null && (
-              <p className="mt-2 text-xs text-ink-muted">
-                The API key is stored in an owner-only file (0600) and handed to Claude Code via an
-                apiKeyHelper script — it is never written into settings.json.
-              </p>
-            )}
-          </Section>
-        </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <LoadingButton
+              label="Test Connection"
+              pendingLabel="Testing…"
+              pending={testingConnection}
+              disabled={testDisabled}
+              variant="secondary"
+              onClick={() => {
+                void handleTestConnection();
+              }}
+            />
+            <LoadingButton
+              label="Restore last backup"
+              pendingLabel="Restoring…"
+              pending={restoring}
+              onClick={() => {
+                void handleRestore();
+              }}
+            />
+          </div>
+          <p className="mt-3 text-[12px] leading-[1.5] text-ink-muted">
+            The API key is stored in an owner-only file (0600) and handed to Claude Code via an
+            apiKeyHelper script — it is never written into settings.json.
+          </p>
+        </Section>
       </div>
 
-      <details className="rounded-lg border border-line bg-surface-raised p-4 dark:border-line dark:bg-surface">
-        <summary
-          className={`cursor-pointer rounded-md text-sm font-semibold text-ink ${focusRing}`}
-        >
-          Advanced
-        </summary>
-        <p className="mt-2 text-sm text-ink-muted">
-          Advanced overrides arrive in a later task and default to OFF.
-        </p>
-      </details>
+      {/* Fixed footer: the primary action must never be below the fold
+          (at 800x600 and 880x880 it was, which made Save & Apply invisible). */}
+      <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-app px-5 pt-2.5 pb-3">
+        <div className="mx-auto flex max-w-[45rem] flex-wrap items-center gap-3">
+          <p className="mr-auto text-[12px] text-ink-muted">
+            {canApply
+              ? "Writes ~/.claude/settings.json after a backup."
+              : selected === null && !isCustom
+                ? "Choose a provider to enable Save & Apply."
+                : apiKey.trim() === "" && !storedCredential
+                  ? "Add a key (or store one under Credentials) to enable Save & Apply."
+                  : "Fix the highlighted field to enable Save & Apply."}
+          </p>
+          {/* "Configuration applied and verified" only proves the FILE was
+            written. This asks the provider whether the key actually works. */}
+          <LoadingButton
+            label="Save & Apply"
+            pendingLabel="Applying…"
+            pending={applying}
+            // One gate, one source of truth: `canApply` covers provider, key,
+            // model validity and role-override validity (T43/T45).
+            disabled={!canApply}
+            variant="primary"
+            onClick={() => {
+              void handleApply();
+            }}
+          />
+        </div>
+      </div>
     </main>
   );
 }
