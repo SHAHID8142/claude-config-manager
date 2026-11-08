@@ -27,6 +27,25 @@ describe("App shell (T12/T14 regression)", () => {
     expect(screen.getByLabelText("Model", { selector: "input" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Test Connection" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save & Apply" })).toBeDisabled();
+    // Show/hide toggle follows the field's disabled state (T20)
+    expect(screen.getByRole("button", { name: "Show" })).toBeDisabled();
+  });
+
+  it("enables the masked API key field once a provider is selected (T20)", async () => {
+    render(<App ipc={mockWithProviders()} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "anthropic");
+    const keyInput = screen.getByLabelText("API key", { selector: "input" });
+    expect(keyInput).toBeEnabled();
+    expect(keyInput.getAttribute("type")).toBe("password");
+    const showBtn = screen.getByRole("button", { name: "Show" });
+    expect(showBtn).toBeEnabled();
+    await userEvent.click(showBtn);
+    expect(screen.getByRole("button", { name: "Hide" })).toHaveAttribute("aria-pressed", "true");
+    const revealed = screen.getByLabelText("API key", { selector: "input" });
+    expect(revealed.getAttribute("type")).toBe("text");
+    await userEvent.type(revealed, "sk-test-fixture");
+    expect((revealed as HTMLInputElement).value).toBe("sk-test-fixture");
   });
 
   it("links field hints via aria-describedby", async () => {

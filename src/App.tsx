@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ApiKeyField } from "./components/ApiKeyField";
 import { FieldRow } from "./components/FieldRow";
 import { Section } from "./components/Section";
 import { StatusBanner } from "./components/StatusBanner";
@@ -37,6 +38,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [selectedId, setSelectedId] = useState<string>(EMPTY_ID);
   const [customName, setCustomName] = useState("");
   const [customEndpoint, setCustomEndpoint] = useState("");
+  const [apiKey, setApiKey] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -204,14 +206,17 @@ export default function App({ ipc = defaultIpc }: AppProps) {
         <FieldRow
           label="API key"
           htmlFor="api-key-input"
-          hint="Stored in the macOS Keychain when saving."
+          hint={
+            selected === null && !isCustom
+              ? "Enabled once a provider is selected."
+              : "Stored in the macOS Keychain when saving. Never written to logs or backups in plaintext."
+          }
         >
-          <input
+          <ApiKeyField
             id="api-key-input"
-            type="password"
-            disabled
-            placeholder="••••••••••••"
-            className={inputClass}
+            value={apiKey}
+            onChange={setApiKey}
+            disabled={selected === null && !isCustom}
           />
         </FieldRow>
       </Section>
