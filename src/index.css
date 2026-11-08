@@ -5,7 +5,12 @@
    query, so the UI tracks the system theme with no runtime toggle. */
 :root {
   color-scheme: light dark;
-  font-family: system-ui, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    "SF Pro Text",
+    "Segoe UI",
+    sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

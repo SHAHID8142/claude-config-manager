@@ -34,8 +34,8 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T10 CI workflow: checks, secret scan, dependency audit | ✅ (CI exec pending) | 2026-11-08 | 9b46d8f | ✓ | Workflow valid; GitHub Actions blocked by account billing lock (user action needed: github.com/settings/billing); local gates enforced per task; re-verify at T63 |
 | T11 Typed UI↔Rust command contracts with mocks | ✅ | 2026-11-08 | (T11 commit) | ✓ | CommandError {kind,message} both sides; IpcLike seam + mock; 8 TS + 4 Rust contract tests |
 | T12 Minimal single-window layout | ✅ | 2026-11-08 | (T12 commit) | ✓ | PRD main-screen shell; honest disabled states; 11/11 frontend tests |
-| T13 Light/dark system theme + responsive sizing | ⬜ | — | — | — | — |
-| T14 Accessible labels, keyboard nav, focus states | ⬜ | — | — | — | — |
+| T13 Light/dark system theme + responsive sizing | ✅ | 2026-11-08 | (T13 commit) | ✓ | prefers-color-scheme verified in build output; color-scheme light dark |
+| T14 Accessible labels, keyboard nav, focus states | ✅ | 2026-11-08 | (T14 commit) | ✓ | focusRing shared util; aria-describedby hint linkage; 14/14 tests |
 | T15 Loading/error/success feedback components | ⬜ | — | — | — | — |
 
 ## Provider and credential UX
