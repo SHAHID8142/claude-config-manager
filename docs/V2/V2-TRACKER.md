@@ -24,7 +24,7 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-15 | Advanced settings disclosure | done | next |
 | V2-16 | Light/dark themes + accessibility verification | todo | — |
 | V2-17 | App icon integration + validation | todo | — |
-| V2-18 | Credential-ID + provider-profile schemas | todo | — |
+| V2-18 | Credential-ID + provider-profile schemas | done | `docs/V2/V2-18-credential-schema.md` |
 | V2-19 | Backward-compatible credential store migration | todo | — |
 | V2-20 | Multiple credentials per provider (backend) | todo | — |
 | V2-21 | Credential management + masked selection UI | todo | — |

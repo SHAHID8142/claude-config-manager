@@ -93,7 +93,10 @@ impl DesiredSettings {
             ("ANTHROPIC_DEFAULT_HAIKU_MODEL", &self.env_default_haiku),
             ("ANTHROPIC_DEFAULT_SONNET_MODEL", &self.env_default_sonnet),
             ("ANTHROPIC_DEFAULT_OPUS_MODEL", &self.env_default_opus),
-            ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", &self.env_max_context_tokens),
+            (
+                "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+                &self.env_max_context_tokens,
+            ),
         ]
         .into_iter()
         .filter_map(|(k, v)| v.as_ref().map(|s| (k, s.as_str())))
@@ -334,8 +337,14 @@ mod tests {
         let current = obj(&[(
             "env",
             obj(&[
-                ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", Value::String("1000000".into())),
-                ("ANTHROPIC_BASE_URL", Value::String("https://openrouter.ai/api".into())),
+                (
+                    "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+                    Value::String("1000000".into()),
+                ),
+                (
+                    "ANTHROPIC_BASE_URL",
+                    Value::String("https://openrouter.ai/api".into()),
+                ),
             ]),
         )]);
         let desired = DesiredSettings {
@@ -344,7 +353,10 @@ mod tests {
         };
         let next = apply_desired(&current, &desired).expect("applies");
         assert!(next["env"].get("CLAUDE_CODE_MAX_CONTEXT_TOKENS").is_none());
-        assert_eq!(next["env"]["ANTHROPIC_BASE_URL"], "https://openrouter.ai/api");
+        assert_eq!(
+            next["env"]["ANTHROPIC_BASE_URL"],
+            "https://openrouter.ai/api"
+        );
     }
 
     #[test]
