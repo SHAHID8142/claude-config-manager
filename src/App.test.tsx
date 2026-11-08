@@ -123,6 +123,7 @@ describe("Provider selector (T18)", () => {
     // "invalid provider id" banner on first launch.
     expect(ipc.calls.map((c) => c.cmd).sort()).toEqual([
       "check_environment",
+      "config_paths",
       "get_routing",
       "helper_status",
       "list_providers",

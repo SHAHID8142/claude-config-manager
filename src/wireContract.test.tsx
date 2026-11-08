@@ -146,7 +146,10 @@ describe("real backend payloads (contract reproduction)", () => {
       screen.getByLabelText("API key", { selector: "input" }),
       "sk-test-key-1234567890",
     );
-    const applyButton = screen.getByRole("button", { name: "Save & Apply" });
+    // This payload is a routed status, so V3-25 replaces the global action:
+    // switching back to direct mode takes a deliberate second click.
+    await user.click(screen.getByRole("button", { name: "Switch to direct…" }));
+    const applyButton = screen.getByRole("button", { name: "Switch to direct" });
     await waitFor(() => expect(applyButton).toBeEnabled());
     await user.click(applyButton);
     // The app must still be interactive after an apply, not a blank tree.

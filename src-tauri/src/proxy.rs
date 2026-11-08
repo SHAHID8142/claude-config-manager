@@ -708,10 +708,31 @@ fn provider_auth_style(provider_id: &str) -> AuthStyle {
 /// Credential for a target: the named credential, else the provider's own file.
 pub fn resolve_secret(home: &std::path::Path, target: &RouteTarget) -> Option<String> {
     let vault = crate::credential_vault::CredentialVault::for_home(home);
-    if let Some(id) = &target.credential_id
-        && let Ok(Some(s)) = vault.secret(id)
-    {
-        return Some(s);
+    if let Some(id) = &target.credential_id {
+        // V3-20: a credential may only serve the provider it was stored for.
+        // Without this check a hand-edited routing.json could send provider B's
+        // key to provider A's endpoint.
+        let record = vault
+            .list(&target.provider_id)
+            .ok()
+            .and_then(|list| list.into_iter().find(|c| &c.id == id));
+        match record {
+            Some(rec) if rec.provider_id == target.provider_id && rec.enabled => {
+                if let Ok(Some(s)) = vault.secret(id) {
+                    return Some(s);
+                }
+            }
+            // Another provider's key, or a disabled one: never used.
+            Some(_) => return None,
+            None => {
+                // The index may not know it yet (fresh file, migrated install).
+                // Fall through to the provider's own legacy file only when the
+                // target's credential id *is* the provider id.
+                if id != &target.provider_id {
+                    return None;
+                }
+            }
+        }
     }
     if let Ok(Some(s)) = vault.secret(&target.provider_id) {
         return Some(s);

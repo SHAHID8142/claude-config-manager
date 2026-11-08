@@ -214,6 +214,45 @@ fn proxy_stop() -> Result<bool, CommandError> {
     helper::stop(&home).map_err(CommandError::io)
 }
 
+/// V3-26: where things actually live, so the UI never invents a path.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ConfigPaths {
+    home: String,
+    /// `~/.claude-config-manager/secrets` (0600 files, 0700 dir).
+    secrets_dir: String,
+    /// `~/.claude-config-manager/helpers` (space-free, passes the CLI's own checks).
+    helpers_dir: String,
+    /// `~/.claude-config-manager/routing.json`
+    routing_file: String,
+    /// The Claude Code settings file this app writes.
+    settings_file: String,
+    /// `~/.claude-config-manager/proxy-helper.json`
+    helper_state: String,
+}
+
+#[tauri::command]
+fn config_paths() -> Result<ConfigPaths, CommandError> {
+    let home = home_dir()?;
+    let settings = config_locator::ConfigLocator::new().locate(&home, None);
+    Ok(ConfigPaths {
+        secrets_dir: home
+            .join(".claude-config-manager")
+            .join("secrets")
+            .to_string_lossy()
+            .to_string(),
+        helpers_dir: credential_handoff::default_helpers_dir(&home)
+            .to_string_lossy()
+            .to_string(),
+        routing_file: routing_config::routing_path(&home)
+            .to_string_lossy()
+            .to_string(),
+        settings_file: settings.to_string_lossy().to_string(),
+        helper_state: helper::state_path(&home).to_string_lossy().to_string(),
+        home: home.to_string_lossy().to_string(),
+    })
+}
+
 /// V3-07: restart (used when the helper is stale or the app was updated).
 #[tauri::command]
 fn proxy_restart() -> Result<ProxyInfo, CommandError> {
@@ -569,6 +608,7 @@ pub fn run() {
             proxy_status,
             helper_status,
             helper_login_start,
+            config_paths,
             apply_routed_mode,
             check_routing_health,
             list_credentials,

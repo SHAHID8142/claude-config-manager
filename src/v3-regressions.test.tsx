@@ -5,7 +5,7 @@
  * inverts the assertion in the same commit.
  */
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 import { createMockIpc } from "./lib/ipc-mock";
@@ -63,60 +63,99 @@ async function goTo(label: string) {
   await userEvent.click(screen.getByRole("button", { name: label }));
 }
 
-describe("V3-02 §3 — a stored helper file is not verified connectivity", () => {
-  it("currently reports 'connected' from the settings file alone", () => {
-    // Defect, stated positively: no connection test ever ran, yet the label
-    // claims a live connection. V3-24 must replace this with Configured /
-    // Checking / Verified / Unavailable distinctions.
-    expect(connectionLabel(helperOnly)).toBe("connected");
+describe("V3-24 — a stored helper file is configured, never 'connected'", () => {
+  it("labels an unverified helper as configured", () => {
+    expect(connectionLabel(helperOnly)).toBe("configured");
   });
 
-  it("shows the same unverified 'connected' pill in the header", async () => {
+  it("labels a successful connection test as verified", () => {
+    expect(connectionLabel(helperOnly, { lastTest: { ok: true } })).toBe("verified");
+  });
+
+  it("labels a failed connection test as unavailable", () => {
+    expect(connectionLabel(helperOnly, { lastTest: { ok: false } })).toBe("unavailable");
+  });
+
+  it("labels a routed configuration with a dead helper as proxy stopped", () => {
+    expect(connectionLabel(routed, { proxyRunning: false })).toBe("proxy stopped");
+    expect(connectionLabel(routed, { proxyRunning: true })).toBe("routed");
+  });
+
+  it("shows the honest state in the header", async () => {
     render(<App ipc={mockWith(helperOnly)} />);
-    expect(await screen.findByText("mode: connected")).toBeInTheDocument();
+    expect(await screen.findByText("mode: configured")).toBeInTheDocument();
+    expect(screen.queryByText("mode: connected")).not.toBeInTheDocument();
   });
 });
 
-describe("V3-02 §5 — the credentials screen invents a path", () => {
-  it("currently claims ~/Library/Application Support/…", async () => {
+describe("V3-26 — the credentials screen shows the path the backend reports", () => {
+  it("uses the backend value when it is available", async () => {
+    render(
+      <App
+        ipc={mockWith(helperOnly, {
+          config_paths: () =>
+            Promise.resolve({
+              home: "/Users/x",
+              secretsDir: "/Users/x/.claude-config-manager/secrets",
+              helpersDir: "/Users/x/.claude-config-manager/helpers",
+              routingFile: "/Users/x/.claude-config-manager/routing.json",
+              settingsFile: "/Users/x/.claude/settings.json",
+              helperState: "/Users/x/.claude-config-manager/proxy-helper.json",
+            }),
+        })}
+      />,
+    );
+    await goTo("Credentials");
+    expect(
+      await screen.findByText("/Users/x/.claude-config-manager/secrets/"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Library\/Application Support/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the documented default instead of inventing a path", async () => {
     render(<App ipc={mockWith(helperOnly)} />);
     await goTo("Credentials");
-    // The backend writes ~/.claude-config-manager/secrets (file_secret_store.rs:39).
-    expect(
-      screen.getByText(/Library\/Application Support\/com\.claude-config-manager\/secrets/),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/~\/\.claude-config-manager\/secrets/)).not.toBeInTheDocument();
+    expect(await screen.findByText("~/.claude-config-manager/secrets/")).toBeInTheDocument();
   });
 });
 
-describe("V3-02 §4 — Save & Apply ignores routed mode", () => {
-  it("currently calls save_and_apply while Claude Code is routed to the proxy", async () => {
+describe("V3-25 — routed mode is never replaced by a single click", () => {
+  it("offers routed actions instead of the direct Save & Apply", async () => {
+    render(<App ipc={mockWith(routed)} />);
+    expect(await screen.findByRole("button", { name: "Apply routed mode" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save & Apply" })).not.toBeInTheDocument();
+  });
+
+  it("asks for confirmation before switching back to direct mode", async () => {
     const calls: string[] = [];
     const ipc = mockWith(routed, {
       save_and_apply: () => {
         calls.push("save_and_apply");
-        return Promise.resolve({ settingsPath: "/Users/x/.claude/settings.json", backupPath: null });
+        return Promise.resolve({
+          settingsPath: "/Users/x/.claude/settings.json",
+          backupFileName: null,
+          helperPath: "/Users/x/.claude-config-manager/helpers/anthropic.sh",
+          appliedKeys: ["model"],
+        });
       },
     });
     render(<App ipc={ipc} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Switch to direct…" }));
+    // Nothing has been written yet: the confirm bar is the guard.
+    expect(calls).toEqual([]);
+    expect(screen.getByText(/Switch Claude Code back to a direct provider/)).toBeInTheDocument();
 
-    // Pick a provider so the draft is applicable, then press the one primary
-    // action in the footer.
     await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "anthropic");
     await userEvent.type(screen.getByLabelText("API key", { selector: "input" }), "sk-fixture-v3");
-    const apply = screen.getByRole("button", { name: "Save & Apply" });
-    await userEvent.click(apply);
-
-    // Defect: the direct-mode writer runs even though Claude Code is routed.
-    // V3-25 must block this (or require an explicit mode switch).
-    expect(calls).toEqual(["save_and_apply"]);
+    await userEvent.click(screen.getByRole("button", { name: "Switch to direct" }));
+    await waitFor(() => expect(calls).toEqual(["save_and_apply"]));
   });
 });
 
-describe("V3-02 §6 — provider switch leaves the routing screen's list alone", () => {
-  it("keeps routing credentials local once the provider changes", async () => {
+describe("V3-27 — the routing screen keeps its own credential list", () => {
+  it("asks for the routing provider's credentials without touching the credentials screen", async () => {
     const requested: string[] = [];
     const ipc = mockWith(helperOnly, {
       list_credentials: (args: { providerId?: string }) => {
@@ -133,9 +172,6 @@ describe("V3-02 §6 — provider switch leaves the routing screen's list alone",
 
     const routingProvider = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(routingProvider, "deepseek");
-    // Whichever screen asked, the routing screen must not overwrite what the
-    // credentials screen shows. Both are empty here, so assert the call shape:
-    // the routing fetch names the routing provider and nothing else.
     expect(requested).toContain("deepseek");
   });
 });

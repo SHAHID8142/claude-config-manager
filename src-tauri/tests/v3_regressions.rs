@@ -36,7 +36,11 @@ fn temp_home(name: &str) -> PathBuf {
 fn get(port: u16, path: &str) -> Option<String> {
     let mut stream = TcpStream::connect(("127.0.0.1", port)).ok()?;
     stream.set_read_timeout(Some(Duration::from_secs(5))).ok()?;
-    write!(stream, "GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").ok()?;
+    write!(
+        stream,
+        "GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
+    )
+    .ok()?;
     let mut buf = String::new();
     stream.read_to_string(&mut buf).ok()?;
     Some(buf)
@@ -161,16 +165,11 @@ fn openai_only_upstream_receives_anthropic_body_without_translation() {
     );
 }
 
-/// §6 — deeper than reported: neither `RoutingConfig::validate` nor
-/// `proxy::resolve_secret` checks that a target's credential belongs to that
-/// target's provider. A hand-edited `routing.json` can therefore pair provider A
-/// with provider B's key, and the proxy will send B's key to A's endpoint.
-/// The UI cannot create this (it filters by provider), so it is not reachable
-/// from the app — but it is a real cross-provider credential leak for anyone who
-/// edits the file. V3-20 must reject it in `resolve_secret`; this test then
-/// inverts.
+/// §6 — fixed in V3-20: a target may only use a credential stored for its own
+/// provider. A hand-edited `routing.json` can no longer pair provider A with
+/// provider B's key, which would have sent B's key to A's endpoint.
 #[test]
-fn defect_06_a_target_can_currently_carry_another_providers_key() {
+fn cross_provider_credential_is_never_resolved() {
     let home = temp_home("mismatch");
     let vault = CredentialVault::for_home(&home);
     vault
@@ -182,20 +181,54 @@ fn defect_06_a_target_can_currently_carry_another_providers_key() {
         enabled: true,
         targets: vec![RouteTarget {
             id: "t1".into(),
-            provider_id: "deepseek".into(),          // provider
-            credential_id: Some("openrouter-1".into()), // …but another provider's key
+            provider_id: "deepseek".into(),
+            credential_id: Some("openrouter-1".into()),
             model: None,
             base_url: "https://api.deepseek.com/anthropic".into(),
             enabled: true,
         }],
     };
-
-    // Current behaviour: accepted.
-    routing_config::save(&home, &cfg).expect("V3-02 §6: validation does not pair credential and provider");
+    routing_config::save(&home, &cfg).expect("shape is valid; pairing is checked at resolve time");
     let loaded = routing_config::load(&home).expect("reload");
-    let leaked = proxy::resolve_secret(&home, &loaded.targets[0]).expect("secret resolves");
     assert_eq!(
-        leaked, "sk-fixture-openrouter",
-        "the proxy hands another provider's key to this target's endpoint — the defect V3-20 closes"
+        proxy::resolve_secret(&home, &loaded.targets[0]),
+        None,
+        "provider mismatch must resolve to no secret, not to another provider's key"
     );
+
+    // The same credential still works for its own provider.
+    let own = RouteTarget {
+        id: "t2".into(),
+        provider_id: "openrouter".into(),
+        credential_id: Some("openrouter-1".into()),
+        model: None,
+        base_url: "https://openrouter.ai/api".into(),
+        enabled: true,
+    };
+    assert_eq!(
+        proxy::resolve_secret(&home, &own).as_deref(),
+        Some("sk-fixture-openrouter")
+    );
+}
+
+/// V3-20: a disabled credential is never handed to a target, even when a stale
+/// `routing.json` still names it.
+#[test]
+fn disabled_credential_is_never_routed_to() {
+    let home = temp_home("disabled");
+    let vault = CredentialVault::for_home(&home);
+    let rec = vault
+        .add("openrouter", "openrouter-1", "sk-fixture-openrouter")
+        .expect("store");
+    assert!(vault.set_enabled(&rec.id, false).expect("disable"));
+
+    let target = RouteTarget {
+        id: "t1".into(),
+        provider_id: "openrouter".into(),
+        credential_id: Some("openrouter-1".into()),
+        model: None,
+        base_url: "https://openrouter.ai/api".into(),
+        enabled: true,
+    };
+    assert_eq!(proxy::resolve_secret(&home, &target), None);
 }

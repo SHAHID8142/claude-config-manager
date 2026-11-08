@@ -13,6 +13,8 @@ export interface CredentialsTabProps {
   onRemove: (id: string) => void;
   onToggle: (id: string, enabled: boolean) => void;
   onPromote: (id: string) => void;
+  /** V3-26: the directory the backend actually writes, never a guess. */
+  secretsDir: string | null;
 }
 
 /**
@@ -23,6 +25,7 @@ export function CredentialsTab(props: CredentialsTabProps) {
   const enabled = props.credentials.filter((c) => c.enabled);
   const active = enabled[0] ?? null;
   const name = props.isCustom ? "this custom provider" : (props.provider?.name ?? "no provider");
+  const secretsDir = props.secretsDir ?? "~/.claude-config-manager/secrets";
 
   return (
     <div className="flex flex-col gap-6">
@@ -84,7 +87,7 @@ export function CredentialsTab(props: CredentialsTabProps) {
           <p>
             Each key is a separate file under{" "}
             <code className="font-mono text-[11.5px]">
-              ~/Library/Application Support/com.claude-config-manager/secrets/
+              {secretsDir}/
             </code>{" "}
             — directory 0700, file 0600, replaced atomically. The index next to it holds labels
             and order only, never key material. Nothing here is copied into settings.json: Claude

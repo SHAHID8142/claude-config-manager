@@ -41,6 +41,7 @@ import {
   proxyRestart,
   helperStatus,
   helperLoginStart,
+  configPaths,
   applyRoutedMode,
   checkRoutingHealth,
   type ApplyOutcome,
@@ -52,12 +53,14 @@ import {
   type ModelEntry,
   type ProviderSummary,
   type RestoreOutcome,
+  type ConfigPaths,
   type HelperStatus,
   type ProxyStatus,
   type RoutingConfig,
   type TargetHealth,
 } from "./lib/ipc";
 import { validateModelId } from "./lib/modelId";
+import { isLoopback } from "./lib/connectionLabel";
 
 /** Sentinels for the provider selector: presets use their real ids;
  * custom entry and the empty state use dedicated sentinels. */
@@ -123,6 +126,16 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [proxy, setProxy] = useState<ProxyStatus | null>(null);
   const [routingBusy, setRoutingBusy] = useState(false);
   const [helper, setHelper] = useState<HelperStatus | null>(null);
+  const [paths, setPaths] = useState<ConfigPaths | null>(null);
+  // V3-25: switching away from routed mode needs a second, deliberate click.
+  const [confirmingDirect, setConfirmingDirect] = useState(false);
+  // V3-27: the routing screen keeps its own list, so picking a provider there
+  // can never overwrite what the Provider/Credentials screens are showing.
+  const [routingDraftProviderId, setRoutingDraftProviderId] = useState<string | null>(null);
+  const [routingCredentials, setRoutingCredentials] = useState<{
+    providerId: string;
+    list: CredentialView[];
+  } | null>(null);
   const [routingHealth, setRoutingHealth] = useState<TargetHealth[] | null>(null);
   const [checkingHealth, setCheckingHealth] = useState(false);
 
@@ -159,6 +172,13 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       })
       .catch(() => {
         /* Older backend without the helper command: stay silent. */
+      });
+    configPaths(ipc)
+      .then((p) => {
+        if (!cancelled) setPaths(p);
+      })
+      .catch(() => {
+        /* V3-26: fall back to the documented default, never a wrong path. */
       });
     return () => {
       cancelled = true;
@@ -478,6 +498,11 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     contextWindowDigits !== "" &&
     !(Number(contextWindowDigits) >= 1_000 && Number(contextWindowDigits) <= 10_000_000);
 
+  // V3-25: Claude Code is currently pointed at the local proxy. The global
+  // button must not silently undo that — routed mode can be working while the
+  // draft on screen is a direct-mode provider.
+  const routedActive = isLoopback(status?.envBaseUrl);
+
   const canApply =
     (selected !== null || (isCustom && customEndpoint.trim() !== "")) &&
     (apiKey.trim() !== "" || storedCredential) &&
@@ -553,7 +578,10 @@ export default function App({ ipc = defaultIpc }: AppProps) {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-app text-ink">
-      <AppHeader status={status} />
+      <AppHeader
+        status={status}
+        connection={{ proxyRunning: helper?.running ?? proxy !== null, lastTest: connectionTest }}
+      />
       <div className="flex min-h-0 flex-1">
         {/* macOS settings shape: a fixed, quiet sidebar and one scrolling panel.
             The accent appears only on the current item's glyph. */}
@@ -679,6 +707,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                   onPromote={(id) => {
                     void handlePromoteCredential(id);
                   }}
+                  secretsDir={paths?.secretsDir ?? null}
                 />
               )}
 
@@ -716,11 +745,18 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                   config={routing}
                   error={routingError}
                   providers={providers ?? []}
-                  credentials={credentials?.list ?? []}
+                  credentials={
+                    routingCredentials !== null &&
+                    (routingCredentials.providerId === routingDraftProviderId ||
+                      routingDraftProviderId === null)
+                      ? routingCredentials.list
+                      : []
+                  }
                   onNeedCredentials={(providerId) => {
+                    setRoutingDraftProviderId(providerId);
                     void listCredentials(providerId, ipc)
-                      .then((list) => setCredentials({ providerId, list }))
-                      .catch(() => setCredentials(null));
+                      .then((list) => setRoutingCredentials({ providerId, list }))
+                      .catch(() => setRoutingCredentials(null));
                   }}
                   status={proxy}
                   health={routingHealth}
@@ -773,17 +809,70 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           {/* One primary action, always reachable, with the reason when it cannot run. */}
           <div className="border-t border-line bg-app px-6 py-3">
             <div className="mx-auto flex max-w-[46rem] items-center gap-3">
-              <p className="mr-auto text-[12px] text-ink-muted">{applyHint}</p>
-              <LoadingButton
-                label="Save & Apply"
-                pendingLabel="Applying…"
-                pending={applying}
-                disabled={!canApply}
-                variant="primary"
-                onClick={() => {
-                  void handleApply();
-                }}
-              />
+              {routedActive ? (
+                confirmingDirect ? (
+                  <>
+                    <p className="mr-auto text-[12px] text-ink-muted">
+                      Switch Claude Code back to a direct provider? The proxy keeps running, so
+                      you can switch back at any time.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDirect(false)}
+                      className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover"
+                    >
+                      Cancel
+                    </button>
+                    <LoadingButton
+                      label="Switch to direct"
+                      pendingLabel="Applying…"
+                      pending={applying}
+                      disabled={!canApply}
+                      variant="primary"
+                      onClick={() => {
+                        void handleApply().then(() => setConfirmingDirect(false));
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <p className="mr-auto text-[12px] text-ink-muted">
+                      Claude Code is routed to the local proxy.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDirect(true)}
+                      className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover"
+                    >
+                      Switch to direct…
+                    </button>
+                    <LoadingButton
+                      label="Apply routed mode"
+                      pendingLabel="Applying…"
+                      pending={applying}
+                      disabled={routingBusy || routing === null || !routing.enabled}
+                      variant="primary"
+                      onClick={() => {
+                        void handleApplyRouted();
+                      }}
+                    />
+                  </>
+                )
+              ) : (
+                <>
+                  <p className="mr-auto text-[12px] text-ink-muted">{applyHint}</p>
+                  <LoadingButton
+                    label="Save & Apply"
+                    pendingLabel="Applying…"
+                    pending={applying}
+                    disabled={!canApply}
+                    variant="primary"
+                    onClick={() => {
+                      void handleApply();
+                    }}
+                  />
+                </>
+              )}
             </div>
           </div>
         </main>

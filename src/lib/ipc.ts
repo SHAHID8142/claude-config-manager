@@ -327,6 +327,16 @@ export interface ProxyInfo {
   helperPath: string;
 }
 
+/** V3-26: real on-disk locations, reported by the backend. */
+export interface ConfigPaths {
+  home: string;
+  secretsDir: string;
+  helpersDir: string;
+  routingFile: string;
+  settingsFile: string;
+  helperState: string;
+}
+
 /** V3-07/V3-09: the detached proxy helper, as the backend sees it. */
 export interface HelperStatus {
   running: boolean;
@@ -371,6 +381,10 @@ export async function proxyStop(ipc: IpcLike = defaultIpc): Promise<boolean> {
 
 export async function proxyStatus(ipc: IpcLike = defaultIpc): Promise<ProxyStatus | null> {
   return ipc.invoke<ProxyStatus | null>("proxy_status");
+}
+
+export async function configPaths(ipc: IpcLike = defaultIpc): Promise<ConfigPaths> {
+  return ipc.invoke<ConfigPaths>("config_paths");
 }
 
 export async function proxyRestart(ipc: IpcLike = defaultIpc): Promise<ProxyInfo> {

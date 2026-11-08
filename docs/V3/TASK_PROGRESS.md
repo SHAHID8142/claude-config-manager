@@ -24,19 +24,19 @@ an owner decision · `not verified` = no claim made.
 | V3-13 | Adapter interface | pending | |
 | V3-14 | Request translation | blocked — needs owner approval of a bridge | |
 | V3-15 | Response translation | blocked — follows V3-14 | |
-| V3-16 | Capability protection | pending | |
+| V3-16 | Capability protection | done | explicit bridge-required error; no silent capability drop |
 | V3-17 | Provider integration testing | pending | |
-| V3-18 | Quota classification verification | pending | |
-| V3-19 | Retry and cooldown | pending | |
-| V3-20 | Credential rotation | pending | |
-| V3-21 | Cross-provider fallback | pending | |
-| V3-22 | Streaming safety | pending | |
-| V3-23 | Recovery verification | pending | |
-| V3-24 | Connection status accuracy | pending | |
-| V3-25 | Direct/Routed mode safety | pending | |
-| V3-26 | Credential path correctness | pending | |
-| V3-27 | Provider/model switch polish | pending | |
-| V3-28 | Compact contextual help | pending | |
+| V3-18 | Quota classification verification | done | `docs/V3/V3-18-failover-verification.md` (failover.rs 5 tests + loopback suite) |
+| V3-19 | Retry and cooldown | done | `docs/V3/V3-18-failover-verification.md` §Retry-After |
+| V3-20 | Credential rotation | done | provider/credential pairing + disabled-key refusal in `proxy::resolve_secret`; 2 tests |
+| V3-21 | Cross-provider fallback | done | `tests/proxy_loopback.rs` ordered fallback |
+| V3-22 | Streaming safety | done | `tests/proxy_loopback.rs` no-replay test |
+| V3-23 | Recovery verification | done | `docs/V3/V3-18-failover-verification.md` |
+| V3-24 | Connection status accuracy | done | `lib/connectionLabel.ts` states; AppHeader + 7 tests |
+| V3-25 | Direct/Routed mode safety | done | footer mode-aware action + confirm; 2 tests |
+| V3-26 | Credential path correctness | done | `config_paths` command; CredentialsTab uses backend value; 2 tests |
+| V3-27 | Provider/model switch polish | done | routing keeps its own credential list (`routingCredentials`) |
+| V3-28 | Compact contextual help | done | Failover explanation moved into a disclosure |
 | V3-29 | Window and sidebar refinement | pending | |
 | V3-30 | Visual/accessibility verification | pending | |
 | V3-31 | Secret and token audit | pending | |

@@ -1,4 +1,3 @@
-import { Route } from "lucide-react";
 import { RoutingPanel } from "../components/RoutingPanel";
 import { Section } from "../components/Section";
 import type {
@@ -138,24 +137,20 @@ export function RoutingTab(props: RoutingTabProps) {
         )}
       </Section>
 
-      <section className="flex items-start gap-3 rounded-[10px] border border-line bg-surface p-4">
-        <span
-          aria-hidden="true"
-          className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[6px] bg-surface-sunken text-ink-muted"
-        >
-          <Route size={13} />
-        </span>
-        <div className="min-w-0 truncate text-[12px] leading-[1.6] text-ink-muted">
-          <p className="font-medium text-ink">What the proxy does and does not do</p>
-          <ul className="mt-1 list-disc space-y-1 pl-4">
-            <li>Listens on 127.0.0.1 only, with a per-launch token Claude Code sends.</li>
-            <li>Fails over on 429, 5xx, timeouts and dead connections — honouring Retry-After.</li>
-            <li>Never retries a caller error (400/422), never replays a begun stream, protects charges.</li>
-            <li>Does not translate protocols: OpenAI-only providers still need a bridge.</li>
-            <li>Runs while this app is open; Claude Code needs it for routed mode.</li>
-          </ul>
-        </div>
-      </section>
+      {/* V3-28: the long explanation is one disclosure, not a paragraph on the
+          working screen. The facts that change behaviour stay in the rows above. */}
+      <details className="rounded-[10px] border border-line bg-surface px-4 py-3">
+        <summary className="cursor-pointer text-[12.5px] font-medium text-ink marker:hidden">
+          What the proxy does and does not do
+        </summary>
+        <ul className="mt-2 list-disc space-y-1 pl-4 text-[12px] leading-[1.6] text-ink-muted">
+          <li>Listens on 127.0.0.1 only, with a bearer token Claude Code sends.</li>
+          <li>Fails over on 429, 5xx, timeouts and dead connections, honouring Retry-After.</li>
+          <li>Never retries a caller error (400/422), never replays a begun stream.</li>
+          <li>Does not translate protocols: OpenAI-only providers still need a bridge.</li>
+          <li>The helper keeps running after this window closes; see Proxy helper above.</li>
+        </ul>
+      </details>
     </div>
   );
 }
