@@ -29,7 +29,7 @@ export function Switch({ label, checked, onChange, hint, disabled }: SwitchProps
         aria-describedby={hint ? hintId : undefined}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`relative mt-0.5 h-[22px] w-[38px] shrink-0 rounded-full border motion-safe:transition-colors disabled:opacity-45 ${
+        className={`relative mt-0.5 h-5.5 w-9.5 shrink-0 rounded-full border motion-safe:transition-colors disabled:opacity-45 ${
           checked ? "border-transparent bg-accent" : "border-line bg-surface-sunken"
         }`}
       >
