@@ -118,6 +118,14 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T68 User guide + troubleshooting + bridge limits + Windows notes | ✅ | 2026-11-08 | ce40f4d | ✓ | docs/USER_GUIDE.md: managed-key table, first run, apply transaction, role overrides, backup/restore, uninstall, troubleshooting table, limitations, planned bridge constraints, Windows porting matrix |
 | T69 FINAL_AUDIT.md | ✅ | 2026-11-08 | e1685d8 | ✓ | Verdict: **direct mode PASS, release NOT READY**. 52 tasks PASS, T64 partial, T47–T58 blocked, T65/T10 not tested. Security register incl. residual risks; 5 owner-gated release blockers |
 | T70 Final push + clean state verification | ⬜ | — | — | — | — |
+| G1 Read-back rollback test | ✅ | 2026-11-08 | 5e9d966 | ✓ | Verifier injected into the real write path; failure restores original bytes exactly, 0600, no temp, first-run failure leaves no file |
+| G2 Redirect credential safety | ✅ | 2026-11-08 | 5a6afe7 | ✓ | Redirects refused (max_redirects=0) instead of relying on a ureq default; 302 surfaced explicitly; loopback proof the credential never travels |
+| G3 Property-based merge tests | ✅ | 2026-11-08 | bc62218 | ✓ | proptest, 6 invariants, 400–2000 cases; found 3 bad test assumptions + documented serde_json/secret-floor limits |
+| G4 Cross-process apply lock | ✅ | 2026-11-08 | bcacc10 | ✓ | create_new lock, nonce ownership, 5s grace, 120s stale; fixed 2 bugs in my own lock; 8-thread test |
+| G5 Size/scale limits | ✅ | 2026-11-08 | f66cebb | ✓ | 8 MiB settings cap (TooLarge variant), 5 MiB body cap proven under a streaming server, 5000-deep JSON rejected |
+| G6 JSON dialect | ✅ | 2026-11-08 | fa5471d | ✓ | Verified from official docs that Claude Code rejects comments → strict parsing confirmed; error now names cause (string-safe scanner) |
+| G7 Real launch | ⚠️ partial | 2026-11-08 | 1175f53 | ✓ | Launched unsigned bundle: alive 8s, 800x600 window, WebKit XPCs, clean-HOME start, no ~/.claude writes. Pixels blocked by Screen Recording permission |
+| G10 TLS/proxy | ✅ | 2026-11-08 | 40d702c | ✓ | OS trust store (platform-verifier), HTTPS_PROXY/NO_PROXY honoured, self-signed cert refused (live), CONNECT tunnel proven |
 
 ## Blockers / open items
 
