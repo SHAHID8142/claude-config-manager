@@ -89,10 +89,29 @@ export const deepSeekPreset: ProviderTemplateFixture = {
   docs_url: "https://api-docs.deepseek.com/guides/anthropic_api",
 };
 
+/** T24: Z.AI preset — mirrors src-tauri/presets/zai.json. Discovery is
+ * honestly `none` (no verified catalog endpoint); manual model entry. */
+export const zaiPreset: ProviderTemplateFixture = {
+  schema_version: 1,
+  id: "zai",
+  name: "Z.AI",
+  auth: "bearer_token",
+  protocol: "anthropic_compat",
+  bridge: "not_required",
+  direct_base_url: "https://api.z.ai/api/anthropic",
+  discovery: { kind: "none" },
+  capability_status: {
+    status: "verified",
+    source_url: "https://docs.z.ai/devpack/tool/claude",
+  },
+  docs_url: "https://docs.z.ai/devpack/tool/claude",
+};
+
 export const builtinPresetFixtures: ProviderTemplateFixture[] = [
   anthropicPreset,
   openRouterPreset,
   deepSeekPreset,
+  zaiPreset,
 ];
 
 /** T18: the provider list the UI receives via `list_providers`, mirrored
@@ -130,5 +149,16 @@ export const providerSummaryFixtures: ProviderSummary[] = [
       source_url: "https://api-docs.deepseek.com/guides/anthropic_api",
     },
     docsUrl: "https://api-docs.deepseek.com/guides/anthropic_api",
+  },
+  {
+    id: "zai",
+    name: "Z.AI",
+    protocol: "anthropic_compat",
+    bridge: "not_required",
+    capabilityStatus: {
+      status: "verified",
+      source_url: "https://docs.z.ai/devpack/tool/claude",
+    },
+    docsUrl: "https://docs.z.ai/devpack/tool/claude",
   },
 ];

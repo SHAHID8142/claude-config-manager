@@ -11,6 +11,7 @@ use crate::provider_catalog::{ProviderTemplate, parse_template};
 const ANTHROPIC_PRESET: &str = include_str!("../presets/anthropic.json");
 const OPENROUTER_PRESET: &str = include_str!("../presets/openrouter.json");
 const DEEPSEEK_PRESET: &str = include_str!("../presets/deepseek.json");
+const ZAI_PRESET: &str = include_str!("../presets/zai.json");
 
 /// All bundled provider templates, in display order.
 pub fn load_builtin_presets() -> Vec<ProviderTemplate> {
@@ -21,6 +22,7 @@ pub fn load_builtin_presets() -> Vec<ProviderTemplate> {
             .expect("bundled openrouter preset must be valid (checked by tests)"),
         parse_template(DEEPSEEK_PRESET)
             .expect("bundled deepseek preset must be valid (checked by tests)"),
+        parse_template(ZAI_PRESET).expect("bundled zai preset must be valid (checked by tests)"),
     ]
 }
 
@@ -143,5 +145,23 @@ mod tests {
             }
             other => panic!("expected endpoint discovery, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn zai_preset_is_direct_compat_without_discovery() {
+        let presets = load_builtin_presets();
+        let t = presets
+            .iter()
+            .find(|p| p.id == "zai")
+            .expect("zai preset present");
+        assert_eq!(t.protocol, Protocol::AnthropicCompat);
+        assert_eq!(t.bridge, BridgeRequirement::NotRequired);
+        assert_eq!(t.auth, crate::provider_catalog::AuthStyle::BearerToken);
+        assert_eq!(
+            t.direct_base_url.as_deref(),
+            Some("https://api.z.ai/api/anthropic")
+        );
+        // Discovery is honestly `none`: no verified catalog endpoint.
+        assert_eq!(t.discovery, DiscoverySpec::None);
     }
 }

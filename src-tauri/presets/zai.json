@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "id": "zai",
+  "name": "Z.AI",
+  "auth": "bearer_token",
+  "protocol": "anthropic_compat",
+  "bridge": "not_required",
+  "direct_base_url": "https://api.z.ai/api/anthropic",
+  "discovery": {
+    "kind": "none"
+  },
+  "capability_status": {
+    "status": "verified",
+    "source_url": "https://docs.z.ai/devpack/tool/claude"
+  },
+  "docs_url": "https://docs.z.ai/devpack/tool/claude"
+}

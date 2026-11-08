@@ -11,6 +11,7 @@ describe("builtin preset fixtures (T17)", () => {
     expect(builtinPresetFixtures[0].id).toBe("anthropic");
     expect(builtinPresetFixtures[1].id).toBe("openrouter");
     expect(builtinPresetFixtures[2].id).toBe("deepseek");
+    expect(builtinPresetFixtures[3].id).toBe("zai");
   });
 
   it("anthropic preset is native protocol, direct mode, api_key auth", () => {
@@ -70,5 +71,16 @@ describe("deepseek preset fixture (T24)", () => {
       requires_auth: true,
       list_selector: "data",
     });
+  });
+});
+
+describe("zai preset fixture (T24)", () => {
+  it("is direct anthropic_compat with bearer auth and no discovery", () => {
+    expect(zaiPreset.protocol).toBe("anthropic_compat");
+    expect(zaiPreset.bridge).toBe("not_required");
+    expect(zaiPreset.auth).toBe("bearer_token");
+    expect(zaiPreset.direct_base_url).toBe("https://api.z.ai/api/anthropic");
+    // Honest absence: no verified catalog endpoint -> manual model entry.
+    expect(zaiPreset.discovery).toEqual({ kind: "none" });
   });
 });
