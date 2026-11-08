@@ -77,6 +77,31 @@ describe("Provider selector (T18)", () => {
     await userEvent.type(endpointInput, "https://gw.example.com");
     expect(nameInput).toHaveValue("My gateway");
     expect(endpointInput).toHaveValue("https://gw.example.com");
+    // https remote → no warning shown
+    expect(screen.queryByText(/insecure connection/i)).not.toBeInTheDocument();
+  });
+
+  it("warns insecure http endpoints live while typing (T19)", async () => {
+    const ipc = mockWithProviders();
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "__custom__");
+    const endpointInput = screen.getByLabelText("Custom endpoint URL", { selector: "input" });
+    await userEvent.type(endpointInput, "http://evil.example.com");
+    const warning = screen.getByText(/Refused: credentials would be sent over an insecure/i);
+    expect(warning).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("notes local endpoints without failing them (T19)", async () => {
+    const ipc = mockWithProviders();
+    render(<App ipc={ipc} />);
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "__custom__");
+    const endpointInput = screen.getByLabelText("Custom endpoint URL", { selector: "input" });
+    await userEvent.type(endpointInput, "https://localhost:8080");
+    expect(
+      screen.getByText(/Local endpoint — API traffic stays on this machine/i),
+    ).toBeInTheDocument();
   });
 
   it("shows an error banner when the catalog fails to load", async () => {

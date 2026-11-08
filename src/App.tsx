@@ -9,6 +9,7 @@ import {
   type IpcLike,
   type ProviderSummary,
 } from "./lib/ipc";
+import { classifyEndpoint, endpointCheckMessage } from "./lib/endpoint";
 import { focusRing } from "./lib/focus";
 
 const inputClass = `w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 placeholder-zinc-400 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-200 ${focusRing}`;
@@ -153,7 +154,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             <FieldRow
               label="Custom endpoint URL"
               htmlFor="custom-endpoint-input"
-              hint="Must be an Anthropic-compatible https endpoint. Validation lands with the endpoint task."
+              hint="Must be an Anthropic-compatible https endpoint."
             >
               <input
                 id="custom-endpoint-input"
@@ -164,6 +165,22 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                 className={inputClass}
               />
             </FieldRow>
+            {customEndpoint !== "" &&
+              (() => {
+                const check = classifyEndpoint(customEndpoint);
+                const msg = endpointCheckMessage(check);
+                if (msg === null) return null;
+                const isError = check.check === "invalid" || check.check === "insecure";
+                return (
+                  <p
+                    aria-live="polite"
+                    id="custom-endpoint-check"
+                    className={`mb-2 text-xs ${isError ? "font-medium text-red-600 dark:text-red-400" : "text-zinc-500 dark:text-zinc-400"}`}
+                  >
+                    {msg}
+                  </p>
+                );
+              })()}
           </>
         )}
 

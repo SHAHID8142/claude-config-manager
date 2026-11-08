@@ -217,6 +217,44 @@ impl ProviderSummary {
     }
 }
 
+/// Classification of a user-provided endpoint URL (T19).
+/// Enforced in Rust (apply-time authority) and mirrored in TS for live UI
+/// feedback; both sides must stay in sync (contract tests in T19 audits).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "check", content = "detail", rename_all = "snake_case")]
+pub enum EndpointCheck {
+    /// Not parseable as a URL.
+    Invalid(String),
+    /// Parses but does not use https — credentials would travel in cleartext.
+    Insecure,
+    /// https pointing at this machine — fine for local gateways; noted so the
+    /// user knows traffic stays local.
+    Local,
+    /// https remote endpoint — acceptable.
+    RemoteOk,
+}
+
+/// Classify an endpoint for security feedback (threat T11).
+pub fn classify_endpoint(url: &str) -> EndpointCheck {
+    let parsed = match url::Url::parse(url) {
+        Ok(p) => p,
+        Err(e) => return EndpointCheck::Invalid(e.to_string()),
+    };
+    if parsed.scheme() != "https" {
+        // http:, ftp:, ws:, etc. — anything non-https is refused for
+        // credential-bearing endpoints.
+        return EndpointCheck::Insecure;
+    }
+    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
+    let is_local = matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1" | "[::1]")
+        || host.ends_with(".local");
+    if is_local {
+        EndpointCheck::Local
+    } else {
+        EndpointCheck::RemoteOk
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,5 +354,55 @@ mod tests {
         assert!(validate_https_url("not a url").is_err());
         assert!(validate_https_url("https://").is_err());
         assert!(validate_https_url("https://example.com/path").is_ok());
+    }
+
+    #[test]
+    fn endpoint_check_classifies_https_remote_as_ok() {
+        assert_eq!(
+            classify_endpoint("https://api.example.com/v1"),
+            EndpointCheck::RemoteOk
+        );
+    }
+
+    #[test]
+    fn endpoint_check_classifies_http_as_insecure() {
+        assert_eq!(
+            classify_endpoint("http://api.example.com"),
+            EndpointCheck::Insecure
+        );
+        assert_eq!(classify_endpoint("ftp://x"), EndpointCheck::Insecure);
+    }
+
+    #[test]
+    fn endpoint_check_classifies_localhost_as_local() {
+        assert_eq!(
+            classify_endpoint("https://localhost:8080"),
+            EndpointCheck::Local
+        );
+        assert_eq!(
+            classify_endpoint("https://127.0.0.1:31415"),
+            EndpointCheck::Local
+        );
+        assert_eq!(
+            classify_endpoint("https://mybox.local"),
+            EndpointCheck::Local
+        );
+    }
+
+    #[test]
+    fn endpoint_check_classifies_garbage_as_invalid() {
+        assert!(matches!(
+            classify_endpoint("::: not a url"),
+            EndpointCheck::Invalid(_)
+        ));
+        assert!(matches!(classify_endpoint(""), EndpointCheck::Invalid(_)));
+    }
+
+    #[test]
+    fn endpoint_check_serializes_tagged_shape() {
+        let json = serde_json::to_value(classify_endpoint("https://x.com")).expect("ser");
+        assert_eq!(json["check"], "remote_ok");
+        let json = serde_json::to_value(classify_endpoint("http://x.com")).expect("ser");
+        assert_eq!(json["check"], "insecure");
     }
 }
