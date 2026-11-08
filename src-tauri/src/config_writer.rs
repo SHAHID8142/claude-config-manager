@@ -93,6 +93,37 @@ pub fn write_settings_atomic(
     doc: &Value,
     expected_mtime: Option<SystemTime>,
 ) -> Result<(), ConfigError> {
+    write_settings_atomic_verified(path, doc, expected_mtime, |p, d| {
+        // Default verification: re-read, parse, compare values (PRD F07).
+        let written = std::fs::read_to_string(p)
+            .map_err(|e| ConfigError::Io(format!("read-back: {}", e)))
+            .and_then(|s| {
+                serde_json::from_str::<Value>(&s)
+                    .map_err(|e| ConfigError::Io(format!("read-back parse: {}", e)))
+            })?;
+        if &written != d {
+            return Err(ConfigError::Io(
+                "write verification failed — original content restored".to_string(),
+            ));
+        }
+        Ok(())
+    })
+}
+
+/// Same write path, with an injectable verification step.
+///
+/// The rollback logic is *not* duplicated here: it is the same code the shipped
+/// path runs. Taking the verifier as a parameter is what makes the failure
+/// branch testable without inventing a fake writer.
+pub(crate) fn write_settings_atomic_verified<F>(
+    path: &Path,
+    doc: &Value,
+    expected_mtime: Option<SystemTime>,
+    verify: F,
+) -> Result<(), ConfigError>
+where
+    F: Fn(&Path, &Value) -> Result<(), ConfigError>,
+{
     let locator = ConfigLocator::new();
     let status = locator
         .inspect(path)
@@ -134,28 +165,17 @@ pub fn write_settings_atomic(
 
     atomic_write(path, &new_bytes)?;
 
-    // Read-back verification (PRD F07): parse and compare values.
-    let verify = std::fs::read_to_string(path)
-        .map_err(|e| ConfigError::Io(format!("read-back: {}", e)))
-        .and_then(|s| {
-            serde_json::from_str::<Value>(&s)
-                .map_err(|e| ConfigError::Io(format!("read-back parse: {}", e)))
-        });
-    match verify {
-        Ok(written) if &written == doc => Ok(()),
-        Ok(_) => {
-            // Verification failed: restore original, then surface the error.
+    // Verification step: on any failure restore the pre-write state, then
+    // surface the error. Fail-closed — a half-trusted file is never left behind.
+    match verify(path, doc) {
+        Ok(()) => Ok(()),
+        Err(e) => {
             if was_missing {
+                // First run: the file did not exist, so "restore" means remove it.
                 let _ = std::fs::remove_file(path);
             } else {
                 rollback_to_bytes(path, &original)?;
             }
-            Err(ConfigError::Io(
-                "write verification failed — original content restored".to_string(),
-            ))
-        }
-        Err(e) => {
-            rollback_to_bytes(path, &original)?;
             Err(e)
         }
     }
@@ -182,6 +202,68 @@ mod tests {
         ));
         fs::create_dir_all(&dir).expect("temp dir");
         dir
+    }
+
+    /// Gap G1: the read-back failure branch had no test. It must restore the
+    /// original bytes exactly — not "approximately", and not leave the new file.
+    #[test]
+    fn failed_verification_restores_the_original_bytes_exactly() {
+        let dir = temp_dir("verify-fail");
+        let path = dir.join("settings.json");
+        let original = br#"{"keep":true,"weird":"  spaces  "}"#;
+        fs::write(&path, original).expect("seed");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).expect("chmod");
+        let before = fs::metadata(&path)
+            .expect("meta")
+            .modified()
+            .expect("mtime");
+
+        let doc: Value = serde_json::from_str(r#"{"model":"new"}"#).expect("doc");
+        let err = write_settings_atomic_verified(&path, &doc, Some(before), |_, _| {
+            Err(ConfigError::Io("simulated read-back mismatch".into()))
+        })
+        .expect_err("must fail");
+
+        assert!(err.to_string().contains("simulated read-back mismatch"));
+        assert_eq!(
+            fs::read(&path).expect("read"),
+            original,
+            "original bytes must be restored byte-for-byte"
+        );
+        assert_eq!(
+            fs::metadata(&path).expect("meta").permissions().mode() & 0o777,
+            0o600,
+            "restored file keeps owner-only permissions"
+        );
+        // No temp file left behind.
+        let leftovers: Vec<_> = fs::read_dir(&dir)
+            .expect("dir")
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().to_string())
+            .filter(|n| n != "settings.json")
+            .collect();
+        assert!(leftovers.is_empty(), "temp files left: {leftovers:?}");
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Gap G1b: on first run there is nothing to restore, so a failed write must
+    /// leave no file at all rather than an empty or partial one.
+    #[test]
+    fn failed_verification_on_first_run_leaves_no_file() {
+        let dir = temp_dir("verify-fail-new");
+        let path = dir.join("settings.json");
+        let doc: Value = serde_json::from_str(r#"{"model":"new"}"#).expect("doc");
+
+        write_settings_atomic_verified(&path, &doc, None, |_, _| {
+            Err(ConfigError::Io("simulated".into()))
+        })
+        .expect_err("must fail");
+
+        assert!(
+            !path.exists(),
+            "a failed first write must not create the file"
+        );
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
