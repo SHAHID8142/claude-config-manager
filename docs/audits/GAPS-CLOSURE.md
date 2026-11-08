@@ -36,3 +36,24 @@ Two honest behaviours the tests pinned:
 
 Evidence: `failed_verification_restores_the_original_bytes_exactly`,
 `failed_verification_on_first_run_leaves_no_file` (both in `config_writer.rs`).
+
+---
+
+## G2 — credential forwarding across redirects
+
+**Gap class:** safety depended on an unasserted dependency default (`ureq` ships `max_redirects: 10` with
+`redirect_auth_headers: Never`). Correct today, silently regrettable after any upgrade.
+
+**Change:** the discovery agent now states the policy itself:
+`max_redirects(0)`, `max_redirects_will_error(true)`, `redirect_auth_headers(Never)`. With `0`, `ureq`
+returns the 3xx instead of following it, and a 3xx is now surfaced as an explicit `HttpStatus(302)` rather
+than the misleading "response unusable" parse error it produced before.
+
+**Evidence:** `a_redirecting_catalog_is_refused_and_the_credential_is_not_forwarded` — a loopback server
+answers `302` pointing at a second server that records every request it receives. Assertions: the error is
+`HttpStatus(302)`, the target was **never contacted**, and the credential string never appears in any
+forwarded request.
+
+**Residual:** a `302` is now a hard error, so a provider that legitimately redirects its catalog (e.g. an
+`http→https` upgrade) will show an error instead of "just working". That is the deliberate trade — an
+explicit error beats a credential that quietly travels somewhere else.

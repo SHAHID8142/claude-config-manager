@@ -188,8 +188,18 @@ fn http_get(
     credential: Option<&str>,
 ) -> Result<String, DiscoveryError> {
     // Agent with a global timeout (ureq v3 config API).
+    //
+    // Redirects are DISABLED deliberately (G2). `ureq`'s defaults happen to be
+    // safe, but relying on a dependency default that no test asserts is how
+    // credential leaks get reintroduced on an upgrade. A catalog URL that
+    // redirects is not something we need: refuse it and let the user fix the
+    // endpoint. `redirect_auth_headers(Never)` is kept as defence in depth in
+    // case the redirect cap is ever relaxed.
     let config = ureq::config::Config::builder()
         .timeout_global(Some(DISCOVERY_TIMEOUT))
+        .max_redirects(0)
+        .max_redirects_will_error(true)
+        .redirect_auth_headers(ureq::config::RedirectAuthHeaders::Never)
         .build();
     let agent = ureq::Agent::new_with_config(config);
 
@@ -206,6 +216,13 @@ fn http_get(
         ureq::Error::StatusCode(code) => DiscoveryError::HttpStatus(code),
         other => DiscoveryError::Transport(redact_transport(&other.to_string())),
     })?;
+
+    // Redirects are not followed (`max_redirects(0)`), so a 3xx arrives here as
+    // an ordinary response. Report it as such instead of failing later with a
+    // misleading "response unusable" parse error.
+    if (300..400).contains(&response.status().as_u16()) {
+        return Err(DiscoveryError::HttpStatus(response.status().as_u16()));
+    }
 
     // Read with the hard size cap.
     let mut capped = Vec::with_capacity(64 * 1024);
@@ -430,6 +447,73 @@ mod tests {
             .expect("request captured");
         handle.join().expect("server thread");
         req.to_lowercase()
+    }
+
+    /// G2: a redirecting catalog must not cause the credential to be sent
+    /// anywhere else — not even to a loopback port, standing in for "another
+    /// host". The second server records any request it sees.
+    #[test]
+    fn a_redirecting_catalog_is_refused_and_the_credential_is_not_forwarded() {
+        use std::io::{Read, Write};
+        use std::net::TcpListener;
+        use std::sync::mpsc;
+
+        let (tx, rx) = mpsc::channel::<(String, String)>();
+        // Target server: records everything, answers 200.
+        let target = TcpListener::bind("127.0.0.1:0").expect("bind target");
+        let target_port = target.local_addr().expect("addr").port();
+        std::thread::spawn(move || {
+            for stream in target.incoming().take(1) {
+                let mut stream = stream.expect("accept");
+                let mut buf = [0u8; 4096];
+                let n = stream.read(&mut buf).unwrap_or(0);
+                let head = String::from_utf8_lossy(&buf[..n]).to_string();
+                tx.send(("target".to_string(), head)).ok();
+                stream
+                    .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\n{}")
+                    .ok();
+            }
+        });
+
+        // Redirecting server: 302 → target.
+        let redirect = TcpListener::bind("127.0.0.1:0").expect("bind redirect");
+        let redirect_port = redirect.local_addr().expect("addr").port();
+        std::thread::spawn(move || {
+            for stream in redirect.incoming().take(1) {
+                let mut stream = stream.expect("accept");
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf);
+                let reply = format!(
+                    "HTTP/1.1 302 Found\r\nlocation: http://127.0.0.1:{target_port}/v1/models\r\ncontent-length: 0\r\n\r\n"
+                );
+                stream.write_all(reply.as_bytes()).ok();
+            }
+        });
+
+        let err = http_get(
+            &format!("http://127.0.0.1:{redirect_port}/v1/models"),
+            AuthStyle::BearerToken,
+            Some("sk-secret-G2"),
+        )
+        .expect_err("a redirect must not be followed");
+        assert!(
+            matches!(err, DiscoveryError::HttpStatus(302)),
+            "expected an explicit 302, got {err:?}"
+        );
+
+        // What matters most: the target was never contacted.
+        let forwarded = rx
+            .recv_timeout(std::time::Duration::from_millis(300))
+            .map(|(_, head)| head)
+            .unwrap_or_default();
+        assert!(
+            forwarded.is_empty(),
+            "credential request was forwarded to the redirect target: {forwarded}"
+        );
+        assert!(
+            !forwarded.contains("sk-secret-G2"),
+            "credential leaked across the redirect"
+        );
     }
 
     #[test]
