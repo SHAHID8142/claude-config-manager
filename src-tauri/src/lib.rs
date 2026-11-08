@@ -22,6 +22,7 @@ pub mod credential_service;
 pub mod environment_check;
 pub mod keychain_store;
 pub mod model_discovery;
+pub mod model_discovery_service;
 pub mod presets;
 pub mod provider_catalog;
 pub mod redact;
@@ -129,6 +130,25 @@ fn check_environment() -> Result<environment_check::EnvironmentReport, CommandEr
     Ok(environment_check::check_environment(&home, None))
 }
 
+/// T38 contract: model discovery for one verified provider template.
+#[tauri::command]
+fn discover_models(
+    provider_id: String,
+    credential: Option<String>,
+) -> Result<Vec<model_discovery::ModelEntry>, CommandError> {
+    let store: Option<&dyn secret_store::SecretStore> = if credential.is_none() {
+        // Keychain-backed resolution behind a temporary instance.
+        Some(&keychain_store::KeychainStore::new())
+    } else {
+        None
+    };
+    model_discovery_service::discover_for_provider(&provider_id, credential.as_deref(), store)
+        .map_err(|e| match e {
+            model_discovery::DiscoveryError::InvalidEndpoint(m) => CommandError::invalid_input(m),
+            other => CommandError::io(other.to_string()),
+        })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -138,7 +158,8 @@ pub fn run() {
             save_and_apply,
             read_status,
             restore_last_backup,
-            check_environment
+            check_environment,
+            discover_models
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

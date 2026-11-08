@@ -153,3 +153,25 @@ export interface EnvironmentReport {
 export async function checkEnvironment(ipc: IpcLike = defaultIpc): Promise<EnvironmentReport> {
   return ipc.invoke<EnvironmentReport>("check_environment");
 }
+
+// ---------------------------------------------------------------------------
+// `discover_models` (T38) — catalog fetch for one verified provider.
+// ---------------------------------------------------------------------------
+
+export interface ModelEntry {
+  id: string;
+  displayName: string | null;
+  /** Always "unknown" at discovery time — never invented (F12). */
+  capabilityStatus: "unknown";
+}
+
+export async function discoverModels(
+  providerId: string,
+  credential?: string,
+  ipc: IpcLike = defaultIpc,
+): Promise<ModelEntry[]> {
+  return ipc.invoke<ModelEntry[]>("discover_models", {
+    providerId,
+    credential: credential ?? null,
+  });
+}

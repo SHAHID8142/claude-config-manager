@@ -74,7 +74,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | Task | Status | Date | Commit | Push | Notes |
 |------|--------|------|--------|------|-------|
 | T37 Model discovery interface + mock API | ✅ | 2026-11-08 | (T37 commit) | ✓ | model_discovery.rs (ureq v3); caps+validation+auth headers; loopback mock fixtures; Rust 137+7 |
-| T38 Discovery for one documented provider | ⬜ | — | — | — | — |
+| T38 Discovery for one documented provider | ✅ | 2026-11-08 | (T38 commit) | ✓ | OpenRouter wired; live-verified 464 models; Keychain-only-for-auth; Rust 142+7, TS 70/70 |
 | T39 Refresh, loading, timeout, error states | ⬜ | — | — | — | — |
 | T40 Searchable model list, NEVER auto-select | ⬜ | — | — | — | — |
 | T41 Manual Model ID entry | ⬜ | — | — | — | — |
