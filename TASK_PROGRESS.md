@@ -108,7 +108,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T59 Malformed input regression suite | ✅ | 2026-11-08 | 062817c | ✓ | 14-case suite (tests/malformed_inputs.rs). Found+fixed 5 defects: credential-in-URL accepted, newline URL normalisation, non-http scheme misreported, provider id leading `-`, whitespace catalog ids. clippy --all-targets now clean. Rust 177 total |
 | T60 Localhost exposure / download tampering / secret-leak suite | ✅ | 2026-11-08 | 5f9f778 | ✓ | 11-case suite. Fixed: secret-shaped model ids accepted, discovery accepted credential-in-URL, wildcard/link-local hosts, `key=value` secrets not redacted. Download-integrity = NOT TESTED (no bridge code) with guard test. Rust 188 total |
 | T61 Rollback and interrupted-write recovery tests | ✅ | 2026-11-08 | 449e207 | ✓ | 7-case suite: orphan temp ignored, failed write keeps original + leaves no temp, concurrent edit refused, rollback byte-exact w/ 0600, corrupt backup refused before write, restore preserves damaged state. Rust 195 total |
-| T62 Keyboard/a11y/theme/small-window UX audit | ⬜ | — | — | — | — |
+| T62 Keyboard/a11y/theme/small-window audit | ✅ | 2026-11-08 | <hash> | ✓ | 10 jsdom+static checks (headings, names, focus order, no positive tabindex, live regions, dark coverage, no fixed widths). Fixed overflow: `break-all` on all `<code>`. Limits: no real macOS/VoiceOver run, contrast not measured. TS 120/120 |
 | T63 Dependency/license/vulnerability audit | ⬜ | — | — | — | — |
 | T64 macOS package | ⬜ | — | — | — | Unsigned test build + documented limitation if no signing creds |
 | T65 Real macOS clean-install + smoke tests | ⬜ | — | — | — | Request user evidence if machine unavailable; report NOT VERIFIED otherwise |
@@ -120,4 +120,4 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 ## Blockers / open items
 
-None currently. Next task: **T62** (T47–T58 blocked on consent).
+None currently. Next task: **T63** (T47–T58 blocked on consent).

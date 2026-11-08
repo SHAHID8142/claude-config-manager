@@ -271,7 +271,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           <div className="flex flex-col gap-1 text-sm">
             <p className="text-zinc-700 dark:text-zinc-200">
               Model:{" "}
-              <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+              <code className="break-all rounded bg-zinc-100 px-1 dark:bg-zinc-800">
                 {status.envModel ?? status.model ?? "not set"}
               </code>
               {status.model !== null &&
@@ -285,7 +285,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
             {status.envBaseUrl !== null && (
               <p className="text-zinc-700 dark:text-zinc-200">
                 Endpoint:{" "}
-                <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">
+                <code className="break-all rounded bg-zinc-100 px-1 dark:bg-zinc-800">
                   {status.envBaseUrl}
                 </code>
               </p>

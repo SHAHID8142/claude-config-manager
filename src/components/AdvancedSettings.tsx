@@ -73,7 +73,7 @@ export function AdvancedSettings({
                   {effective === null ? (
                     <span>no override (Claude Code default)</span>
                   ) : (
-                    <code>{effective}</code>
+                    <code className="break-all">{effective}</code>
                   )}
                 </p>
                 {invalid && check !== undefined && (
