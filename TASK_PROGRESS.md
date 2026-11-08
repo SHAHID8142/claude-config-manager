@@ -110,7 +110,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T61 Rollback and interrupted-write recovery tests | ✅ | 2026-11-08 | 449e207 | ✓ | 7-case suite: orphan temp ignored, failed write keeps original + leaves no temp, concurrent edit refused, rollback byte-exact w/ 0600, corrupt backup refused before write, restore preserves damaged state. Rust 195 total |
 | T62 Keyboard/a11y/theme/small-window audit | ✅ | 2026-11-08 | 6aa1c3b | ✓ | 10 jsdom+static checks (headings, names, focus order, no positive tabindex, live regions, dark coverage, no fixed widths). Fixed overflow: `break-all` on all `<code>`. Limits: no real macOS/VoiceOver run, contrast not measured. TS 120/120 |
 | T63 Dependency/license/vulnerability audit | ✅ | 2026-11-08 | 5f03092 | ✓ | 750 resolved pkgs vs OSV: **0 advisories in macOS graph** (6 excluded = Linux GTK/D-Bus/build-time). npm audit 0 vulns. Licenses all permissive/MPL-2.0; 0 GPL/AGPL. **BLOCKER: project has no LICENSE file — needs owner decision.** Gate: scripts/dep-audit.sh |
-| T64 macOS package | ⬜ | — | — | — | Unsigned test build + documented limitation if no signing creds |
+| T64 macOS package (signed if creds) | ⚠️ | 2026-11-08 | <hash> | ⚠️ | Unsigned arm64 `.app` (5.17 MiB) + `.dmg` (2.59 MiB, sha256 bfd760e…) built OK. **Gatekeeper refuses: adhoc/linker-signed, no Team ID, not notarized → "damaged" on clean Mac. Not distributable.** BLOCKED on Apple Developer ID (owner). No GUI smoke test |
 | T65 Real macOS clean-install + smoke tests | ⬜ | — | — | — | Request user evidence if machine unavailable; report NOT VERIFIED otherwise |
 | T66 Helper restart/GUI closure/uninstall/restore tests | ⬜ | — | — | — | — |
 | T67 Full regression + acceptance review | ⬜ | — | — | — | — |
@@ -120,4 +120,4 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 ## Blockers / open items
 
-None currently. Next task: **T64** (unsigned test build; signing needs credentials).
+None currently. Next task: **T65** (needs user/machine evidence).
