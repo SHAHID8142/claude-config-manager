@@ -101,7 +101,7 @@ describe("announcements and decoration (T62)", () => {
   it("marks decorative disclosure glyphs as hidden from assistive tech", () => {
     renderApp();
     const toggle = screen.getByRole("button", { name: /advanced settings/i });
-    const glyph = Array.from(toggle.querySelectorAll("span[aria-hidden='true']"));
+    const glyph = Array.from(toggle.querySelectorAll("[aria-hidden='true']"));
     expect(glyph.length).toBeGreaterThan(0);
   });
 

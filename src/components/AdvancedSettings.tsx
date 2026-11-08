@@ -1,3 +1,4 @@
+import { ChevronRight } from "lucide-react";
 import { FieldRow } from "./FieldRow";
 import { roleChecks, ROLE_FIELDS, type RoleKey, type RoleState } from "../lib/roles";
 
@@ -33,21 +34,26 @@ export function AdvancedSettings({
 }: AdvancedSettingsProps) {
   const checks = roleChecks(roles);
   return (
-    <div className="mt-3 border-t border-line pt-3 dark:border-line">
+    <div className="mt-2 border-t border-line pt-2">
       <button
         type="button"
         aria-expanded={open}
         aria-controls="advanced-panel"
         onClick={onToggle}
-        className="text-sm font-medium text-ink-muted underline-offset-2 hover:underline "
+        className="flex w-full items-center gap-1.5 rounded py-1 text-left text-[12.5px] font-medium text-ink-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
-        Advanced settings (model roles) <span aria-hidden="true">{open ? "▾" : "▸"}</span>
+        <ChevronRight
+          aria-hidden="true"
+          className={`size-3.5 transition-transform ${open ? "rotate-90" : ""}`}
+        />
+        Advanced settings
+        <span className="font-normal text-ink-subtle">· roles and context window</span>
       </button>
       {open && (
         <div
           id="advanced-panel"
           role="group"
-          aria-label="Advanced model role overrides"
+          aria-label="Advanced model settings"
           className="mt-2 flex flex-col gap-2"
         >
           <p className="text-xs text-ink-subtle">

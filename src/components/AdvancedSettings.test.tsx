@@ -21,7 +21,7 @@ describe("AdvancedSettings (T45)", () => {
     const toggle = screen.getByRole("button", { name: /advanced settings/i });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(toggle).toHaveAttribute("aria-controls", "advanced-panel");
-    expect(screen.queryByRole("group", { name: /advanced model role overrides/i })).toBeNull();
+    expect(screen.queryByRole("group", { name: /advanced model settings/i })).toBeNull();
     expect(screen.queryByLabelText("Haiku role")).toBeNull();
   });
 

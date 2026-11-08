@@ -796,7 +796,10 @@ describe("Model metadata provenance (T42)", () => {
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "zai");
     await userEvent.type(screen.getByLabelText("Model", { selector: "input" }), "glm-4.6");
-    expect(document.body.textContent).not.toMatch(/context window|vision|reasoning|tokens/i);
+    // "context window" is now a real managed setting (V2-12b), so the honesty
+    // check is about invented capability CLAIMS, not about the word itself.
+    expect(document.body.textContent).not.toMatch(/vision|reasoning|multimodal/i);
+    expect(document.body.textContent).toMatch(/capability data unverified/i);
   });
 });
 

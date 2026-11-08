@@ -21,7 +21,7 @@ Baseline (start of V2): `e6e6bf8` · Rust 246 passed / 0 failed · TS 130 passed
 | V2-12 | Simplified provider + credential UI | todo | — |
 | V2-13 | Simplified model selection UI | todo | — |
 | V2-14 | Status / loading / error / confirmation feedback | todo | — |
-| V2-15 | Advanced settings disclosure | todo | — |
+| V2-15 | Advanced settings disclosure | done | next |
 | V2-16 | Light/dark themes + accessibility verification | todo | — |
 | V2-17 | App icon integration + validation | todo | — |
 | V2-18 | Credential-ID + provider-profile schemas | todo | — |
