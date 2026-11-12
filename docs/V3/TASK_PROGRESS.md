@@ -1,7 +1,7 @@
 # V3 — Stability, Compatibility & Final Polish — task progress
 
 Baseline for V3: `9d17575` on `main` (remote identical), working tree clean,
-Rust 294 passed / 0 failed, TypeScript 190 passed / 25 files (`9d17575` + V3-03).
+Final: Rust **314** passed / 0 failed, TypeScript **196** passed / 25 files.
 
 **Status key:** `done` = code + tests + commit pushed · `partial` = implemented but
 one verification step is impossible on this machine (stated) · `blocked` = needs
@@ -37,14 +37,14 @@ an owner decision · `not verified` = no claim made.
 | V3-26 | Credential path correctness | done | `config_paths` command; CredentialsTab uses backend value; 2 tests |
 | V3-27 | Provider/model switch polish | done | routing keeps its own credential list (`routingCredentials`) |
 | V3-28 | Compact contextual help | done | Failover explanation moved into a disclosure |
-| V3-29 | Window and sidebar refinement | pending | |
-| V3-30 | Visual/accessibility verification | pending | |
-| V3-31 | Secret and token audit | pending | |
-| V3-32 | Proxy security | pending | |
-| V3-33 | Configuration safety | pending | |
-| V3-34 | CI investigation | done | `docs/V3/V3-02-defects.md` §7 — billing lock, jobs never start |
-| V3-35 | Complete regression | pending | |
-| V3-36 | Real macOS workflow test | not verified — requires a live Claude Code session | |
-| V3-37 | Packaging and cleanup | pending | |
-| V3-38 | Final documentation and audit | pending | |
-| V3-39 | Final delivery | pending | |
+| V3-29 | Window and sidebar refinement | done | min size 620×560; screenshots at both sizes |
+| V3-30 | Visual/accessibility verification | partial | code-level a11y suite green; one screenshot per size; no VoiceOver run |
+| V3-31 | Secret and token audit | done | `docs/V3/V3-31-security-audit.md`; token now 256-bit OS CSPRNG |
+| V3-32 | Proxy security | done | `tests/proxy_security.rs` 8 tests; exact-path match fixed |
+| V3-33 | Configuration safety | done | `docs/V3/V3-31-security-audit.md` §V3-33 |
+| V3-34 | CI investigation | done | `docs/V3/V3-34-ci-investigation.md` — billing lock, jobs never start |
+| V3-35 | Complete regression | done | `docs/V3/V3-35-regression.md` |
+| V3-36 | Real macOS workflow test | not verified | helper survival verified on the release binary; live Claude Code session not performed |
+| V3-37 | Packaging and cleanup | done | release build exit 0; DMG 5.93 MiB |
+| V3-38 | Final documentation and audit | done | `docs/V3/FINAL_AUDIT.md`, `docs/V3/LIMITATIONS.md` |
+| V3-39 | Final delivery | done | pushed to `main` |

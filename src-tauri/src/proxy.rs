@@ -20,8 +20,6 @@ use crate::failover::{self, Cooldowns, FailureClass};
 use crate::provider_catalog::AuthStyle;
 use crate::routing_config::{self, RouteTarget, RoutingConfig};
 use std::collections::HashMap;
-use std::collections::hash_map::RandomState;
-use std::hash::{BuildHasher, Hasher};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::PathBuf;
@@ -120,21 +118,12 @@ impl Drop for ProxyHandle {
 }
 
 pub fn random_token() -> String {
-    // Two independent RandomState hashers seeded from the OS, mixed with the
-    // clock and pid: 128 bits of hex, sufficient for a loopback bearer token.
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    let mut out = String::with_capacity(32);
-    for salt in [0u128, 1] {
-        let mut h = RandomState::new().build_hasher();
-        h.write_u128(now);
-        h.write_u128(salt);
-        h.write_u32(std::process::id());
-        out.push_str(&format!("{:016x}", h.finish()));
-    }
-    out
+    // V3-06: 256 bits from the operating system CSPRNG, hex-encoded. The token
+    // gates the loopback proxy, so a predictable value would let any local
+    // process spend the owner's provider quota.
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes).expect("the OS random source must be available");
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// Start the proxy on an ephemeral loopback port with a fresh token.
@@ -240,7 +229,10 @@ fn handle_conn(mut stream: TcpStream, ctx: &Ctx) -> std::io::Result<()> {
         return write_simple(&mut stream, 200, "application/json", &body);
     }
 
-    if method != "POST" || !path.starts_with("/v1/messages") {
+    // Exact path only: the upstream URL is `<base>/v1/messages`, so anything
+    // else (including `/v1/messages/../x`) is a caller error, not a proxy job.
+    let route = path.split('?').next().unwrap_or("");
+    if method != "POST" || route != "/v1/messages" {
         return write_simple(
             &mut stream,
             404,

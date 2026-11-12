@@ -147,7 +147,7 @@ credential-looking is replaced with `[REDACTED]`).
 
 ---
 
-## 9. Bridge limitations (planned, not shipped)
+## 9. Bridge limitations (still not shipped in V3)
 
 If bridge support is ever approved, these are the constraints it must satisfy (already recorded as design
 requirements, not as shipped features):
@@ -189,7 +189,8 @@ session.
 2. Under **Failover routing**, pick the provider and one of its stored credentials, optionally
    pin a model, and press **Add target**. Repeat for the backup providers you want.
 3. Order the list (↑ / ↓). The proxy tries targets top to bottom.
-4. **Save chain**, then **Start proxy**, then **Route Claude Code**.
+4. **Save chain**, then **Start helper**, then **Apply routed mode** (the footer button changes
+   to this while Claude Code is routed).
 
 What it changes — `~/.claude/settings.json` gets
 
@@ -209,12 +210,25 @@ retries a request whose stream already started — so a tool call or a charge is
 
 Limits worth knowing:
 
-- The listener is `127.0.0.1` only and exists while the app runs; quitting the app stops it.
+- The listener is `127.0.0.1` only. Since V3 it runs in a **helper process that outlives the
+  window**, so Claude Code in a VS Code terminal keeps working after you close the app. The
+  Failover screen shows the helper state with **Start / Stop / Restart**.
+- The helper's port and bearer token are kept on disk (`0600`) so a restart does not invalidate
+  the configuration Claude Code already has.
+- To survive a logout/login, tick **Start the helper when I log in**. That installs a user
+  LaunchAgent in `~/Library/LaunchAgents` (no admin rights) and the same checkbox removes it.
+  Nothing is installed unless you tick it.
 - Cooldowns (30 s for a rate limit, 6 h for a rejected key or exhausted quota) are in memory and
   reset on restart.
 - Only `anthropic-version`, `anthropic-beta` and `accept` are forwarded besides the body.
-- Routing adds a hop: if the app is not running, Claude Code cannot reach the provider. Turn
-  routing off (save normally, or stop the proxy and re-apply your provider) to go direct again.
+- Routing adds a hop: if the helper is not running, Claude Code cannot reach the provider. The
+  header then says `mode: proxy stopped` instead of pretending everything is fine.
+- The global **Save & Apply** button is intentionally replaced while routed: switching back to
+  direct mode needs **Switch to direct…** and a second confirmation, so a working routed setup
+  cannot be undone by one stray click.
+- Providers that only speak the OpenAI API (for example NVIDIA NIM) are **refused with a clear
+  `compatibility_error`**, not sent an Anthropic body they cannot parse. This build ships no
+  protocol bridge.
 
 ---
 

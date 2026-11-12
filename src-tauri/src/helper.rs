@@ -137,7 +137,7 @@ pub fn clear_state(home: &Path) {
 pub fn ensure_token(home: &Path) -> Result<String, String> {
     let store = FileSecretStore::for_home(home);
     if let Ok(Some(existing)) = store.get_secret(TOKEN_SERVICE, TOKEN_ACCOUNT)
-        && existing.len() == 32
+        && existing.len() >= 32
         && existing.chars().all(|c| c.is_ascii_hexdigit())
     {
         return Ok(existing);
@@ -339,6 +339,7 @@ pub fn plist_body(exe: &Path, home: &Path) -> String {
   <key>KeepAlive</key>
   <dict><key>SuccessfulExit</key><false/></dict>
   <key>ProcessType</key><string>Background</string>
+  <key>Umask</key><integer>63</integer>
   <key>StandardOutPath</key><string>{log}</string>
   <key>StandardErrorPath</key><string>{log}</string>
 </dict>
@@ -459,7 +460,7 @@ mod tests {
         let a = ensure_token(&home).unwrap();
         let b = ensure_token(&home).unwrap();
         assert_eq!(a, b);
-        assert_eq!(a.len(), 32);
+        assert_eq!(a.len(), 64, "256 bits, hex");
         assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
 
         use std::os::unix::fs::PermissionsExt;
@@ -503,6 +504,8 @@ mod tests {
         assert!(body.contains(HELPER_ARG));
         assert!(body.contains(AGENT_LABEL));
         assert!(body.contains("RunAtLoad"));
+        // launchd creates the log file itself; Umask 077 keeps it owner-only.
+        assert!(body.contains("<key>Umask</key><integer>63</integer>"));
         // An ampersand or angle bracket in a path must not break the XML.
         let odd = plist_body(Path::new("/tmp/a&b<c>"), &home);
         assert!(odd.contains("a&amp;b&lt;c&gt;"));
