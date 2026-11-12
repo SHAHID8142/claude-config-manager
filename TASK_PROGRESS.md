@@ -117,7 +117,7 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 | T67 Full regression + independent review | ✅ | 2026-11-08 | 46645fe | ✓ | Fresh run: Rust 201 pass/0 fail/2 ignored, TS 120/120, lint/format/typecheck/build/clippy clean, dep-audit PASS. Automated claim check: 53 cited test names, 0 missing. Unverified items listed explicitly (T47–T58, T65, T10 CI, macOS GUI, project license) |
 | T68 User guide + troubleshooting + bridge limits + Windows notes | ✅ | 2026-11-08 | ce40f4d | ✓ | docs/USER_GUIDE.md: managed-key table, first run, apply transaction, role overrides, backup/restore, uninstall, troubleshooting table, limitations, planned bridge constraints, Windows porting matrix |
 | T69 FINAL_AUDIT.md | ✅ | 2026-11-08 | e1685d8 | ✓ | Verdict: **direct mode PASS, release NOT READY**. 52 tasks PASS, T64 partial, T47–T58 blocked, T65/T10 not tested. Security register incl. residual risks; 5 owner-gated release blockers |
-| T70 Final push + clean state verification | ⬜ | — | — | — | — |
+| T70 Final push + clean state verification | ✅ | 2026-11-13 | (this commit) | ✓ | Clean tree, remote synced at ea95986; full regression green (Rust 255, TS 196); convergence anomaly disclosed in docs/audits/T70-delivery.md |
 | G1 Read-back rollback test | ✅ | 2026-11-08 | 5e9d966 | ✓ | Verifier injected into the real write path; failure restores original bytes exactly, 0600, no temp, first-run failure leaves no file |
 | G2 Redirect credential safety | ✅ | 2026-11-08 | 5a6afe7 | ✓ | Redirects refused (max_redirects=0) instead of relying on a ureq default; 302 surfaced explicitly; loopback proof the credential never travels |
 | G3 Property-based merge tests | ✅ | 2026-11-08 | bc62218 | ✓ | proptest, 6 invariants, 400–2000 cases; found 3 bad test assumptions + documented serde_json/secret-floor limits |
@@ -134,4 +134,4 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 ## Blockers / open items
 
-None currently. Next task: **T70** (delivery verification).
+Backlog complete through T70. Release remains NOT READY per FINAL_AUDIT.md pending five owner-gated items (signing, LICENSE, bridge consent, clean-install smoke, CI billing).
