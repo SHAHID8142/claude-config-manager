@@ -96,6 +96,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [restoreOutcome, setRestoreOutcome] = useState<RestoreOutcome | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentReport | null>(null);
+  const [environmentError, setEnvironmentError] = useState<string | null>(null);
   const [backups, setBackups] = useState<BackupInfo[] | null>(null);
   const [shellWarningDismissed, setShellWarningDismissed] = useState(false);
   const [models, setModels] = useState<ModelEntry[] | null>(null);
@@ -343,10 +344,17 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     let cancelled = false;
     checkEnvironment(ipc)
       .then((env) => {
-        if (!cancelled) setEnvironment(env);
+        if (!cancelled) {
+          setEnvironment(env);
+          setEnvironmentError(null);
+        }
       })
-      .catch(() => {
-        /* Environment probe is best-effort. */
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setEnvironmentError(
+            isCommandError(e) ? e.message : "Environment check failed.",
+          );
+        }
       });
     // D9: the Maintenance screen lists real backups; refreshed after restores.
     listBackups(ipc)
@@ -852,6 +860,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                 <MaintenanceTab
                   backups={backups}
                   environment={environment}
+                  environmentError={environmentError}
                   restoring={restoring}
                   onRestore={() => {
                     void handleRestore();
@@ -926,7 +935,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                     label="Save & Apply"
                     pendingLabel="Applying…"
                     pending={applying}
-                    disabled={!canApply}
+                    disabled={!canApply || tab === "maintenance"}
                     variant="primary"
                     onClick={() => {
                       void handleApply();

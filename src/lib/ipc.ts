@@ -35,22 +35,6 @@ export function isCommandError(value: unknown): value is CommandError {
 }
 
 // ---------------------------------------------------------------------------
-// Existing Rust commands (src-tauri/src/lib.rs). Keep in sync.
-// ---------------------------------------------------------------------------
-
-/** `greet` — scaffold command; negative case: names >256 chars reject. */
-export async function greet(name: string, ipc: IpcLike = defaultIpc): Promise<string> {
-  if (name.length > 256) {
-    // Client-side mirror of the Rust guard: fail fast with the same shape.
-    return Promise.reject({
-      kind: "invalid_input",
-      message: "name exceeds 256 characters",
-    } satisfies CommandError);
-  }
-  return ipc.invoke<string>("greet", { name });
-}
-
-// ---------------------------------------------------------------------------
 // `list_providers` (T18) — bundled provider templates for the selector.
 // ---------------------------------------------------------------------------
 

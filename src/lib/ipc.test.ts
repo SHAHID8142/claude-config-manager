@@ -1,38 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { greet, isCommandError } from "./ipc";
+import { isCommandError } from "./ipc";
 import { createMockIpc } from "./ipc-mock";
-
-describe("greet contract", () => {
-  it("returns the greeting through the transport", async () => {
-    const mock = createMockIpc({
-      handlers: {
-        greet: (args) => Promise.resolve(`Hello, ${args?.name}! You've been greeted from Rust!`),
-      },
-    });
-    await expect(greet("fixture-user", mock)).resolves.toContain("fixture-user");
-    expect(mock.calls).toEqual([{ cmd: "greet", args: { name: "fixture-user" } }]);
-  });
-
-  it("rejects oversized names client-side with a CommandError", async () => {
-    const mock = createMockIpc();
-    const long = "a".repeat(257);
-    await expect(greet(long, mock)).rejects.toMatchObject({
-      kind: "invalid_input",
-      message: "name exceeds 256 characters",
-    });
-    // Must reject before touching the transport.
-    expect(mock.calls).toHaveLength(0);
-  });
-
-  it("mirrors a Rust typed error on transport failure", async () => {
-    const mock = createMockIpc({
-      failures: { greet: { kind: "not_available", message: "backend offline" } },
-    });
-    await expect(greet("x", mock)).rejects.toMatchObject({
-      kind: "not_available",
-    });
-  });
-});
 
 describe("isCommandError guard", () => {
   it("accepts a well-formed CommandError", () => {

@@ -66,15 +66,6 @@ impl CommandError {
     }
 }
 
-#[tauri::command]
-fn greet(name: &str) -> Result<String, CommandError> {
-    if name.len() > 256 {
-        // Negative guard: oversized names rejected with a typed error.
-        return Err(CommandError::invalid_input("name exceeds 256 characters"));
-    }
-    Ok(format!("Hello, {}! You've been greeted from Rust!", name))
-}
-
 /// T18 contract: list bundled provider templates for the selector.
 #[tauri::command]
 fn list_providers() -> Result<Vec<provider_catalog::ProviderSummary>, CommandError> {
@@ -798,7 +789,6 @@ fn bridge_apply_mode(
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            greet,
             list_providers,
             save_and_apply,
             read_status,
@@ -866,18 +856,6 @@ mod contract_tests {
             let json = serde_json::to_value(&err).expect("serialize");
             assert_eq!(json["kind"], expected);
         }
-    }
-
-    #[test]
-    fn greet_rejects_oversized_name_with_typed_error() {
-        let long = "a".repeat(257);
-        assert!(matches!(greet(&long), Err(CommandError::InvalidInput(_))));
-    }
-
-    #[test]
-    fn greet_accepts_normal_name() {
-        let out = greet("fixture-user").expect("ok");
-        assert!(out.contains("fixture-user"));
     }
 
     #[test]

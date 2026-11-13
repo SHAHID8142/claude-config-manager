@@ -8,6 +8,8 @@ export interface MaintenanceTabProps {
   /** D9: real backups from the backend, newest first (null = still loading). */
   backups: BackupInfo[] | null;
   environment: EnvironmentReport | null;
+  /** Set when the probe itself failed — surfaced, never swallowed. */
+  environmentError: string | null;
   restoring: boolean;
   onRestore: () => void;
   restoreOutcome: RestoreOutcome | null;
@@ -51,7 +53,13 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
       )}
 
       <Section title="Environment" description="Read-only checks — nothing here changes a file.">
-        {env === null ? (
+        {props.environmentError !== null ? (
+          <StatusBanner
+            severity="warning"
+            message="Environment check failed."
+            detail={props.environmentError}
+          />
+        ) : env === null ? (
           <p className="text-[12.5px] text-ink-muted">Checking the environment…</p>
         ) : (
           <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">

@@ -34,7 +34,15 @@ const models = [
   source: "https://openrouter.ai/api/v1/models",
 }));
 
+/** Dev-only failure injection: `?fail=catalog|env|models|apply|bridge`
+ * makes the named domain reject, so error states can be verified visually. */
+const failParam = new URLSearchParams(window.location.search).get("fail") ?? "";
+
 export function createDevMockIpc(): IpcLike {
+  // Stateful across calls so consent/install/start flows can be walked.
+  let consented = false;
+  let installed = false;
+  let running = false;
   const handlers: Record<string, (args?: Record<string, unknown>) => Promise<unknown>> = {
     list_providers: () => Promise.resolve(providerSummaryFixtures),
     read_status: () =>
@@ -173,7 +181,6 @@ export function createDevMockIpc(): IpcLike {
           "/Users/demo/Library/Application Support/ClaudeConfigManager/helpers/routing.sh",
         appliedKeys: ["env", "apiKeyHelper"],
       }),
-    greet: () => Promise.resolve("Hello from mock!"),
     bridge_consent_info: () =>
       Promise.resolve({
         package: "@musistudio/claude-code-router",
@@ -189,21 +196,37 @@ export function createDevMockIpc(): IpcLike {
       }),
     bridge_overview: () =>
       Promise.resolve({
-        consented: false,
-        installed: false,
+        consented,
+        installed,
         version: "3.1.3",
         nodeFound: true,
         nodeMajor: 26,
-        running: false,
-        pid: null,
+        running,
+        pid: running ? 48212 : null,
         gatewayPort: 3456,
       }),
-    bridge_consent_record: () => Promise.resolve(undefined),
-    bridge_consent_withdraw: () => Promise.resolve(undefined),
-    bridge_install: () =>
-      Promise.resolve({ version: "3.1.3", installDir: "/tmp/mock", integrityVerified: true }),
-    bridge_start: () => Promise.resolve(48212),
-    bridge_stop: () => Promise.resolve(true),
+    bridge_consent_record: () => {
+      consented = true;
+      return Promise.resolve(undefined);
+    },
+    bridge_consent_withdraw: () => {
+      consented = false;
+      running = false;
+      installed = false;
+      return Promise.resolve(undefined);
+    },
+    bridge_install: () => {
+      installed = true;
+      return Promise.resolve({ version: "3.1.3", installDir: "/tmp/mock", integrityVerified: true });
+    },
+    bridge_start: () => {
+      running = true;
+      return Promise.resolve(48212);
+    },
+    bridge_stop: () => {
+      running = false;
+      return Promise.resolve(true);
+    },
     bridge_uninstall: () => Promise.resolve(undefined),
     bridge_apply_mode: () =>
       Promise.resolve({
@@ -215,8 +238,20 @@ export function createDevMockIpc(): IpcLike {
       }),
   };
 
+  const failMap: Record<string, string[]> = {
+    catalog: ["list_providers"],
+    env: ["check_environment", "read_status"],
+    models: ["discover_models"],
+    apply: ["save_and_apply", "apply_routed_mode"],
+    bridge: ["bridge_overview", "bridge_install", "bridge_start"],
+  };
+  const failing = new Set(failMap[failParam] ?? []);
+
   return {
     invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+      if (failing.has(cmd)) {
+        return err("io", `injected failure for visual QA ('${cmd}')`) as Promise<T>;
+      }
       const h = handlers[cmd];
       if (!h) return err("not_available", `no dev-mock handler for '${cmd}'`) as Promise<T>;
       return h(args).then((v) => v as T);
