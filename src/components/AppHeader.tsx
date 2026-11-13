@@ -45,9 +45,9 @@ export function AppHeader({ status, connection = {} }: AppHeaderProps) {
         <img
           src="/app-icon.png"
           alt=""
-          width={22}
-          height={22}
-          className="size-[22px] shrink-0 rounded-[5px]"
+          width={24}
+          height={24}
+          className="size-6 shrink-0"
         />
         <h1 className="truncate text-[13px] font-semibold tracking-[-0.005em] text-ink">
           Claude Config Manager
