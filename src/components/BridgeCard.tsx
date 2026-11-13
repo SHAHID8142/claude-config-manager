@@ -126,6 +126,8 @@ export function BridgeCard({ ipc, providerId, providerName, model, onApplied }: 
               <dd className="text-ink">{phase.pin.license}</dd>
               <dt className="text-ink-subtle">Download</dt>
               <dd className="text-ink">{`${mb(phase.pin.tarballBytes)}, sha512-verified before install`}</dd>
+              <dt className="text-ink-subtle">Dependencies</dt>
+              <dd className="text-ink">installed from a pinned lockfile (npm ci)</dd>
               <dt className="text-ink-subtle">Listens on</dt>
               <dd className="text-ink">127.0.0.1 only</dd>
             </dl>

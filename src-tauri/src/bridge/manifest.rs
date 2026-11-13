@@ -25,7 +25,16 @@ pub struct BridgePin {
     pub license_source: &'static str,
     /// Human-facing size of the tarball, from the registry, for the consent UI.
     pub tarball_bytes: u64,
+    /// npm package-lock.json generated at pin time — a deterministic,
+    /// integrity-checked dependency tree for `npm ci` (the tarball does NOT
+    /// bundle its dependencies; the CLI cannot run without this step —
+    /// verified manually 2026-11-13).
+    pub lockfile_sha256: &'static str,
 }
+
+/// The pinned dependency lockfile (npm `package-lock.json`), committed
+/// verbatim so `npm ci` reproduces the exact verified tree.
+pub const LOCKFILE: &str = include_str!("ccr-package-lock.json");
 
 pub const PINNED: BridgePin = BridgePin {
     package: "@musistudio/claude-code-router",
@@ -36,6 +45,7 @@ pub const PINNED: BridgePin = BridgePin {
     license: "MIT",
     license_source: "https://github.com/musistudio/claude-code-router (LICENSE, verified via GitHub API 2026-11-08)",
     tarball_bytes: 6_529_968, // exact size, downloaded and sha512-verified at pin time (2026-11-13)
+    lockfile_sha256: "f9d0ab63c39186359a7c6aa0fb3765a6c251ce1b9fc1bfaf3540be17716bdfbb",
 };
 
 /// Loopback ports the bridge uses (both bind 127.0.0.1 only — T51).
@@ -68,6 +78,19 @@ mod tests {
         assert_eq!(raw.len(), 64, "sha512 digest must be 64 bytes");
         assert!(PINNED.min_node_major >= 22);
         assert_eq!(PINNED.license, "MIT");
+    }
+
+    #[test]
+    fn lockfile_matches_pinned_hash() {
+        use sha2::{Digest, Sha256};
+        use std::fmt::Write as _;
+        let mut h = Sha256::new();
+        h.update(LOCKFILE.as_bytes());
+        let mut hex = String::new();
+        for b in h.finalize() {
+            write!(hex, "{b:02x}").unwrap();
+        }
+        assert_eq!(hex, PINNED.lockfile_sha256);
     }
 
     #[test]

@@ -13,6 +13,7 @@ Translates **Anthropic-protocol requests** from Claude Code into **OpenAI-compat
 - State/config lives in `~/.claude-code-router` (macOS/Linux); service token auto-generated unless `CCR_WEB_AUTH_TOKEN` is set.
 - License MIT (GitHub API + package metadata, verified 2026-11-08).
 - Requires Node ≥ 22 (`engines` field) — our installer enforces this before download.
+- **The tarball does NOT bundle its dependencies** (verified manually: the extracted CLI crashes with `Cannot find module 'better-sqlite3'`). Our installer therefore writes a pin-time `package-lock.json` (committed, sha256-verified) and runs `npm ci --omit=dev` post-extract. Live full-chain proof 2026-11-13: install (2.7 s incl. deps) → detached `serve` → gateway answered HTTP 200 on `127.0.0.1:3456` → listener bound loopback-only → clean stop → uninstall left nothing behind.
 
 ## What our integration guarantees
 

@@ -346,11 +346,54 @@ pub fn install(
         ));
     }
 
+    // Dependency step (verified gap, 2026-11-13): the tarball does NOT bundle
+    // its node_modules. Write the pin-time lockfile and run `npm ci` so the
+    // tree matches the verified dependency set exactly.
+    let lock_path = dest.join("package-lock.json");
+    std::fs::write(&lock_path, super::manifest::LOCKFILE)
+        .map_err(|e| BridgeError::Io(e.to_string()))?;
+    npm_ci_install(&dest)?;
+
+    // Post-ci sanity: the heaviest runtime dep must be present.
+    if !dest.join("node_modules").join("better-sqlite3").exists() {
+        let _ = std::fs::remove_dir_all(&dest);
+        return Err(BridgeError::Io(
+            "dependency install did not produce node_modules — rolling back".into(),
+        ));
+    }
+
     Ok(InstallReport {
         version: PINNED.version.to_string(),
         install_dir: dest.to_string_lossy().to_string(),
         integrity_verified: true,
     })
+}
+
+/// `npm ci --omit=dev --no-audit --no-fund` in `dir`. Argv-only, 10 min cap,
+/// output captured (never inherited) so npm chatter cannot reach the UI.
+fn npm_ci_install(dir: &Path) -> Result<(), BridgeError> {
+    let node = check_node(&std::env::var("PATH").unwrap_or_default())?.0;
+    let npm = node
+        .parent()
+        .map(|p| p.join("npm"))
+        .ok_or_else(|| BridgeError::Io("node path has no parent".into()))?;
+    let output = std::process::Command::new(npm)
+        .arg("ci")
+        .arg("--omit=dev")
+        .arg("--no-audit")
+        .arg("--no-fund")
+        .current_dir(dir)
+        .output()
+        .map_err(|e| BridgeError::Io(format!("npm spawn: {e}")))?;
+    if !output.status.success() {
+        let tail = String::from_utf8_lossy(&output.stderr)
+            .lines()
+            .last()
+            .unwrap_or("npm ci failed")
+            .to_string();
+        return Err(BridgeError::Io(format!("npm ci failed: {tail}")));
+    }
+    Ok(())
 }
 
 /// T58: remove the installed version (downloads cache kept for re-install).
@@ -599,5 +642,105 @@ mod live_tests {
             size
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod live_full_chain {
+    use super::*;
+    use crate::bridge::runtime::{self, GatewayProviderConfig};
+    use std::path::PathBuf;
+    use std::time::{Duration, Instant};
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "ccm-bridge-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        dir
+    }
+
+    /// THE end-to-end proof (T49+T50+T51+T52): real download, real npm ci,
+    /// real `ccr serve` boot on loopback, probe, clean stop, uninstall.
+    /// Opt-in: `cargo test live_bridge_full_chain -- --ignored --nocapture`
+    #[test]
+    #[ignore = "live network + npm + spawn test — run manually"]
+    fn live_bridge_full_chain() {
+        let home = temp_dir("live-chain");
+        let root = home.join("bridge/packages");
+        let state = home.join("bridge/state");
+
+        // 1. Install (download + integrity + extract + npm ci).
+        let t0 = Instant::now();
+        let report = install(&root, &state.join("downloads"), true).expect("install");
+        println!(
+            "live: installed {} in {:?}",
+            report.install_dir,
+            t0.elapsed()
+        );
+        assert!(report.integrity_verified);
+
+        // 2. Consent marker (the runtime refuses without it).
+        runtime::write_consent_marker(&state).expect("consent");
+
+        // 3. Loopback-only gateway config for a fixture provider.
+        runtime::write_gateway_config(
+            &state,
+            &GatewayProviderConfig {
+                name: "nvidia-nim".into(),
+                base_url: "https://integrate.api.nvidia.com".into(),
+                api_key_file: home
+                    .join("secrets/test.secret")
+                    .to_string_lossy()
+                    .to_string(),
+            },
+            crate::bridge::manifest::GATEWAY_PORT,
+        )
+        .expect("config");
+
+        // 4. Start (detached, argv-only).
+        let node = check_node(&std::env::var("PATH").unwrap_or_default())
+            .expect("node")
+            .0;
+        let pid = runtime::start(&node, &root.join(PINNED.version), &state).expect("start");
+        println!("live: bridge pid {pid}");
+
+        // 5. Probe the gateway until it answers (max 30 s).
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut answered = false;
+        while Instant::now() < deadline {
+            if let Ok(resp) = ureq::get("http://127.0.0.1:3456/").call() {
+                println!("live: gateway answered HTTP {}", resp.status());
+                answered = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(500));
+        }
+        assert!(answered, "gateway must answer on 127.0.0.1:3456");
+
+        // 6. Loopback-only invariant on the REAL listener.
+        let lsof_out = std::process::Command::new("lsof")
+            .args(["-nP", "-iTCP:3456", "-sTCP:LISTEN"])
+            .output()
+            .expect("lsof");
+        let text = String::from_utf8_lossy(&lsof_out.stdout);
+        assert!(
+            text.contains("127.0.0.1:3456"),
+            "must bind loopback: {text}"
+        );
+        assert!(!text.contains("*:3456"), "must not bind wildcard");
+
+        // 7. Clean stop + uninstall.
+        assert!(runtime::stop(&state).expect("stop"));
+        std::thread::sleep(Duration::from_millis(500));
+        uninstall(&root).expect("uninstall");
+        assert!(!version_dir(&root, PINNED.version).exists());
+        println!("live: full chain PASS");
+        let _ = std::fs::remove_dir_all(&home);
     }
 }
