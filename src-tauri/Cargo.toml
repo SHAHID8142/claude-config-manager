@@ -1,6 +1,6 @@
 [package]
 name = "claude-config-manager"
-version = "0.1.0"
+version = "1.0.0"
 description = "Desktop manager for Claude Code CLI global configuration"
 authors = ["SHAHID8142"]
 edition = "2024"

@@ -537,6 +537,37 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     contextWindowDigits !== "" &&
     !(Number(contextWindowDigits) >= 1_000 && Number(contextWindowDigits) <= 10_000_000);
 
+  // D2 (extended): when the session has no explicit selection but the live
+  // settings point at one of our helpers, the provider is knowable from the
+  // helper file name — the backend's own record. Shared by every card so the
+  // Dashboard can never contradict itself.
+  const configuredProvider =
+    selected === null && status?.apiKeyHelper != null && providers !== null
+      ? (providers.find(
+          (p) =>
+            p.id ===
+            status.apiKeyHelper!.replace(/\\/g, "/").split("/").pop()?.replace(/\.sh$/, ""),
+        ) ?? null)
+      : null;
+
+  // D2 (extended): the Credentials card is truthful for the derived provider
+  // too — fetch its credential list when it is the one actually in use.
+  const credentialScopeId = selected?.id ?? configuredProvider?.id ?? null;
+  useEffect(() => {
+    if (credentialScopeId === null || credentialScopeId === CUSTOM_ID) return;
+    let cancelled = false;
+    listCredentials(credentialScopeId, ipc)
+      .then((list) => {
+        if (!cancelled) setCredentials({ providerId: credentialScopeId, list });
+      })
+      .catch(() => {
+        if (!cancelled) setCredentials(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [credentialScopeId, ipc]);
+
   // V3-25: Claude Code is currently pointed at the local proxy. The global
   // button must not silently undo that — routed mode can be working while the
   // draft on screen is a direct-mode provider.
@@ -686,6 +717,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
 
               {tab === "dashboard" && (
                 <DashboardTab
+                  configuredProvider={configuredProvider}
                   status={status}
                   providers={providers}
                   selected={selected}

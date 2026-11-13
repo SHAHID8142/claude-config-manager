@@ -15,6 +15,9 @@ import type {
 } from "../lib/ipc";
 
 export interface DashboardTabProps {
+  /** D2: the provider derived from the live helper path when the session
+   * has no explicit selection (App computes it — single source of truth). */
+  configuredProvider: ProviderSummary | null;
   status: EffectiveStatus | null;
   providers: ProviderSummary[] | null;
   selected: ProviderSummary | null;
@@ -131,14 +134,6 @@ export function DashboardTab(props: DashboardTabProps) {
 
   // D2: with no in-app selection, a helper-configured provider is still
   // knowable — the helper file name is the backend's own provider record.
-  const configuredProvider =
-    selected === null && status?.apiKeyHelper != null
-      ? (props.providers?.find(
-          (p) =>
-            p.id ===
-            status.apiKeyHelper!.replace(/\\/g, "/").split("/").pop()?.replace(/\.sh$/, ""),
-        ) ?? null)
-      : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -263,13 +258,13 @@ export function DashboardTab(props: DashboardTabProps) {
           <Value>
             {selected !== null
               ? selected.name
-              : configuredProvider !== null
-                ? configuredProvider.name
+              : props.configuredProvider !== null
+                ? props.configuredProvider.name
                 : status?.apiKeyHelper !== null && status?.apiKeyHelper !== undefined
                   ? "configured via helper"
                   : "No provider selected"}
           </Value>
-          {selected === null && configuredProvider !== null ? (
+          {selected === null && props.configuredProvider !== null ? (
             <Note>Managed elsewhere in this app session — open Provider to take over.</Note>
           ) : selected !== null ? (
             <>
@@ -312,23 +307,40 @@ export function DashboardTab(props: DashboardTabProps) {
           </Note>
         </Card>
 
-        <Card
-          icon={<KeyRound size={13} aria-hidden="true" />}
-          title="Credentials"
-          tone={credentials.length > 0 ? "ok" : "warn"}
-          action={{ label: "Manage", tab: "credentials", onNavigate: props.onNavigate }}
-        >
-          <Value>
-            {credentials.length === 0
-              ? "No stored key"
-              : `${credentials.length} stored ${credentials.length === 1 ? "key" : "keys"}`}
-          </Value>
-          <Note>
-            {activeCredential === null
-              ? "Save & Apply needs a key."
-              : `Using ${activeCredential.label}${activeCredential.last4 !== "" ? ` · …${activeCredential.last4}` : ""}`}
-          </Note>
-        </Card>
+        {(() => {
+          // D2 (final): when the live config uses a helper this app session
+          // cannot attribute to a catalog provider, the key IS in use — the
+          // card must never claim "No stored key" in that state.
+          const helperManagedUnknown =
+            selected === null &&
+            props.configuredProvider === null &&
+            (status?.apiKeyHelper != null || credentials.length === 0) &&
+            status?.apiKeyHelper != null;
+          const count = credentials.length;
+          return (
+            <Card
+              icon={<KeyRound size={13} aria-hidden="true" />}
+              title="Credentials"
+              tone={helperManagedUnknown || count > 0 ? "ok" : "warn"}
+              action={{ label: "Manage", tab: "credentials", onNavigate: props.onNavigate }}
+            >
+              <Value>
+                {helperManagedUnknown
+                  ? "In use (helper-managed)"
+                  : count === 0
+                    ? "No stored key"
+                    : `${count} stored ${count === 1 ? "key" : "keys"}`}
+              </Value>
+              <Note>
+                {helperManagedUnknown
+                  ? "Set up earlier; Claude Code reads it through the helper. Re-save through this app to take over management."
+                  : activeCredential === null
+                    ? "Save & Apply needs a key."
+                    : `Using ${activeCredential.label}${activeCredential.last4 !== "" ? ` · …${activeCredential.last4}` : ""}`}
+              </Note>
+            </Card>
+          );
+        })()}
 
         <Card
           icon={<Route size={13} aria-hidden="true" />}
