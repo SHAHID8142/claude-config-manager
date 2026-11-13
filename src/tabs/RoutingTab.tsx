@@ -75,7 +75,7 @@ export function RoutingTab(props: RoutingTabProps) {
                   type="button"
                   onClick={props.onStopProxy}
                   disabled={props.busy || (!helper.running && !helper.stale)}
-                  className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover disabled:opacity-50"
+                  className="btn btn-secondary"
                 >
                   Stop
                 </button>
@@ -84,7 +84,7 @@ export function RoutingTab(props: RoutingTabProps) {
                   type="button"
                   onClick={props.onStartProxy}
                   disabled={props.busy || helper.running}
-                  className="h-8 rounded-[6px] bg-primary px-3 text-[12.5px] font-medium text-on-primary hover:bg-primary-hover disabled:opacity-50"
+                  className="btn btn-primary"
                 >
                   Start helper
                 </button>
@@ -93,7 +93,7 @@ export function RoutingTab(props: RoutingTabProps) {
                 type="button"
                 onClick={props.onRestartProxy}
                 disabled={props.busy}
-                className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover disabled:opacity-50"
+                className="btn btn-secondary"
               >
                 Restart
               </button>

@@ -51,7 +51,7 @@ export function CredentialsTab(props: CredentialsTabProps) {
         <button
           type="button"
           onClick={props.onNavigateToProvider}
-          className={`mt-1 h-8 rounded-[6px] bg-primary px-3.5 text-[12.5px] font-medium text-on-primary hover:bg-primary-hover`}
+          className="btn btn-primary mt-1"
         >
           Go to Provider
         </button>

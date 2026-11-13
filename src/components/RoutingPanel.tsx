@@ -108,7 +108,7 @@ export function RoutingPanel({
           {onCheckHealth ? (
             <button
               type="button"
-              className="h-7 rounded-[6px] border border-control bg-surface px-2 text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
+              className="btn btn-secondary !h-7 !px-2 !text-[12px]"
               onClick={onCheckHealth}
               disabled={busy || checking || config.targets.length === 0}
             >
@@ -117,7 +117,7 @@ export function RoutingPanel({
           ) : null}
           <button
             type="button"
-            className="h-7 rounded-[6px] border border-control bg-surface px-2 text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
+            className="btn btn-secondary !h-7 !px-2 !text-[12px]"
             onClick={onSave}
             disabled={busy}
           >
@@ -249,7 +249,7 @@ export function RoutingPanel({
       </div>
       <button
         type="button"
-        className="flex h-8 items-center justify-center gap-1.5 rounded-[6px] border border-control bg-surface text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
+        className="btn btn-secondary w-full"
         onClick={addTarget}
         disabled={!canAdd || busy}
       >
@@ -271,7 +271,7 @@ export function RoutingPanel({
           {status?.running === true ? (
             <button
               type="button"
-              className="h-8 flex-1 rounded-[6px] border border-control bg-surface text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
+              className="btn btn-secondary flex-1"
               onClick={onStopProxy}
               disabled={busy}
             >
@@ -280,7 +280,7 @@ export function RoutingPanel({
           ) : (
             <button
               type="button"
-              className="h-8 flex-1 rounded-[6px] border border-control bg-surface text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
+              className="btn btn-secondary flex-1"
               onClick={onStartProxy}
               disabled={busy}
             >
@@ -289,7 +289,7 @@ export function RoutingPanel({
           )}
           <button
             type="button"
-            className="h-8 flex-1 rounded-[6px] bg-primary text-[12px] text-on-primary hover:bg-primary-hover disabled:opacity-50"
+            className="btn btn-primary flex-1"
             onClick={onApplyRouted}
             disabled={busy || !config.enabled || config.targets.length === 0}
           >

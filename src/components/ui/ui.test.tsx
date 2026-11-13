@@ -11,13 +11,13 @@ describe("Button", () => {
     const { rerender } = render(<Button variant="primary">Save</Button>);
     const btn = screen.getByRole("button", { name: "Save" });
     expect(btn).toHaveAttribute("type", "button");
-    expect(btn.className).toContain("bg-accent");
+    expect(btn.className).toContain("btn-primary");
     rerender(
       <Button variant="danger" size="sm">
         Delete
       </Button>,
     );
-    expect(screen.getByRole("button", { name: "Delete" }).className).toContain("bg-danger");
+    expect(screen.getByRole("button", { name: "Delete" }).className).toContain("btn-danger");
   });
 
   it("keeps icon-only decoration out of the accessibility tree", () => {

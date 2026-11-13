@@ -921,7 +921,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                     <button
                       type="button"
                       onClick={() => setConfirmingDirect(false)}
-                      className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover"
+                      className="btn btn-secondary"
                     >
                       Cancel
                     </button>
@@ -944,7 +944,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                     <button
                       type="button"
                       onClick={() => setConfirmingDirect(true)}
-                      className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover"
+                      className="btn btn-secondary"
                     >
                       Switch to direct…
                     </button>

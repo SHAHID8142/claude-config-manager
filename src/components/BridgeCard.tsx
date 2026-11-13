@@ -142,7 +142,7 @@ export function BridgeCard({ ipc, providerId, providerName, model, onApplied }: 
                     await bridgeConsentRecord(ipc);
                   })
                 }
-                className={`h-8 rounded-[6px] bg-primary px-3.5 text-[12.5px] font-medium text-on-primary hover:bg-primary-hover disabled:opacity-50 ${focusRing}`}
+                className={`btn btn-primary ${focusRing}`}
               >
                 I understand — enable the bridge
               </button>

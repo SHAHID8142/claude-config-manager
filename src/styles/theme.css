@@ -177,3 +177,148 @@
 .animate-rise {
   animation: ccm-rise 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* ─── CTA system: gradient-lit buttons (owner brief: light, finish,
+   shadow/reflection, full state matrix) ───────────────────────────────
+   The face is a three-stop vertical gradient with inset top-light and
+   bottom-reflection edges; depth comes from a layered drop shadow that
+   collapses on press. All states: hover / active / focus-visible /
+   disabled / loading. Reduced-motion handled by the global rule. */
+:root {
+  --btn-primary-face: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 72%, white) 0%,
+    var(--accent) 52%,
+    color-mix(in srgb, var(--accent) 84%, black) 100%
+  );
+  --btn-primary-edge:
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 -1px 0 rgb(0 0 0 / 0.22);
+  --btn-primary-shadow:
+    0 1px 2px rgb(27 26 25 / 0.22),
+    0 5px 12px -4px color-mix(in srgb, var(--accent) 55%, rgb(27 26 25 / 0.5));
+  --btn-primary-shadow-hover:
+    0 1px 2px rgb(27 26 25 / 0.22),
+    0 8px 18px -5px color-mix(in srgb, var(--accent) 70%, rgb(27 26 25 / 0.5));
+  --btn-primary-face-hover: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 62%, white) 0%,
+    color-mix(in srgb, var(--accent) 94%, white) 55%,
+    var(--accent) 100%
+  );
+  --btn-secondary-face: linear-gradient(180deg, #ffffff 0%, #faf9f6 100%);
+  --btn-secondary-face-hover: linear-gradient(180deg, #ffffff 0%, #f4f1ed 100%);
+  --btn-secondary-edge: inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --btn-secondary-shadow: 0 1px 2px rgb(27 26 25 / 0.08), 0 2px 6px -2px rgb(27 26 25 / 0.12);
+  --btn-secondary-shadow-hover: 0 1px 2px rgb(27 26 25 / 0.1), 0 4px 10px -3px rgb(27 26 25 / 0.18);
+}
+
+.dark {
+  --btn-primary-face: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 80%, white) 0%,
+    var(--accent) 55%,
+    color-mix(in srgb, var(--accent) 78%, black) 100%
+  );
+  --btn-secondary-face: linear-gradient(180deg, #2a2928 0%, #232221 100%);
+  --btn-secondary-face-hover: linear-gradient(180deg, #323130 0%, #2a2928 100%);
+  --btn-secondary-edge: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --btn-secondary-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  --btn-secondary-shadow-hover: 0 2px 8px -2px rgb(0 0 0 / 0.5);
+}
+
+.btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font: 500 13px/1 var(--font-sans);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 110ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    background 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: saturate(0.6);
+  box-shadow: none;
+  transform: none;
+}
+
+/* Primary — the clay gradient CTA with top light + bottom reflection edge. */
+.btn-primary {
+  color: #ffffff;
+  background: var(--btn-primary-face);
+  box-shadow: var(--btn-primary-edge), var(--btn-primary-shadow);
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.18);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--btn-primary-face-hover);
+  box-shadow: var(--btn-primary-edge), var(--btn-primary-shadow-hover);
+  filter: brightness(1.03);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0.5px);
+  filter: brightness(0.95);
+  box-shadow:
+    inset 0 2px 5px rgb(0 0 0 / 0.3),
+    inset 0 0 0 1px rgb(0 0 0 / 0.08),
+    0 1px 1px rgb(27 26 25 / 0.18);
+}
+
+/* Secondary — gentle surface gradient, hairline edge, quiet depth. */
+.btn-secondary {
+  color: var(--ink);
+  background: var(--btn-secondary-face);
+  border-color: var(--control);
+  box-shadow: var(--btn-secondary-edge), var(--btn-secondary-shadow);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--btn-secondary-face-hover);
+  box-shadow: var(--btn-secondary-edge), var(--btn-secondary-shadow-hover);
+}
+.btn-secondary:active:not(:disabled) {
+  transform: translateY(0.5px);
+  background: var(--btn-secondary-face);
+  box-shadow:
+    inset 0 1px 3px rgb(0 0 0 / 0.12),
+    var(--btn-secondary-edge);
+}
+
+/* Ghost — for tertiary actions inside dense panels. */
+.btn-ghost {
+  color: var(--ink-muted);
+  background: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.btn-ghost:active:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+/* Danger — destructive confirmations. */
+.btn-danger {
+  color: #ffffff;
+  background: linear-gradient(180deg, #d24a3d 0%, var(--danger) 60%, #96261c 100%);
+  box-shadow: var(--btn-primary-edge), 0 1px 2px rgb(0 0 0 / 0.2);
+}
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.btn-danger:active:not(:disabled) {
+  transform: translateY(0.5px);
+  filter: brightness(0.94);
+}

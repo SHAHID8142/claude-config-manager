@@ -1,5 +1,8 @@
-/** Async-action button (T15): pending state with aria-busy, disabled while
- * pending, spinner respects prefers-reduced-motion. */
+/** Async-action button (T15, CTA system restyle): pending state with
+ * aria-busy, disabled while pending, spinner respects prefers-reduced-motion.
+ * Faces come from the shared .btn system in theme.css — gradient-lit
+ * primary, gradient surface secondary — with the full state matrix
+ * (hover / active / focus-visible / disabled / loading) defined there. */
 import { focusRing } from "../lib/focus";
 
 export interface LoadingButtonProps {
@@ -7,15 +10,14 @@ export interface LoadingButtonProps {
   pendingLabel?: string;
   pending?: boolean;
   disabled?: boolean;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "danger";
   onClick?: () => void;
 }
 
 const variants = {
-  // Near-black, not the brand hue: the accent is kept for data and the one
-  // selected mark (achromatic-ledger move).
-  primary: "bg-primary text-on-primary hover:bg-primary-hover",
-  secondary: "border border-control bg-surface text-ink hover:bg-surface-hover",
+  primary: "btn-primary",
+  secondary: "btn-secondary",
+  danger: "btn-danger",
 };
 
 export function LoadingButton({
@@ -33,7 +35,7 @@ export function LoadingButton({
       onClick={onClick}
       disabled={inert}
       aria-busy={pending}
-      className={`inline-flex h-8 items-center gap-2 rounded-[6px] px-3 text-[13px] font-medium motion-safe:transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${focusRing}`}
+      className={`btn ${variants[variant]} ${focusRing}`}
     >
       {pending && (
         <span
