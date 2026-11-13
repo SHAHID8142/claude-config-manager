@@ -77,7 +77,9 @@ pub fn generate_helper_script_for(provider_id: &str, account: &str) -> Result<St
 # an owner-only file (0600), never in settings.json and never in this script.
 f="$HOME/.claude-config-manager/secrets/{account}.secret"
 [ -f "$f" ] || {{ echo "credential file missing for {account}" >&2; exit 1; }}
-[ "$(stat -f %Lp "$f")" = "600" ] || {{ echo "credential file permissions are too open: $f" >&2; exit 1; }}
+# Portable permission check: GNU stat first (Linux), BSD stat fallback (macOS).
+perms="$(stat -c %a "$f" 2>/dev/null || stat -f %Lp "$f" 2>/dev/null)"
+[ "$perms" = "600" ] || {{ echo "credential file permissions are too open: $f" >&2; exit 1; }}
 exec cat "$f"
 "#
     ))
@@ -174,7 +176,8 @@ mod tests {
         // Fails closed rather than emitting an empty credential.
         assert!(s.contains("exit 1"));
         // Refuses a file whose permissions were loosened.
-        assert!(s.contains("stat -f %Lp"));
+        assert!(s.contains("stat -c %a")); // GNU/Linux first
+        assert!(s.contains("stat -f %Lp")); // BSD/macOS fallback
         // Idempotent: same id → identical script.
         assert_eq!(s, generate_helper_script("anthropic").expect("again"));
     }

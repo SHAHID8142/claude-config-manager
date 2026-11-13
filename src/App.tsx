@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LoadingButton } from "./components/LoadingButton";
 import { EMPTY_ROLES, hasInvalidRole, rolesToSend, type RoleState } from "./lib/roles";
 import { AppHeader } from "./components/AppHeader";
@@ -85,6 +85,10 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [selectedId, setSelectedId] = useState<string>(
     () => loadSessionString("provider") ?? EMPTY_ID,
   );
+  const selectedIdRef = useRef(selectedId);
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
   const [customName, setCustomName] = useState("");
   const [customEndpoint, setCustomEndpoint] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -476,17 +480,6 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     }
   }
 
-  // D2: a persisted provider id must still exist in the catalog; otherwise
-  // the UI would show "configured" while no provider is actually selected.
-  useEffect(() => {
-    if (providers === null) return;
-    if (selectedId === EMPTY_ID || selectedId === CUSTOM_ID) return;
-    if (!providers.some((p) => p.id === selectedId)) {
-      setSelectedId(EMPTY_ID);
-      clearSessionString("provider");
-    }
-  }, [providers, selectedId]);
-
   useEffect(() => {
     let cancelled = false;
     listProviders(ipc)
@@ -494,6 +487,17 @@ export default function App({ ipc = defaultIpc }: AppProps) {
         if (!cancelled) {
           setProviders(p);
           setLoadError(null);
+          // D2: a persisted provider id must still exist in the catalog;
+          // otherwise the UI would show "configured" while nothing is
+          // actually selected. (Async continuation — not sync-in-effect.)
+          if (
+            selectedIdRef.current !== EMPTY_ID &&
+            selectedIdRef.current !== CUSTOM_ID &&
+            !p.some((x) => x.id === selectedIdRef.current)
+          ) {
+            setSelectedId(EMPTY_ID);
+            clearSessionString("provider");
+          }
         }
       })
       .catch((err: unknown) => {

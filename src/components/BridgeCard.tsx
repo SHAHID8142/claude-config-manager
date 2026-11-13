@@ -56,10 +56,30 @@ export function BridgeCard({ ipc, providerId, providerName, model, onApplied }: 
   }, [ipc]);
 
   useEffect(() => {
-    refresh().catch((e: unknown) =>
-      setError(isCommandError(e) ? e.message : "Bridge status unavailable."),
-    );
-  }, [refresh]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const [pin, overview] = await Promise.all([
+          bridgeConsentInfo(ipc),
+          bridgeOverview(ipc),
+        ]);
+        if (!cancelled) {
+          setPhase(
+            overview.consented
+              ? { kind: "ready", pin, overview }
+              : { kind: "consent", pin, overview },
+          );
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setError(isCommandError(e) ? e.message : "Bridge status unavailable.");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ipc]);
 
   async function run(name: string, fn: () => Promise<void>) {
     setBusy(name);
