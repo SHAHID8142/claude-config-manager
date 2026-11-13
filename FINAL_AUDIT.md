@@ -255,3 +255,15 @@ scripts/dep-audit.sh       PASS (0 npm vulns, 0 advisories in the macOS graph)
 - Direct mode: **PASS** · Failover routing: code-PASS · Bridge: code-PASS, consent-gated · Install/launch on this Mac: **VERIFIED**.
 - **Release readiness: READY for owner-distribution** (unsigned — Gatekeeper workaround documented in README; owner installs from the built DMG on this machine works as proven).
 - Still genuinely owner-gated: Apple Developer ID (signed/notarized distribution beyond this machine), CI billing (no Actions signal), real third-party provider key for a live bridge session.
+
+
+---
+
+## 2026-11-14 — CI green + released
+
+- **GitHub Actions: ALL GREEN** (run on `dffb700`): Frontend checks ✓ · Rust checks ✓ · Secrets & dependencies (gitleaks, npm audit, cargo audit) ✓. Two real defects the Linux CI caught and this session fixed:
+  1. The generated apiKeyHelper used macOS-only `stat -f %Lp` — now GNU-first with BSD fallback (portable permission check, exercised by the Linux runner).
+  2. eslint react-hooks v7 `set-state-in-effect` violations in BridgeCard/App — restructured into async continuations with cancelled flags.
+  Plus a Linux/overlayfs ETXTBSY transient in a test fixture (retry-on-26).
+- **Release v1.0.0 published and download-verified**: fresh `gh release download` → `shasum -c SHA256SUMS.txt` → OK. Tag moved to `dffb700` so the release matches the verified source.
+- Local caches cleaned: 7.1 GB build cache, WebView/caches, /tmp fixtures. Load-bearing live auth data (legacy helper tree + Application Support secrets + LaunchAgent) preserved — deleting it would break the owner's working Claude Code auth (verified: settings.json apiKeyHelper points there).
