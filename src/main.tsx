@@ -17,7 +17,15 @@ globalThis.matchMedia?.("(prefers-color-scheme: dark)").addEventListener?.("chan
 // include this branch (import.meta.env.DEV is statically replaced).
 const devIpc =
   import.meta.env.DEV && new URLSearchParams(window.location.search).has("mock")
-    ? createDevMockIpc()
+    ? (() => {
+        // `&demo=1` pre-selects a provider so scripted demo recordings start
+        // from a ready state.
+        if (new URLSearchParams(window.location.search).has("demo")) {
+          window.localStorage.setItem("ccm.session.provider", "anthropic");
+          window.localStorage.setItem("ccm.session.tab", "dashboard");
+        }
+        return createDevMockIpc();
+      })()
     : undefined;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

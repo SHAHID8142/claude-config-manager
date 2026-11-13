@@ -972,7 +972,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                 <>
                   <p className="mr-auto text-[12px] text-ink-muted">{applyHint}</p>
                   <LoadingButton
-                    label="Save & Apply"
+                    testId="apply"
+          label="Save & Apply"
                     pendingLabel="Applying…"
                     pending={applying}
                     disabled={!canApply || tab === "maintenance"}

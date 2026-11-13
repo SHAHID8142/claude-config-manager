@@ -92,6 +92,7 @@ export function ModelTab(props: ModelTabProps) {
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <LoadingButton
             label="Fetch models"
+            testId="fetch-models"
             pendingLabel="Fetching…"
             pending={props.fetching}
             disabled={props.provider === null || props.isCustom}

@@ -36,6 +36,7 @@ export function AppSidebar({ active, onSelect, badges = {} }: AppSidebarProps) {
           <button
             key={tab.id}
             type="button"
+            data-testid={`nav-${tab.id}`}
             aria-current={current ? "page" : undefined}
             onClick={() => onSelect(tab.id)}
             className={`flex h-8 items-center gap-2.5 rounded-[6px] px-2.5 text-[13px] motion-safe:transition-colors ${focusRing} ${

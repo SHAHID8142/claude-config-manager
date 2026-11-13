@@ -69,6 +69,7 @@ export function ModelList({ models, selectedId, onSelect }: ModelListProps) {
                 <button
                   type="button"
                   role="option"
+                  data-testid="model-row"
                   aria-selected={isSelected}
                   onClick={() => onSelect(m.id)}
                   className={`flex h-8 w-full items-center gap-2 px-2.5 text-left text-[12.5px] ${focusRing} ${

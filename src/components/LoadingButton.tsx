@@ -11,6 +11,8 @@ export interface LoadingButtonProps {
   pending?: boolean;
   disabled?: boolean;
   variant?: "primary" | "secondary" | "danger";
+  /** Stable hook for demo recording / QA automation. */
+  testId?: string;
   onClick?: () => void;
 }
 
@@ -26,6 +28,7 @@ export function LoadingButton({
   pending = false,
   disabled = false,
   variant = "secondary",
+  testId,
   onClick,
 }: LoadingButtonProps) {
   const inert = disabled || pending;
@@ -35,6 +38,7 @@ export function LoadingButton({
       onClick={onClick}
       disabled={inert}
       aria-busy={pending}
+      {...(testId !== undefined ? { "data-testid": testId } : {})}
       className={`btn ${variants[variant]} ${focusRing}`}
     >
       {pending && (
