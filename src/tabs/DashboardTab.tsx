@@ -1,12 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import {
-  AlertTriangle,
-  KeyRound,
-  Layers,
-  Route,
-  Sparkles,
-  Terminal,
-} from "lucide-react";
+import { AlertTriangle, KeyRound, Layers, Route, Sparkles, Terminal } from "lucide-react";
 import { CapabilityBadge, BridgeBadge } from "../components/CapabilityBadge";
 import { StatusBanner } from "../components/StatusBanner";
 import { contextWindowLabel, modeLabel, needsAttention, warningText } from "../lib/statusText";
@@ -362,9 +355,7 @@ export function DashboardTab(props: DashboardTabProps) {
         <Card
           icon={<Terminal size={13} aria-hidden="true" />}
           title="Environment"
-          tone={
-            environment === null ? "neutral" : environment.cliFound ? "ok" : "warn"
-          }
+          tone={environment === null ? "neutral" : environment.cliFound ? "ok" : "warn"}
           action={{ label: "Details", tab: "maintenance", onNavigate: props.onNavigate }}
         >
           <Value>

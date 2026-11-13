@@ -1,4 +1,8 @@
-import { describeConnection, type ConnectionContext, type ConnectionState } from "../lib/connectionLabel";
+import {
+  describeConnection,
+  type ConnectionContext,
+  type ConnectionState,
+} from "../lib/connectionLabel";
 import type { EffectiveStatus } from "../lib/ipc";
 
 export interface AppHeaderProps {

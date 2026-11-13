@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { LoadingButton } from "./components/LoadingButton";
-import {
-  EMPTY_ROLES,
-  hasInvalidRole,
-  rolesToSend,
-  type RoleState,
-} from "./lib/roles";
+import { EMPTY_ROLES, hasInvalidRole, rolesToSend, type RoleState } from "./lib/roles";
 import { AppHeader } from "./components/AppHeader";
 import { AppSidebar } from "./components/AppSidebar";
 import { ThemeSegmented } from "./components/ThemeSegmented";
@@ -14,6 +9,7 @@ import { ProviderTab } from "./tabs/ProviderTab";
 import { CredentialsTab } from "./tabs/CredentialsTab";
 import { ModelTab } from "./tabs/ModelTab";
 import { RoutingTab } from "./tabs/RoutingTab";
+import { BridgeCard } from "./components/BridgeCard";
 import { MaintenanceTab } from "./tabs/MaintenanceTab";
 import { TAB_META, isTabId, type TabId } from "./lib/tab";
 import { loadSessionString, saveSessionString, clearSessionString } from "./lib/session";
@@ -224,9 +220,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     try {
       await saveRouting(routing, ipc);
     } catch (err: unknown) {
-      setRoutingError(
-        isCommandError(err) ? err.message : "The routing chain could not be saved.",
-      );
+      setRoutingError(isCommandError(err) ? err.message : "The routing chain could not be saved.");
     } finally {
       setRoutingBusy(false);
     }
@@ -567,8 +561,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       return "Configure the chain above, then use Route Claude Code.";
     }
     if (canApply) return "Writes ~/.claude/settings.json after a backup.";
-    if (selected === null && !isCustom)
-      return "Choose a provider to enable Save & Apply.";
+    if (selected === null && !isCustom) return "Choose a provider to enable Save & Apply.";
     if (apiKey.trim() === "" && !storedCredential)
       return "Add a key (or store one under Credentials) to enable Save & Apply.";
     return "Fix the highlighted field to enable Save & Apply.";
@@ -791,51 +784,68 @@ export default function App({ ipc = defaultIpc }: AppProps) {
               )}
 
               {tab === "routing" && (
-                <RoutingTab
-                  config={routing}
-                  error={routingError}
-                  providers={providers ?? []}
-                  credentials={
-                    routingCredentials !== null &&
-                    (routingCredentials.providerId === routingDraftProviderId ||
-                      routingDraftProviderId === null)
-                      ? routingCredentials.list
-                      : []
-                  }
-                  onNeedCredentials={(providerId) => {
-                    setRoutingDraftProviderId(providerId);
-                    void listCredentials(providerId, ipc)
-                      .then((list) => setRoutingCredentials({ providerId, list }))
-                      .catch(() => setRoutingCredentials(null));
-                  }}
-                  status={proxy}
-                  health={routingHealth}
-                  checking={checkingHealth}
-                  busy={routingBusy}
-                  onChange={setRouting}
-                  onSave={() => {
-                    void handleSaveRouting();
-                  }}
-                  onStartProxy={() => {
-                    void handleStartProxy();
-                  }}
-                  onStopProxy={() => {
-                    void handleStopProxy();
-                  }}
-                  helper={helper}
-                  onRestartProxy={() => {
-                    void handleRestartProxy();
-                  }}
-                  onToggleLoginStart={(enabled: boolean) => {
-                    void handleToggleLoginStart(enabled);
-                  }}
-                  onApplyRouted={() => {
-                    void handleApplyRouted();
-                  }}
-                  onCheckHealth={() => {
-                    void handleCheckRoutingHealth();
-                  }}
-                />
+                <>
+                  <RoutingTab
+                    config={routing}
+                    error={routingError}
+                    providers={providers ?? []}
+                    credentials={
+                      routingCredentials !== null &&
+                      (routingCredentials.providerId === routingDraftProviderId ||
+                        routingDraftProviderId === null)
+                        ? routingCredentials.list
+                        : []
+                    }
+                    onNeedCredentials={(providerId) => {
+                      setRoutingDraftProviderId(providerId);
+                      void listCredentials(providerId, ipc)
+                        .then((list) => setRoutingCredentials({ providerId, list }))
+                        .catch(() => setRoutingCredentials(null));
+                    }}
+                    status={proxy}
+                    health={routingHealth}
+                    checking={checkingHealth}
+                    busy={routingBusy}
+                    onChange={setRouting}
+                    onSave={() => {
+                      void handleSaveRouting();
+                    }}
+                    onStartProxy={() => {
+                      void handleStartProxy();
+                    }}
+                    onStopProxy={() => {
+                      void handleStopProxy();
+                    }}
+                    helper={helper}
+                    onRestartProxy={() => {
+                      void handleRestartProxy();
+                    }}
+                    onToggleLoginStart={(enabled: boolean) => {
+                      void handleToggleLoginStart(enabled);
+                    }}
+                    onApplyRouted={() => {
+                      void handleApplyRouted();
+                    }}
+                    onCheckHealth={() => {
+                      void handleCheckRoutingHealth();
+                    }}
+                  />
+                  {tab === "routing" && (selected?.protocol === "open_ai_only" || isCustom) && (
+                    <BridgeCard
+                      ipc={ipc}
+                      providerId={selected === null ? null : selected.id}
+                      providerName={selected?.name ?? (isCustom ? customName || "Custom" : null)}
+                      model={selectedModel}
+                      onApplied={(outcome) => {
+                        setApplyOutcome(outcome);
+                        // Refresh effective status after the apply transaction.
+                        readStatus(ipc)
+                          .then(setStatus)
+                          .catch(() => {});
+                      }}
+                    />
+                  )}
+                </>
               )}
 
               {tab === "maintenance" && (
@@ -864,8 +874,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                 confirmingDirect ? (
                   <>
                     <p className="mr-auto text-[12px] text-ink-muted">
-                      Switch Claude Code back to a direct provider? The proxy keeps running, so
-                      you can switch back at any time.
+                      Switch Claude Code back to a direct provider? The proxy keeps running, so you
+                      can switch back at any time.
                     </p>
                     <button
                       type="button"

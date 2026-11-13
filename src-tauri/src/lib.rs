@@ -8,9 +8,11 @@
 //!   the shared redaction guard).
 
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::sync::Arc;
 
 pub mod apply_lock;
+pub mod bridge;
 pub mod config_backup;
 pub mod config_locator;
 pub mod config_merge;
@@ -409,6 +411,17 @@ fn restore_last_backup() -> Result<config_restore::RestoreOutcome, CommandError>
         .map_err(|e| CommandError::io(e.to_string()))
 }
 
+/// D9 (Maintenance): list available settings backups, newest first —
+/// metadata only, never content.
+#[tauri::command]
+fn list_backups() -> Result<Vec<config_backup::BackupInfo>, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let backups = config_backup::default_backup_dir(&home);
+    config_backup::list_backups(&backups).map_err(|e| CommandError::io(e.to_string()))
+}
+
 /// T36 contract: environment diagnostics (CLI presence/version, settings state).
 #[tauri::command]
 fn check_environment() -> Result<environment_check::EnvironmentReport, CommandError> {
@@ -587,6 +600,200 @@ fn promote_credential(credential_id: String) -> Result<bool, CommandError> {
     vault()?.promote(&credential_id).map_err(vault_error)
 }
 
+// ─── Bridge (T48/T49/T52/T54/T58) — consent-gated third-party translator ──
+
+fn bridge_state_dir(home: &Path) -> std::path::PathBuf {
+    home.join("Library")
+        .join("Application Support")
+        .join("ClaudeConfigManager")
+        .join("bridge")
+}
+
+fn bridge_install_root(home: &Path) -> std::path::PathBuf {
+    bridge_state_dir(home).join("packages")
+}
+
+/// T48: the consent payload the UI displays before asking. Facts only —
+/// everything here is from the committed pin, nothing is fetched.
+#[tauri::command]
+fn bridge_consent_info() -> bridge::manifest::BridgePin {
+    // Return an owned copy — Tauri commands serialize owned values.
+    bridge::manifest::PINNED.clone()
+}
+
+/// T48: record explicit consent (version-stamped). The installer and the
+/// runtime both refuse without this marker — enforced server-side, not in
+/// the UI.
+#[tauri::command]
+fn bridge_consent_record() -> Result<(), CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    bridge::runtime::write_consent_marker(&bridge_state_dir(&home))
+        .map(|_| ())
+        .map_err(|e| CommandError::io(e.to_string()))
+}
+
+/// T48: withdraw consent (also stops a running bridge first).
+#[tauri::command]
+fn bridge_consent_withdraw() -> Result<(), CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let state = bridge_state_dir(&home);
+    let _ = bridge::runtime::stop(&state);
+    bridge::runtime::clear_consent_marker(&state);
+    Ok(())
+}
+
+/// T52 status: installed? consented? running?
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BridgeOverview {
+    consented: bool,
+    installed: bool,
+    version: String,
+    node_found: bool,
+    node_major: Option<u32>,
+    running: bool,
+    pid: Option<u32>,
+    gateway_port: u16,
+}
+
+#[tauri::command]
+fn bridge_overview() -> Result<BridgeOverview, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let state = bridge_state_dir(&home);
+    let st = bridge::runtime::status(&state);
+    let installed = bridge::installer::version_dir(
+        &bridge_install_root(&home),
+        bridge::manifest::PINNED.version,
+    )
+    .join("dist/main/cli.js")
+    .is_file();
+    let node = bridge::installer::detect_node(&std::env::var("PATH").unwrap_or_default());
+    Ok(BridgeOverview {
+        consented: bridge::runtime::consented_marker(&state),
+        installed,
+        version: bridge::manifest::PINNED.version.to_string(),
+        node_found: node.is_some(),
+        node_major: node.map(|(_, m)| m),
+        running: st.running,
+        pid: st.pid,
+        gateway_port: st.gateway_port,
+    })
+}
+
+/// T49/T50: install (download → integrity → extract). Requires consent.
+#[tauri::command]
+fn bridge_install() -> Result<bridge::installer::InstallReport, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let state = bridge_state_dir(&home);
+    let consented = bridge::runtime::consented_marker(&state);
+    bridge::installer::install(
+        &bridge_install_root(&home),
+        &state.join("downloads"),
+        consented,
+    )
+    .map_err(|e| match e {
+        bridge::installer::BridgeError::NotConsented => CommandError::not_available(e.to_string()),
+        other => CommandError::io(other.to_string()),
+    })
+}
+
+/// T52: start the detached bridge (requires consent + install).
+#[tauri::command]
+fn bridge_start() -> Result<u32, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let node = bridge::installer::check_node(&std::env::var("PATH").unwrap_or_default())
+        .map_err(|e| CommandError::not_available(e.to_string()))?
+        .0;
+    bridge::runtime::start(
+        &node,
+        &bridge_install_root(&home).join(bridge::manifest::PINNED.version),
+        &bridge_state_dir(&home),
+    )
+    .map_err(|e| CommandError::io(e.to_string()))
+}
+
+/// T52: stop the bridge.
+#[tauri::command]
+fn bridge_stop() -> Result<bool, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    bridge::runtime::stop(&bridge_state_dir(&home)).map_err(|e| CommandError::io(e.to_string()))
+}
+
+/// T58: uninstall — refuses while running; consent marker is kept unless
+/// withdrawn separately.
+#[tauri::command]
+fn bridge_uninstall() -> Result<(), CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let state = bridge_state_dir(&home);
+    if bridge::runtime::status(&state).running {
+        return Err(CommandError::invalid_input(
+            "the bridge is running — stop it before uninstalling",
+        ));
+    }
+    bridge::installer::uninstall(&bridge_install_root(&home))
+        .map_err(|e| CommandError::io(e.to_string()))
+}
+
+/// T54: point Claude Code at the bridge for an OpenAI-only provider.
+/// Writes settings.json via the same transactional pipeline as Save & Apply:
+/// the base URL becomes the loopback gateway and the credential stays in the
+/// owner-only file the bridge reads.
+#[tauri::command]
+fn bridge_apply_mode(
+    provider_id: String,
+    model: Option<String>,
+) -> Result<save_apply::ApplyOutcome, CommandError> {
+    let home = std::env::var("HOME")
+        .map(std::path::PathBuf::from)
+        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
+    let state = bridge_state_dir(&home);
+    if !bridge::runtime::consented_marker(&state) {
+        return Err(CommandError::not_available(
+            "bridge needs your explicit consent first",
+        ));
+    }
+    let st = bridge::runtime::status(&state);
+    if !st.running {
+        return Err(CommandError::invalid_input(
+            "start the bridge before routing Claude Code through it",
+        ));
+    }
+    // Credential must exist for the provider (the gateway reads the file).
+    let store: std::sync::Arc<dyn secret_store::SecretStore> =
+        std::sync::Arc::new(file_secret_store::FileSecretStore::for_home(&home));
+    let has = credential_service::CredentialService::new(store.as_ref())
+        .has_credential(&provider_id)
+        .map_err(|e| CommandError::io(e.to_string()))?;
+    if !has {
+        return Err(CommandError::invalid_input(
+            "no stored credential for this provider",
+        ));
+    }
+
+    let svc = save_apply::SaveApplyService::for_production(&home, store);
+    let base_url = format!("http://127.0.0.1:{}", st.gateway_port);
+    svc.apply(&provider_id, model.as_deref(), Some(&base_url), None)
+        .map_err(|e| match e {
+            save_apply::ApplyError::InvalidInput(m) => CommandError::invalid_input(m),
+            save_apply::ApplyError::NoCredential => CommandError::invalid_input(e.to_string()),
+            other => CommandError::io(other.to_string()),
+        })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -615,7 +822,17 @@ pub fn run() {
             add_credential,
             remove_credential,
             set_credential_enabled,
-            promote_credential
+            promote_credential,
+            list_backups,
+            bridge_consent_info,
+            bridge_consent_record,
+            bridge_consent_withdraw,
+            bridge_overview,
+            bridge_install,
+            bridge_start,
+            bridge_stop,
+            bridge_uninstall,
+            bridge_apply_mode
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

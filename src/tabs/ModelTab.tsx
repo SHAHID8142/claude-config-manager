@@ -44,7 +44,9 @@ export function ModelTab(props: ModelTabProps) {
   const draft = props.selectedModel?.trim() ?? "";
   const applied = props.status?.envModel ?? props.status?.model ?? null;
   const unrecognized =
-    draft !== "" && !draft.toLowerCase().startsWith("claude") && props.status?.envMaxContextTokens == null;
+    draft !== "" &&
+    !draft.toLowerCase().startsWith("claude") &&
+    props.status?.envMaxContextTokens == null;
 
   return (
     <section aria-label="Model" className="flex flex-col gap-6">
@@ -68,7 +70,9 @@ export function ModelTab(props: ModelTabProps) {
             {draft === "" ? "nothing chosen" : draft}
           </dd>
           <dd className="mt-0.5 text-[11px] text-ink-muted">
-            {props.fetchedFor === null ? "manual entry" : `catalog for ${props.provider?.name ?? "provider"}`}
+            {props.fetchedFor === null
+              ? "manual entry"
+              : `catalog for ${props.provider?.name ?? "provider"}`}
           </dd>
         </div>
       </dl>
@@ -82,10 +86,7 @@ export function ModelTab(props: ModelTabProps) {
         />
       )}
 
-      <Section
-        title="Choose"
-        description="Fetch the provider's catalog, then pick one."
-      >
+      <Section title="Choose" description="Fetch the provider's catalog, then pick one.">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <LoadingButton
             label="Fetch models"
@@ -96,7 +97,9 @@ export function ModelTab(props: ModelTabProps) {
             onClick={props.onFetch}
           />
           {props.provider !== null && !props.isCustom && (
-            <span className="text-[12px] text-ink-subtle">Verified preset for {props.provider.name}</span>
+            <span className="text-[12px] text-ink-subtle">
+              Verified preset for {props.provider.name}
+            </span>
           )}
         </div>
 
@@ -134,7 +137,11 @@ export function ModelTab(props: ModelTabProps) {
         </FieldRow>
 
         {props.modelInvalid && props.modelMessage !== null && (
-          <p aria-live="polite" id="model-input-error" className="text-[12px] font-medium text-danger">
+          <p
+            aria-live="polite"
+            id="model-input-error"
+            className="text-[12px] font-medium text-danger"
+          >
             {props.modelMessage} Save &amp; Apply is disabled until this is fixed.
           </p>
         )}

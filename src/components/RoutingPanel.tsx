@@ -75,8 +75,7 @@ export function RoutingPanel({
     (c) => c.providerId === (provider?.id ?? "") && c.enabled,
   );
 
-  const canAdd =
-    provider !== null && draftCredential !== "" && config.targets.length < 10;
+  const canAdd = provider !== null && draftCredential !== "" && config.targets.length < 10;
 
   function addTarget() {
     if (!provider || !canAdd) return;

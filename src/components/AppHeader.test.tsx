@@ -49,5 +49,4 @@ describe("AppHeader", () => {
     expect(screen.getByRole("heading", { name: "Claude Config Manager" })).toBeInTheDocument();
     expect(screen.getByLabelText("Connection mode")).toHaveTextContent("mode: configured");
   });
-
 });

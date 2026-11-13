@@ -364,10 +364,7 @@ export async function getRouting(ipc: IpcLike = defaultIpc): Promise<RoutingConf
   return ipc.invoke<RoutingConfig>("get_routing");
 }
 
-export async function saveRouting(
-  config: RoutingConfig,
-  ipc: IpcLike = defaultIpc,
-): Promise<void> {
+export async function saveRouting(config: RoutingConfig, ipc: IpcLike = defaultIpc): Promise<void> {
   return ipc.invoke<void>("save_routing", { config });
 }
 
@@ -435,4 +432,81 @@ export interface BackupInfo {
 
 export async function listBackups(ipc: IpcLike = defaultIpc): Promise<BackupInfo[]> {
   return ipc.invoke<BackupInfo[]>("list_backups");
+}
+
+// ---------------------------------------------------------------------------
+// Bridge (T47–T58) — pinned third-party translator for OpenAI-only providers.
+// Consent is enforced server-side; these wrappers only surface it.
+// ---------------------------------------------------------------------------
+
+export interface BridgePin {
+  package: string;
+  version: string;
+  tarballUrl: string;
+  integritySha512B64: string;
+  minNodeMajor: number;
+  license: string;
+  licenseSource: string;
+  tarballBytes: number;
+}
+
+export interface BridgeOverview {
+  consented: boolean;
+  installed: boolean;
+  version: string;
+  nodeFound: boolean;
+  nodeMajor: number | null;
+  running: boolean;
+  pid: number | null;
+  gatewayPort: number;
+}
+
+export interface BridgeInstallReport {
+  version: string;
+  installDir: string;
+  integrityVerified: boolean;
+}
+
+export async function bridgeConsentInfo(ipc: IpcLike = defaultIpc): Promise<BridgePin> {
+  return ipc.invoke<BridgePin>("bridge_consent_info");
+}
+
+export async function bridgeConsentRecord(ipc: IpcLike = defaultIpc): Promise<void> {
+  return ipc.invoke<void>("bridge_consent_record");
+}
+
+export async function bridgeConsentWithdraw(ipc: IpcLike = defaultIpc): Promise<void> {
+  return ipc.invoke<void>("bridge_consent_withdraw");
+}
+
+export async function bridgeOverview(ipc: IpcLike = defaultIpc): Promise<BridgeOverview> {
+  return ipc.invoke<BridgeOverview>("bridge_overview");
+}
+
+export async function bridgeInstall(ipc: IpcLike = defaultIpc): Promise<BridgeInstallReport> {
+  return ipc.invoke<BridgeInstallReport>("bridge_install");
+}
+
+export async function bridgeStart(ipc: IpcLike = defaultIpc): Promise<number> {
+  return ipc.invoke<number>("bridge_start");
+}
+
+export async function bridgeStop(ipc: IpcLike = defaultIpc): Promise<boolean> {
+  return ipc.invoke<boolean>("bridge_stop");
+}
+
+export async function bridgeUninstall(ipc: IpcLike = defaultIpc): Promise<void> {
+  return ipc.invoke<void>("bridge_uninstall");
+}
+
+/** T54: point Claude Code at the running bridge for an OpenAI-only provider. */
+export async function bridgeApplyMode(
+  providerId: string,
+  model?: string,
+  ipc: IpcLike = defaultIpc,
+): Promise<ApplyOutcome> {
+  return ipc.invoke<ApplyOutcome>("bridge_apply_mode", {
+    providerId,
+    model: model ?? null,
+  });
 }

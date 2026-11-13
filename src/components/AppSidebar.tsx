@@ -1,12 +1,4 @@
-import {
-  Gauge,
-  KeyRound,
-  Layers,
-  Route,
-  Sparkles,
-  Wrench,
-  type LucideIcon,
-} from "lucide-react";
+import { Gauge, KeyRound, Layers, Route, Sparkles, Wrench, type LucideIcon } from "lucide-react";
 import { focusRing } from "../lib/focus";
 import { TABS, type TabId } from "../lib/tab";
 

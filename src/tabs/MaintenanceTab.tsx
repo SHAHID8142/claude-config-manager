@@ -50,10 +50,7 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
         />
       )}
 
-      <Section
-        title="Environment"
-        description="Read-only checks — nothing here changes a file."
-      >
+      <Section title="Environment" description="Read-only checks — nothing here changes a file.">
         {env === null ? (
           <p className="text-[12.5px] text-ink-muted">Checking the environment…</p>
         ) : (
@@ -95,7 +92,9 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
             {env.settingsDetail !== null && (
               <div className="sm:col-span-2">
                 <dt className="text-[11px] text-ink-subtle">Detail</dt>
-                <dd className="mt-0.5 text-[12px] break-words text-ink-muted">{env.settingsDetail}</dd>
+                <dd className="mt-0.5 text-[12px] break-words text-ink-muted">
+                  {env.settingsDetail}
+                </dd>
               </div>
             )}
             {env.cliVersionWarning !== null && (
@@ -135,10 +134,7 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
         </div>
       </Section>
 
-      <Section
-        title="Backups"
-        description="Every apply snapshots settings.json first."
-      >
+      <Section title="Backups" description="Every apply snapshots settings.json first.">
         {props.backups === null ? (
           <p className="text-[12.5px] text-ink-muted">Reading backups…</p>
         ) : props.backups.length === 0 ? (
@@ -146,10 +142,16 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
             No backups yet — the first Save &amp; Apply creates one automatically.
           </p>
         ) : (
-          <ul className="divide-y divide-line rounded-[8px] border border-line bg-surface" aria-label="Backups">
+          <ul
+            className="divide-y divide-line rounded-[8px] border border-line bg-surface"
+            aria-label="Backups"
+          >
             {props.backups.slice(0, 6).map((b) => (
               <li key={b.fileName} className="flex items-center justify-between gap-3 px-3 py-2">
-                <code className="min-w-0 truncate font-mono text-[11.5px] text-ink" title={b.fileName}>
+                <code
+                  className="min-w-0 truncate font-mono text-[11.5px] text-ink"
+                  title={b.fileName}
+                >
                   {b.fileName}
                 </code>
                 <span className="shrink-0 text-[11.5px] text-ink-muted tabular-nums">

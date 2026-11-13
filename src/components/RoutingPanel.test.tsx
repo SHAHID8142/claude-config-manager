@@ -124,9 +124,9 @@ describe("RoutingPanel", () => {
 
     await userEvent.selectOptions(screen.getByLabelText("Provider"), "openrouter");
     // Only enabled credentials are offered: the disabled "backup" is absent.
-    const options = Array.from(
-      screen.getByLabelText("Credential").querySelectorAll("option"),
-    ).map((o) => o.textContent);
+    const options = Array.from(screen.getByLabelText("Credential").querySelectorAll("option")).map(
+      (o) => o.textContent,
+    );
     expect(options).toEqual(["Choose…", "primary"]);
 
     await userEvent.selectOptions(screen.getByLabelText("Credential"), "openrouter-1");

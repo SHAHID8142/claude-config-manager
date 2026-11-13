@@ -131,7 +131,11 @@ export function ProviderTab(props: ProviderTabProps) {
 
         {isCustom && (
           <>
-            <FieldRow label="Custom provider name" htmlFor="custom-name-input" hint="Shown in the UI only.">
+            <FieldRow
+              label="Custom provider name"
+              htmlFor="custom-name-input"
+              hint="Shown in the UI only."
+            >
               <input
                 id="custom-name-input"
                 type="text"

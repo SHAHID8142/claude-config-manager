@@ -109,8 +109,8 @@ export function RoutingTab(props: RoutingTabProps) {
               <span>
                 Start the helper when I log in
                 <span className="block text-[11.5px] text-ink-muted">
-                  Installs a user LaunchAgent in ~/Library/LaunchAgents. No administrator
-                  rights, and it can be removed here at any time.
+                  Installs a user LaunchAgent in ~/Library/LaunchAgents. No administrator rights,
+                  and it can be removed here at any time.
                 </span>
               </span>
             </label>

@@ -45,7 +45,8 @@ export function createDevMockIpc(): IpcLike {
         envBaseUrl: "https://api.anthropic.com",
         authTokenPresent: false,
         apiKeyPresent: false,
-        apiKeyHelper: "/Users/demo/Library/Application Support/ClaudeConfigManager/helpers/anthropic.sh",
+        apiKeyHelper:
+          "/Users/demo/Library/Application Support/ClaudeConfigManager/helpers/anthropic.sh",
         warnings: [],
       }),
     check_environment: () =>
@@ -83,7 +84,8 @@ export function createDevMockIpc(): IpcLike {
       Promise.resolve({
         settingsPath: "/Users/demo/.claude/settings.json",
         backupFileName: "settings-backup-1731500000000000000.json",
-        helperPath: "/Users/demo/Library/Application Support/ClaudeConfigManager/helpers/anthropic.sh",
+        helperPath:
+          "/Users/demo/Library/Application Support/ClaudeConfigManager/helpers/anthropic.sh",
         appliedKeys: ["model", "apiKeyHelper"],
       }),
     restore_last_backup: () =>
@@ -98,7 +100,8 @@ export function createDevMockIpc(): IpcLike {
         helpersDir: "/Users/demo/Library/Application Support/ClaudeConfigManager/helpers",
         routingFile: "/Users/demo/Library/Application Support/ClaudeConfigManager/routing.json",
         settingsFile: "/Users/demo/.claude/settings.json",
-        helperState: "/Users/demo/Library/Application Support/ClaudeConfigManager/helper-state.json",
+        helperState:
+          "/Users/demo/Library/Application Support/ClaudeConfigManager/helper-state.json",
       }),
     get_routing: () =>
       Promise.resolve({
@@ -166,10 +169,50 @@ export function createDevMockIpc(): IpcLike {
       Promise.resolve({
         settingsPath: "/Users/demo/.claude/settings.json",
         backupFileName: "settings-backup-1731500000000000001.json",
-        helperPath: "/Users/demo/Library/Application Support/ClaudeConfigManager/helpers/routing.sh",
+        helperPath:
+          "/Users/demo/Library/Application Support/ClaudeConfigManager/helpers/routing.sh",
         appliedKeys: ["env", "apiKeyHelper"],
       }),
     greet: () => Promise.resolve("Hello from mock!"),
+    bridge_consent_info: () =>
+      Promise.resolve({
+        package: "@musistudio/claude-code-router",
+        version: "3.1.3",
+        tarballUrl:
+          "https://registry.npmjs.org/@musistudio/claude-code-router/-/claude-code-router-3.1.3.tgz",
+        integritySha512B64:
+          "sha512-dVHRu9Sb/xG9dgr8nHJmvd5XVIQ5yrEeKmMoPUEBc9xtgykfRT2z76NRI+fylpeiMzYC60z6vrV6x/3IY52pvg==",
+        minNodeMajor: 22,
+        license: "MIT",
+        licenseSource: "https://github.com/musistudio/claude-code-router",
+        tarballBytes: 6529968,
+      }),
+    bridge_overview: () =>
+      Promise.resolve({
+        consented: false,
+        installed: false,
+        version: "3.1.3",
+        nodeFound: true,
+        nodeMajor: 26,
+        running: false,
+        pid: null,
+        gatewayPort: 3456,
+      }),
+    bridge_consent_record: () => Promise.resolve(undefined),
+    bridge_consent_withdraw: () => Promise.resolve(undefined),
+    bridge_install: () =>
+      Promise.resolve({ version: "3.1.3", installDir: "/tmp/mock", integrityVerified: true }),
+    bridge_start: () => Promise.resolve(48212),
+    bridge_stop: () => Promise.resolve(true),
+    bridge_uninstall: () => Promise.resolve(undefined),
+    bridge_apply_mode: () =>
+      Promise.resolve({
+        settingsPath: "/Users/demo/.claude/settings.json",
+        backupFileName: "settings-backup-1731500000000000002.json",
+        helperPath:
+          "/Users/demo/Library/Application Support/ClaudeConfigManager/helpers/routing.sh",
+        appliedKeys: ["env"],
+      }),
   };
 
   return {

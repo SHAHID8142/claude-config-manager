@@ -10,10 +10,7 @@ import { describe, expect, it } from "vitest";
 
 // Read the shipped stylesheet, not a copy of the values: a palette tweak that
 // breaks WCAG cannot land without failing this test.
-const css = readFileSync(
-  resolve(dirname(fileURLToPath(import.meta.url)), "theme.css"),
-  "utf8",
-);
+const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "theme.css"), "utf8");
 
 function block(selector: string): Record<string, string> {
   const start = css.indexOf(selector);

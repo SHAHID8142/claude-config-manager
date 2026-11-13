@@ -127,12 +127,10 @@ export function CredentialsTab(props: CredentialsTabProps) {
           <p className="font-medium text-ink">Where keys live</p>
           <p>
             Each key is a separate file under{" "}
-            <code className="font-mono text-[11.5px]">
-              {secretsDir}/
-            </code>{" "}
-            — directory 0700, file 0600, replaced atomically. The index next to it holds labels
-            and order only, never key material. Nothing here is copied into settings.json: Claude
-            Code runs a helper script that cats the file.
+            <code className="font-mono text-[11.5px]">{secretsDir}/</code> — directory 0700, file
+            0600, replaced atomically. The index next to it holds labels and order only, never key
+            material. Nothing here is copied into settings.json: Claude Code runs a helper script
+            that cats the file.
           </p>
         </div>
       </section>

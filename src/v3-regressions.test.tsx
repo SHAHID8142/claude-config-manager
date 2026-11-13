@@ -41,10 +41,18 @@ function mockWith(status: EffectiveStatus, extra: Record<string, unknown> = {}) 
       list_providers: () => Promise.resolve(providerSummaryFixtures),
       list_credentials: () => Promise.resolve([]),
       read_status: () => Promise.resolve(status),
-      get_routing: () =>
-        Promise.resolve({ version: 1, enabled: false, targets: [] }),
+      get_routing: () => Promise.resolve({ version: 1, enabled: false, targets: [] }),
       proxy_status: () =>
-        Promise.resolve({ running: false, port: null, requests: 0, fallbacks: 0, failures: 0, lastTarget: null, lastError: null, cooling: [] }),
+        Promise.resolve({
+          running: false,
+          port: null,
+          requests: 0,
+          fallbacks: 0,
+          failures: 0,
+          lastTarget: null,
+          lastError: null,
+          cooling: [],
+        }),
       check_environment: () =>
         Promise.resolve({
           cliFound: true,
@@ -114,9 +122,7 @@ describe("V3-26 — the credentials screen shows the path the backend reports", 
     );
     await selectProvider("anthropic");
     await goTo("Credentials");
-    expect(
-      await screen.findByText("/Users/x/.claude-config-manager/secrets/"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("/Users/x/.claude-config-manager/secrets/")).toBeInTheDocument();
     expect(screen.queryByText(/Library\/Application Support/)).not.toBeInTheDocument();
   });
 

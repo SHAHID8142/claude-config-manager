@@ -19,10 +19,7 @@ describe("ThemeSegmented", () => {
     render(<ThemeSegmented themeStorage={storage} />);
 
     expect(screen.getByRole("radio", { name: "Light" })).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByRole("radio", { name: "System" })).toHaveAttribute(
-      "aria-checked",
-      "false",
-    );
+    expect(screen.getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "false");
 
     await user.click(screen.getByRole("radio", { name: "Dark" }));
     expect(screen.getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");

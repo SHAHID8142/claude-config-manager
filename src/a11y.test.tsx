@@ -238,7 +238,12 @@ describe("failover routing accessibility (V2-46)", () => {
         credentials={credentials}
         status={null}
         health={[
-          { targetId: "openrouter-1", providerId: "openrouter", ok: false, message: "Key rejected (401)." },
+          {
+            targetId: "openrouter-1",
+            providerId: "openrouter",
+            ok: false,
+            message: "Key rejected (401).",
+          },
         ]}
         onChange={() => {}}
         onSave={() => {}}
