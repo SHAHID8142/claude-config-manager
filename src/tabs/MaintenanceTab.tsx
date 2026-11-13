@@ -2,9 +2,11 @@ import { Check, Terminal, TriangleAlert } from "lucide-react";
 import { LoadingButton } from "../components/LoadingButton";
 import { Section } from "../components/Section";
 import { StatusBanner } from "../components/StatusBanner";
-import type { EnvironmentReport, RestoreOutcome } from "../lib/ipc";
+import type { BackupInfo, EnvironmentReport, RestoreOutcome } from "../lib/ipc";
 
 export interface MaintenanceTabProps {
+  /** D9: real backups from the backend, newest first (null = still loading). */
+  backups: BackupInfo[] | null;
   environment: EnvironmentReport | null;
   restoring: boolean;
   onRestore: () => void;
@@ -50,7 +52,7 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
 
       <Section
         title="Environment"
-        description="What this app found on the machine. Read-only: these checks never change a file."
+        description="Read-only checks — nothing here changes a file."
       >
         {env === null ? (
           <p className="text-[12.5px] text-ink-muted">Checking the environment…</p>
@@ -108,7 +110,16 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
 
       <Section
         title="Actions"
-        description="Roll settings back to the newest backup. A pre-restore copy of the current file is taken first, so a restore is itself reversible."
+        description="Roll settings back to the newest backup."
+        help={{
+          title: "About restore",
+          children: (
+            <p>
+              A pre-restore copy of the current file is taken first, so a restore is itself
+              reversible.
+            </p>
+          ),
+        }}
       >
         <div className="flex flex-wrap items-center gap-3">
           <LoadingButton
@@ -124,6 +135,36 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
         </div>
       </Section>
 
+      <Section
+        title="Backups"
+        description="Every apply snapshots settings.json first."
+      >
+        {props.backups === null ? (
+          <p className="text-[12.5px] text-ink-muted">Reading backups…</p>
+        ) : props.backups.length === 0 ? (
+          <p className="text-[12.5px] text-ink-muted">
+            No backups yet — the first Save &amp; Apply creates one automatically.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line rounded-[8px] border border-line bg-surface" aria-label="Backups">
+            {props.backups.slice(0, 6).map((b) => (
+              <li key={b.fileName} className="flex items-center justify-between gap-3 px-3 py-2">
+                <code className="min-w-0 truncate font-mono text-[11.5px] text-ink" title={b.fileName}>
+                  {b.fileName}
+                </code>
+                <span className="shrink-0 text-[11.5px] text-ink-muted tabular-nums">
+                  {(b.sizeBytes / 1024).toFixed(1)} KiB ·{" "}
+                  {new Date(b.createdEpoch * 1000).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Section>
+
       <section className="flex items-start gap-3 rounded-[10px] border border-line bg-surface p-4">
         <span
           aria-hidden="true"
@@ -131,7 +172,7 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
         >
           <Terminal size={13} />
         </span>
-        <div className="min-w-0 truncate text-[12px] leading-[1.6] text-ink-muted">
+        <div className="min-w-0 break-words text-[12px] leading-[1.6] text-ink-muted">
           <p className="font-medium text-ink">About the shell</p>
           <p>
             ANTHROPIC_* variables exported by your login shell override what settings.json says and

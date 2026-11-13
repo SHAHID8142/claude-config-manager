@@ -74,7 +74,18 @@ export function ProviderTab(props: ProviderTabProps) {
 
       <Section
         title="Service"
-        description="Claude Code sends every request to this service. Verified presets cannot be edited; a custom provider is your own Anthropic-compatible endpoint."
+        description="Which service Claude Code talks to."
+        help={{
+          title: "About providers",
+          children: (
+            <>
+              <p>
+                Claude Code sends every request to this service. Verified presets ship with the app
+                and cannot be edited; a custom provider is your own Anthropic-compatible endpoint.
+              </p>
+            </>
+          ),
+        }}
       >
         <FieldRow
           label="Provider"
@@ -176,7 +187,16 @@ export function ProviderTab(props: ProviderTabProps) {
 
       <Section
         title="Key"
-        description="The key Claude Code authenticates with. It is stored as an owner-only file (0600) and handed over by an apiKeyHelper script."
+        description="Stored owner-only (0600) — never written into settings.json."
+        help={{
+          title: "About your key",
+          children: (
+            <p>
+              The key is stored as an owner-only file and handed to Claude Code by an apiKeyHelper
+              script at launch. It never appears in settings.json, logs, or errors.
+            </p>
+          ),
+        }}
       >
         <FieldRow
           label="API key"

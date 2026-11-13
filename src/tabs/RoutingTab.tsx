@@ -37,15 +37,19 @@ export interface RoutingTabProps {
  */
 export function RoutingTab(props: RoutingTabProps) {
   const helper = props.helper;
+  const proxyRunning = props.status?.running === true;
+  // D6: one runtime state line for helper + proxy, one state-appropriate
+  // action, Restart as a quiet secondary — no button soup.
+  const runtimeUp = helper !== null && helper.running && proxyRunning;
   return (
     <div className="flex flex-col gap-6">
       {helper !== null && (
         <Section
-          title="Proxy helper"
-          description="Routed mode needs a process that stays up after this window closes. It listens on loopback only."
+          title="Runtime"
+          description="A detached process that keeps the proxy up after this window closes."
         >
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span
                 aria-hidden="true"
                 className={
@@ -58,25 +62,33 @@ export function RoutingTab(props: RoutingTabProps) {
               />
               <p className="text-[13px] text-ink" role="status">
                 {helper.message}
+                {proxyRunning && props.status !== null && (
+                  <span className="text-ink-muted">
+                    {" · "}proxy on 127.0.0.1:{props.status.port ?? "…"}
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={props.onStartProxy}
-                disabled={props.busy || helper.running}
-                className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover disabled:opacity-50"
-              >
-                Start helper
-              </button>
-              <button
-                type="button"
-                onClick={props.onStopProxy}
-                disabled={props.busy || (!helper.running && !helper.stale)}
-                className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover disabled:opacity-50"
-              >
-                Stop helper
-              </button>
+              {runtimeUp || helper.running ? (
+                <button
+                  type="button"
+                  onClick={props.onStopProxy}
+                  disabled={props.busy || (!helper.running && !helper.stale)}
+                  className="h-8 rounded-[6px] border border-control bg-surface px-3 text-[12.5px] text-ink hover:bg-surface-hover disabled:opacity-50"
+                >
+                  Stop
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={props.onStartProxy}
+                  disabled={props.busy || helper.running}
+                  className="h-8 rounded-[6px] bg-primary px-3 text-[12.5px] font-medium text-on-primary hover:bg-primary-hover disabled:opacity-50"
+                >
+                  Start helper
+                </button>
+              )}
               <button
                 type="button"
                 onClick={props.onRestartProxy}
@@ -112,7 +124,16 @@ export function RoutingTab(props: RoutingTabProps) {
       )}
       <Section
         title="Chain"
-        description="Try these targets in order. A target cools down after it fails, and cooling targets are skipped without ever leaving the chain empty."
+        description="Tried top to bottom; failed targets cool down and are skipped."
+        help={{
+          title: "About the chain",
+          children: (
+            <p>
+              Targets are tried in order. A target cools down after it fails, and cooling targets
+              are skipped without ever leaving the chain empty.
+            </p>
+          ),
+        }}
       >
         {props.config === null ? (
           <p className="text-[12.5px] text-ink-muted">Reading routing configuration…</p>

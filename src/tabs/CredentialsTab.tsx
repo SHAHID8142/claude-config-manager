@@ -15,6 +15,8 @@ export interface CredentialsTabProps {
   onPromote: (id: string) => void;
   /** V3-26: the directory the backend actually writes, never a guess. */
   secretsDir: string | null;
+  /** D5: guided route back to the Provider screen when nothing is selected. */
+  onNavigateToProvider: () => void;
 }
 
 /**
@@ -26,6 +28,36 @@ export function CredentialsTab(props: CredentialsTabProps) {
   const active = enabled[0] ?? null;
   const name = props.isCustom ? "this custom provider" : (props.provider?.name ?? "no provider");
   const secretsDir = props.secretsDir ?? "~/.claude-config-manager/secrets";
+
+  // D5: this screen is provider-scoped. Without a provider the honest state
+  // is a guided hand-off to Provider — never zeroed stats or "no provider".
+  if (props.provider === null && !props.isCustom) {
+    return (
+      <section
+        aria-label="Credentials"
+        className="mx-auto mt-16 flex max-w-md flex-col items-center gap-3 rounded-[12px] border border-line bg-surface p-8 text-center"
+      >
+        <span
+          aria-hidden="true"
+          className="flex size-10 items-center justify-center rounded-[10px] bg-accent-soft text-accent"
+        >
+          <KeyRound size={18} />
+        </span>
+        <h2 className="text-[15px] font-semibold text-ink">Choose a provider first</h2>
+        <p className="text-[13px] leading-[1.6] text-ink-muted">
+          Keys belong to a provider. Pick one on the Provider screen — custom providers work too —
+          and your keys will show up here.
+        </p>
+        <button
+          type="button"
+          onClick={props.onNavigateToProvider}
+          className={`mt-1 h-8 rounded-[6px] bg-primary px-3.5 text-[12.5px] font-medium text-on-primary hover:bg-primary-hover`}
+        >
+          Go to Provider
+        </button>
+      </section>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -54,7 +86,7 @@ export function CredentialsTab(props: CredentialsTabProps) {
         </div>
         <div className="min-w-0 truncate">
           <dt className="text-[11px] text-ink-subtle">Handed to Claude Code</dt>
-          <dd className="mt-1 truncate text-[13px] text-ink" title={active?.label}>
+          <dd className="mt-1 text-[13px] text-ink" title={active?.label}>
             {active === null ? "nothing yet" : active.label}
           </dd>
         </div>
@@ -62,7 +94,16 @@ export function CredentialsTab(props: CredentialsTabProps) {
 
       <Section
         title={`Keys for ${name}`}
-        description="Add as many as you like. The first enabled key is used; promoting moves a key to the front, and a legacy key stays where it is until you replace it."
+        description="The first enabled key is used; the rest are spares."
+        help={{
+          title: "About multiple keys",
+          children: (
+            <p>
+              Add as many keys as you like. Promoting moves a key to the front. A legacy key stays
+              where it is until you replace it.
+            </p>
+          ),
+        }}
       >
         <CredentialsPanel
           credentials={props.credentials}
@@ -82,7 +123,7 @@ export function CredentialsTab(props: CredentialsTabProps) {
         >
           <KeyRound size={13} />
         </span>
-        <div className="min-w-0 truncate text-[12px] leading-[1.6] text-ink-muted">
+        <div className="min-w-0 break-words text-[12px] leading-[1.6] text-ink-muted">
           <p className="font-medium text-ink">Where keys live</p>
           <p>
             Each key is a separate file under{" "}

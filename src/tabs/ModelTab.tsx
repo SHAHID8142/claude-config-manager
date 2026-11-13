@@ -84,7 +84,7 @@ export function ModelTab(props: ModelTabProps) {
 
       <Section
         title="Choose"
-        description="Fetch the provider's catalog, then pick one. Fetching never selects anything for you."
+        description="Fetch the provider's catalog, then pick one."
       >
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <LoadingButton
@@ -148,7 +148,16 @@ export function ModelTab(props: ModelTabProps) {
 
       <Section
         title="Declared window"
-        description="Claude Code assumes 200k for ids it does not recognise. Declare the real window when a model is larger, so long sessions are not cut short."
+        description="Declare the real window when a model is larger than 200k."
+        help={{
+          title: "About the context window",
+          children: (
+            <p>
+              Claude Code assumes 200k for model ids it does not recognise. Declaring the real
+              window keeps long sessions from being cut short.
+            </p>
+          ),
+        }}
       >
         {unrecognized && (
           <p className="mb-3 flex items-start gap-2 rounded-[6px] bg-warn-soft px-3 py-2 text-[12px] leading-[1.5] text-warn">

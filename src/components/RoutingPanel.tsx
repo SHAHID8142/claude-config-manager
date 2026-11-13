@@ -269,22 +269,25 @@ export function RoutingPanel({
           </span>
         </div>
         <div className="flex gap-2">
-          <button
-            type="button"
-            className="h-8 flex-1 rounded-[6px] border border-control bg-surface text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
-            onClick={onStartProxy}
-            disabled={busy || status?.running === true}
-          >
-            Start proxy
-          </button>
-          <button
-            type="button"
-            className="h-8 flex-1 rounded-[6px] border border-control bg-surface text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
-            onClick={onStopProxy}
-            disabled={busy || !status?.running}
-          >
-            Stop
-          </button>
+          {status?.running === true ? (
+            <button
+              type="button"
+              className="h-8 flex-1 rounded-[6px] border border-control bg-surface text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
+              onClick={onStopProxy}
+              disabled={busy}
+            >
+              Stop proxy
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="h-8 flex-1 rounded-[6px] border border-control bg-surface text-[12px] text-ink hover:bg-surface-hover disabled:opacity-50"
+              onClick={onStartProxy}
+              disabled={busy}
+            >
+              Start proxy
+            </button>
+          )}
           <button
             type="button"
             className="h-8 flex-1 rounded-[6px] bg-primary text-[12px] text-on-primary hover:bg-primary-hover disabled:opacity-50"

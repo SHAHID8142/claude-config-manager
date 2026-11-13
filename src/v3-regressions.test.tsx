@@ -63,6 +63,13 @@ async function goTo(label: string) {
   await userEvent.click(screen.getByRole("button", { name: label }));
 }
 
+/** D5: credentials are provider-scoped; pick one before visiting the screen. */
+async function selectProvider(id: string) {
+  await goTo("Provider");
+  const select = screen.getByLabelText("Provider", { selector: "select" });
+  await userEvent.selectOptions(select, id);
+}
+
 describe("V3-24 — a stored helper file is configured, never 'connected'", () => {
   it("labels an unverified helper as configured", () => {
     expect(connectionLabel(helperOnly)).toBe("configured");
@@ -105,6 +112,7 @@ describe("V3-26 — the credentials screen shows the path the backend reports", 
         })}
       />,
     );
+    await selectProvider("anthropic");
     await goTo("Credentials");
     expect(
       await screen.findByText("/Users/x/.claude-config-manager/secrets/"),
@@ -114,6 +122,7 @@ describe("V3-26 — the credentials screen shows the path the backend reports", 
 
   it("falls back to the documented default instead of inventing a path", async () => {
     render(<App ipc={mockWith(helperOnly)} />);
+    await selectProvider("anthropic");
     await goTo("Credentials");
     expect(await screen.findByText("~/.claude-config-manager/secrets/")).toBeInTheDocument();
   });

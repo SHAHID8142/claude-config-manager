@@ -15,11 +15,13 @@ import { CredentialsTab } from "./tabs/CredentialsTab";
 import { ModelTab } from "./tabs/ModelTab";
 import { RoutingTab } from "./tabs/RoutingTab";
 import { MaintenanceTab } from "./tabs/MaintenanceTab";
-import { TAB_META, type TabId } from "./lib/tab";
+import { TAB_META, isTabId, type TabId } from "./lib/tab";
+import { loadSessionString, saveSessionString, clearSessionString } from "./lib/session";
 import { StatusBanner } from "./components/StatusBanner";
 import {
   checkEnvironment,
   defaultIpc,
+  listBackups,
   discoverModels,
   testConnection,
   hasCredential,
@@ -45,6 +47,7 @@ import {
   applyRoutedMode,
   checkRoutingHealth,
   type ApplyOutcome,
+  type BackupInfo,
   type ConnectionTestResult,
   type CredentialView,
   type EffectiveStatus,
@@ -80,7 +83,12 @@ export interface AppProps {
 export default function App({ ipc = defaultIpc }: AppProps) {
   const [providers, setProviders] = useState<ProviderSummary[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string>(EMPTY_ID);
+  // D1: the working provider and active screen survive relaunch (macOS
+  // "restore the last-displayed panel"); the stored id is validated once the
+  // provider catalog arrives, so a removed provider degrades to none.
+  const [selectedId, setSelectedId] = useState<string>(
+    () => loadSessionString("provider") ?? EMPTY_ID,
+  );
   const [customName, setCustomName] = useState("");
   const [customEndpoint, setCustomEndpoint] = useState("");
   const [apiKey, setApiKey] = useState("");
@@ -92,6 +100,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [restoreOutcome, setRestoreOutcome] = useState<RestoreOutcome | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
   const [environment, setEnvironment] = useState<EnvironmentReport | null>(null);
+  const [backups, setBackups] = useState<BackupInfo[] | null>(null);
   const [shellWarningDismissed, setShellWarningDismissed] = useState(false);
   const [models, setModels] = useState<ModelEntry[] | null>(null);
   const [fetchingModels, setFetchingModels] = useState(false);
@@ -105,7 +114,16 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   const [roles, setRoles] = useState<RoleState>(EMPTY_ROLES);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   // One screen at a time: the sidebar swaps the panel, never adds to it.
-  const [tab, setTab] = useState<TabId>("dashboard");
+  // D1: the last screen is restored on relaunch.
+  const [tab, setTab] = useState<TabId>(() => {
+    const saved = loadSessionString("tab");
+    return isTabId(saved ?? "") ? (saved as TabId) : "dashboard";
+  });
+  // D1: every navigation is remembered for the next launch.
+  const navigate = useCallback((next: TabId) => {
+    setTab(next);
+    saveSessionString("tab", next);
+  }, []);
   // V2-12b: declared window for models Claude Code can't recognize.
   const [contextWindow, setContextWindow] = useState("");
 
@@ -336,10 +354,18 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       .catch(() => {
         /* Environment probe is best-effort. */
       });
+    // D9: the Maintenance screen lists real backups; refreshed after restores.
+    listBackups(ipc)
+      .then((b) => {
+        if (!cancelled) setBackups(b);
+      })
+      .catch(() => {
+        /* best-effort */
+      });
     return () => {
       cancelled = true;
     };
-  }, [ipc]);
+  }, [ipc, restoreOutcome]);
 
   useEffect(() => {
     let cancelled = false;
@@ -448,6 +474,17 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     }
   }
 
+  // D2: a persisted provider id must still exist in the catalog; otherwise
+  // the UI would show "configured" while no provider is actually selected.
+  useEffect(() => {
+    if (providers === null) return;
+    if (selectedId === EMPTY_ID || selectedId === CUSTOM_ID) return;
+    if (!providers.some((p) => p.id === selectedId)) {
+      setSelectedId(EMPTY_ID);
+      clearSessionString("provider");
+    }
+  }, [providers, selectedId]);
+
   useEffect(() => {
     let cancelled = false;
     listProviders(ipc)
@@ -519,13 +556,23 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     (apiKey.trim() === "" && !storedCredential) ||
     testingConnection;
 
-  const applyHint = canApply
-    ? "Writes ~/.claude/settings.json after a backup."
-    : selected === null && !isCustom
-      ? "Choose a provider to enable Save & Apply."
-      : apiKey.trim() === "" && !storedCredential
-        ? "Add a key (or store one under Credentials) to enable Save & Apply."
-        : "Fix the highlighted field to enable Save & Apply.";
+  // D3: the action bar speaks for the screen you are on. Provider-dependent
+  // guidance only appears on provider-scoped screens; Maintenance never asks
+  // for a provider; Failover's bar is handled by the routed-mode branch.
+  const applyHint = (() => {
+    if (tab === "maintenance") {
+      return "Nothing to apply here — changes happen on the other screens.";
+    }
+    if (tab === "routing") {
+      return "Configure the chain above, then use Route Claude Code.";
+    }
+    if (canApply) return "Writes ~/.claude/settings.json after a backup.";
+    if (selected === null && !isCustom)
+      return "Choose a provider to enable Save & Apply.";
+    if (apiKey.trim() === "" && !storedCredential)
+      return "Add a key (or store one under Credentials) to enable Save & Apply.";
+    return "Fix the highlighted field to enable Save & Apply.";
+  })();
 
   async function handleApply() {
     if (!canApply) return;
@@ -588,7 +635,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
         <aside className="flex w-[11.75rem] shrink-0 flex-col border-r border-line bg-panel/80 pb-3 backdrop-blur">
           <AppSidebar
             active={tab}
-            onSelect={setTab}
+            onSelect={navigate}
             badges={{
               credentials: credentialList.length > 0 ? String(credentialList.length) : undefined,
               routing: routing?.enabled === true ? "on" : undefined,
@@ -599,7 +646,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
 
         <main className="flex min-h-0 min-w-0 flex-1 flex-col break-words">
           <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto flex w-full max-w-[46rem] flex-col gap-6 px-6 pt-5 pb-6">
+            <div className="mx-auto flex w-full max-w-[52rem] flex-col gap-6 px-6 pt-5 pb-6">
               <header>
                 <h2 className="text-[19px] leading-[1.25] font-semibold tracking-[-0.01em]">
                   {TAB_META[tab].title}
@@ -649,7 +696,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                   applyError={applyError}
                   onDismissApply={() => setApplyOutcome(null)}
                   onDismissApplyError={() => setApplyError(null)}
-                  onNavigate={setTab}
+                  onNavigate={navigate}
                 />
               )}
 
@@ -659,6 +706,8 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                   selectedId={selectedId}
                   onSelectProvider={(id) => {
                     setSelectedId(id);
+                    if (id === EMPTY_ID || id === CUSTOM_ID) clearSessionString("provider");
+                    else saveSessionString("provider", id);
                     // A model id from another provider must never carry over.
                     setSelectedModel(null);
                     setModels(null);
@@ -690,6 +739,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
 
               {tab === "credentials" && (
                 <CredentialsTab
+                  onNavigateToProvider={() => navigate("provider")}
                   provider={selected}
                   isCustom={isCustom}
                   credentials={credentialList}
@@ -790,6 +840,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
 
               {tab === "maintenance" && (
                 <MaintenanceTab
+                  backups={backups}
                   environment={environment}
                   restoring={restoring}
                   onRestore={() => {
@@ -808,7 +859,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
 
           {/* One primary action, always reachable, with the reason when it cannot run. */}
           <div className="border-t border-line bg-app px-6 py-3">
-            <div className="mx-auto flex max-w-[46rem] items-center gap-3">
+            <div className="mx-auto flex max-w-[52rem] items-center gap-3">
               {routedActive ? (
                 confirmingDirect ? (
                   <>

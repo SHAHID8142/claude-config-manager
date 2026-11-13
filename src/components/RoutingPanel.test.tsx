@@ -186,7 +186,8 @@ describe("RoutingPanel", () => {
     expect(screen.getByText("running on 127.0.0.1:51234")).toBeInTheDocument();
     expect(screen.getByText(/12 requests/)).toBeInTheDocument();
     expect(screen.getByText("cooling down")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start proxy" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Stop" })).toBeEnabled();
+    // D6: one state-dependent proxy button + the primary route action.
+    expect(screen.getByRole("button", { name: "Stop proxy" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Start proxy" })).not.toBeInTheDocument();
   });
 });

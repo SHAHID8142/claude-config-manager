@@ -422,3 +422,17 @@ export interface TargetHealth {
 export async function checkRoutingHealth(ipc: IpcLike = defaultIpc): Promise<TargetHealth[]> {
   return ipc.invoke<TargetHealth[]>("check_routing_health");
 }
+
+// ---------------------------------------------------------------------------
+// `list_backups` (D9) — settings backups, newest first, metadata only.
+// ---------------------------------------------------------------------------
+
+export interface BackupInfo {
+  fileName: string;
+  sizeBytes: number;
+  createdEpoch: number;
+}
+
+export async function listBackups(ipc: IpcLike = defaultIpc): Promise<BackupInfo[]> {
+  return ipc.invoke<BackupInfo[]>("list_backups");
+}

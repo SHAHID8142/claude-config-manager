@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   KeyRound,
@@ -112,6 +112,19 @@ function Note({ children }: { children: ReactNode }) {
  * wrong — each card carries the way to fix it.
  */
 export function DashboardTab(props: DashboardTabProps) {
+  // Signature move (DESIGN.md): the hero card sweeps once when an apply
+  // succeeds — "the file changed underneath you, and it's safe".
+  const [sweeping, setSweeping] = useState(false);
+  const lastOutcome = useRef(props.applyOutcome);
+  useEffect(() => {
+    if (props.applyOutcome !== null && props.applyOutcome !== lastOutcome.current) {
+      setSweeping(true);
+      const t = window.setTimeout(() => setSweeping(false), 750);
+      return () => window.clearTimeout(t);
+    }
+    lastOutcome.current = props.applyOutcome;
+  }, [props.applyOutcome]);
+
   const { status, selected, credentials, routing, proxy, environment } = props;
 
   const configured = status !== null && status.settingsFound;
@@ -122,6 +135,17 @@ export function DashboardTab(props: DashboardTabProps) {
   const enabledTargets = targets.filter((t) => t.enabled);
   const proxyRunning = proxy !== null && proxy.running;
   const proxyUrl = status?.envBaseUrl?.startsWith("http://127.0.0.1") ?? false;
+
+  // D2: with no in-app selection, a helper-configured provider is still
+  // knowable — the helper file name is the backend's own provider record.
+  const configuredProvider =
+    selected === null && status?.apiKeyHelper != null
+      ? (props.providers?.find(
+          (p) =>
+            p.id ===
+            status.apiKeyHelper!.replace(/\\/g, "/").split("/").pop()?.replace(/\.sh$/, ""),
+        ) ?? null)
+      : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -154,12 +178,18 @@ export function DashboardTab(props: DashboardTabProps) {
         {/* The whole point of the app, so it spans the width and speaks first. */}
         <section
           aria-label="Active configuration"
-          className="rounded-[10px] border border-line bg-surface p-4 md:col-span-2"
+          className="relative overflow-hidden rounded-[10px] border border-line bg-surface p-4 md:col-span-2"
         >
+          {sweeping && (
+            <span
+              aria-hidden="true"
+              className="motion-safe:animate-sweep absolute inset-x-0 top-0 h-[2px] bg-accent"
+            />
+          )}
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[12px] text-ink-muted">Claude Code is using</p>
-              <p className="mt-1 flex items-center gap-2 text-[16px] font-semibold text-ink">
+              <p className="mt-1.5 flex items-center gap-2 text-[19px] font-semibold tracking-[-0.01em] text-ink">
                 <span
                   aria-hidden="true"
                   className={`size-2 shrink-0 rounded-full ${warned ? "bg-warn" : configured ? "bg-ok" : "bg-ink-subtle"}`}
@@ -179,7 +209,7 @@ export function DashboardTab(props: DashboardTabProps) {
               <div className="min-w-0 truncate">
                 <dt className="text-[11px] text-ink-subtle">Model</dt>
                 <dd
-                  className="mt-0.5 truncate text-[13px] text-ink"
+                  className="mt-0.5 truncate font-mono text-[12.5px] text-ink"
                   title={status.envModel ?? status.model ?? "not set"}
                 >
                   {status.envModel ?? status.model ?? "not set"}
@@ -237,8 +267,18 @@ export function DashboardTab(props: DashboardTabProps) {
           tone={selected === null ? "neutral" : "accent"}
           action={{ label: "Change", tab: "provider", onNavigate: props.onNavigate }}
         >
-          <Value>{selected === null ? "No provider selected" : selected.name}</Value>
-          {selected !== null ? (
+          <Value>
+            {selected !== null
+              ? selected.name
+              : configuredProvider !== null
+                ? configuredProvider.name
+                : status?.apiKeyHelper !== null && status?.apiKeyHelper !== undefined
+                  ? "configured via helper"
+                  : "No provider selected"}
+          </Value>
+          {selected === null && configuredProvider !== null ? (
+            <Note>Managed elsewhere in this app session — open Provider to take over.</Note>
+          ) : selected !== null ? (
             <>
               <Note>
                 {selected.protocol === "anthropic_native"

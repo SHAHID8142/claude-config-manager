@@ -7,4 +7,7 @@ import { afterEach } from "vitest";
 // between tests.
 afterEach(() => {
   cleanup();
+  // D1 session persistence writes localStorage; jsdom shares one store per
+  // worker, so clear it too or provider/tab state leaks between tests.
+  window.localStorage.clear();
 });

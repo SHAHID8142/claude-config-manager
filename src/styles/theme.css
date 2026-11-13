@@ -136,3 +136,44 @@
   --font-sans: system-ui, -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
 }
+
+/* ─── Signature move: the apply transaction (DESIGN.md) ───────────────────
+   One authored moment. The hero card sweeps a 2px top line once when an
+   apply succeeds — "the file changed underneath you, and it's safe".
+   Collapsed to instant by prefers-reduced-motion (global rule). */
+@keyframes ccm-sweep {
+  from {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  60% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+
+.animate-sweep {
+  transform-origin: left center;
+  animation: ccm-sweep 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── Feedback transitions ────────────────────────────────────────────────
+   Fast, exponential ease-out; serves state changes, never decoration. */
+@keyframes ccm-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: ccm-rise 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
