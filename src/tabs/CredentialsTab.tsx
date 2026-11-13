@@ -48,11 +48,7 @@ export function CredentialsTab(props: CredentialsTabProps) {
           Keys belong to a provider. Pick one on the Provider screen — custom providers work too —
           and your keys will show up here.
         </p>
-        <button
-          type="button"
-          onClick={props.onNavigateToProvider}
-          className="btn btn-primary mt-1"
-        >
+        <button type="button" onClick={props.onNavigateToProvider} className="btn btn-primary mt-1">
           Go to Provider
         </button>
       </section>

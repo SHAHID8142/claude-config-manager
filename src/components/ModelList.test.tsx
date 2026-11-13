@@ -96,7 +96,15 @@ describe("Model metadata provenance (T42)", () => {
   it("labels a missing source as unknown instead of guessing", () => {
     render(
       <ModelList
-        models={[{ id: "m", displayName: null, contextWindow: null, capabilityStatus: "unknown", source: "  " }]}
+        models={[
+          {
+            id: "m",
+            displayName: null,
+            contextWindow: null,
+            capabilityStatus: "unknown",
+            source: "  ",
+          },
+        ]}
         selectedId={null}
         onSelect={() => {}}
       />,

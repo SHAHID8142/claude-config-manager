@@ -355,9 +355,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
       })
       .catch((e: unknown) => {
         if (!cancelled) {
-          setEnvironmentError(
-            isCommandError(e) ? e.message : "Environment check failed.",
-          );
+          setEnvironmentError(isCommandError(e) ? e.message : "Environment check failed.");
         }
       });
     // D9: the Maintenance screen lists real backups; refreshed after restores.

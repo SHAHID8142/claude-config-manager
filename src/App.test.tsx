@@ -688,14 +688,14 @@ describe("Model selection (T40)", () => {
       id: "model-a",
       displayName: "Model A",
       contextWindow: null,
-        capabilityStatus: "unknown",
+      capabilityStatus: "unknown",
       source: "https://openrouter.ai/api/v1/models",
     },
     {
       id: "model-b",
       displayName: null,
       contextWindow: null,
-        capabilityStatus: "unknown",
+      capabilityStatus: "unknown",
       source: "https://openrouter.ai/api/v1/models",
     },
   ];
@@ -865,7 +865,13 @@ describe("Model metadata provenance (T42)", () => {
     const ipc = mockWithProviders();
     ipc.on("discover_models", () =>
       Promise.resolve([
-        { id: "m-1", displayName: null, contextWindow: null, capabilityStatus: "unknown", source: CATALOG_URL },
+        {
+          id: "m-1",
+          displayName: null,
+          contextWindow: null,
+          capabilityStatus: "unknown",
+          source: CATALOG_URL,
+        },
       ]),
     );
     render(<App ipc={ipc} />);
@@ -1135,7 +1141,7 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
               id: "anthropic/claude-x",
               displayName: "Claude X",
               contextWindow: null,
-        capabilityStatus: "unknown",
+              capabilityStatus: "unknown",
               source: "https://openrouter.ai/api/v1/models",
             },
           ]),
@@ -1349,7 +1355,13 @@ describe("Context-window adoption (catalog-sourced)", () => {
   }
 
   const catalog: ModelEntry[] = [
-    { id: "m-1m", displayName: null, contextWindow: 1_000_000, capabilityStatus: "unknown", source: "https://x" },
+    {
+      id: "m-1m",
+      displayName: null,
+      contextWindow: 1_000_000,
+      capabilityStatus: "unknown",
+      source: "https://x",
+    },
   ];
 
   it("offers the catalog-declared window and adopts it on click", async () => {

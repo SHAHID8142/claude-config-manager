@@ -59,10 +59,7 @@ export function BridgeCard({ ipc, providerId, providerName, model, onApplied }: 
     let cancelled = false;
     (async () => {
       try {
-        const [pin, overview] = await Promise.all([
-          bridgeConsentInfo(ipc),
-          bridgeOverview(ipc),
-        ]);
+        const [pin, overview] = await Promise.all([bridgeConsentInfo(ipc), bridgeOverview(ipc)]);
         if (!cancelled) {
           setPhase(
             overview.consented

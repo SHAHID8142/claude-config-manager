@@ -42,13 +42,7 @@ export function AppHeader({ status, connection = {} }: AppHeaderProps) {
       className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-line px-5 select-none"
     >
       <div className="flex min-w-0 items-center gap-2.5">
-        <img
-          src="/app-icon.png"
-          alt=""
-          width={24}
-          height={24}
-          className="size-6 shrink-0"
-        />
+        <img src="/app-icon.png" alt="" width={24} height={24} className="size-6 shrink-0" />
         <h1 className="truncate text-[13px] font-semibold tracking-[-0.005em] text-ink">
           Claude Config Manager
         </h1>
