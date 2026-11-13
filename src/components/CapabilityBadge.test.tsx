@@ -6,7 +6,7 @@ describe("CapabilityBadge (T25)", () => {
   it("renders verified with a source link", () => {
     render(<CapabilityBadge status="verified" sourceUrl="https://example.com/docs" />);
     expect(screen.getByText(/capabilities verified/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "(source)" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "source" })).toHaveAttribute(
       "href",
       "https://example.com/docs",
     );
@@ -31,9 +31,8 @@ describe("BridgeBadge (T25)", () => {
     expect(screen.getByText(/direct connection/)).toBeInTheDocument();
   });
 
-  it("renders bridge-required with an honest availability note", () => {
+  it("renders bridge-required with a truthful pointer to setup", () => {
     render(<BridgeBadge required />);
-    expect(screen.getByText(/bridge required/)).toBeInTheDocument();
-    expect(screen.getByText(/arrives in a later milestone/)).toBeInTheDocument();
+    expect(screen.getByText(/bridge required — set up on Failover/)).toBeInTheDocument();
   });
 });

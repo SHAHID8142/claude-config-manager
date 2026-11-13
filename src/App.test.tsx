@@ -173,7 +173,7 @@ describe("Provider selector (T18)", () => {
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "anthropic");
     expect(screen.getByText(/capabilities verified/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "(source)" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "source" })).toHaveAttribute(
       "href",
       "https://platform.claude.com/docs/en/api/models-list",
     );
