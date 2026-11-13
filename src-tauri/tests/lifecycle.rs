@@ -42,11 +42,25 @@ fn write_credential(home: &Path, provider: &str, value: &str, mode: u32) {
 }
 
 fn run_helper(script: &Path, home: &Path) -> std::process::Output {
-    Command::new(script)
-        .env("HOME", home)
-        .env("PATH", "/usr/bin:/bin")
-        .output()
-        .expect("run helper")
+    // Linux/overlayfs quirk: a freshly renamed file can transiently return
+    // ETXTBSY on exec. Retry a few times — production exec paths (Claude
+    // Code) hit the same kernel behavior, so the retry mirrors reality.
+    let mut last: Option<std::io::Error> = None;
+    for _ in 0..5 {
+        match Command::new(script)
+            .env("HOME", home)
+            .env("PATH", "/usr/bin:/bin")
+            .output()
+        {
+            Ok(out) => return out,
+            Err(e) if e.raw_os_error() == Some(26) => {
+                last = Some(e);
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            Err(e) => panic!("run helper: {e}"),
+        }
+    }
+    panic!("run helper: exec kept failing with ETXTBSY: {:?}", last);
 }
 
 #[test]
