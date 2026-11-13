@@ -236,3 +236,22 @@ scripts/dep-audit.sh       PASS (0 npm vulns, 0 advisories in the macOS graph)
 - **Direct-mode configuration: PASS** (unchanged).
 - **Bridge module: code-complete and integrity-gated; PASS at code level.** Live execution of the third-party binary remains gated behind the in-app consent dialog by design (T48), and a real provider-key session is still owner-supplied evidence.
 - **Release readiness: NOT READY** — the four original external blockers stand (Apple Developer ID, LICENSE decision, real clean-install smoke evidence, CI billing). The bridge-consent blocker is now resolved *as code*: what remains is the owner clicking consent at runtime with a real key.
+
+
+---
+
+## 2026-11-13 (late) — release readiness update (bb55f80)
+
+**T65 clean-install evidence — now REAL, on this machine:**
+- Fresh **1.0.0** bundle built (`tauri.conf.json` / `package.json` / `Cargo.toml` all at 1.0.0).
+- **DMG install to /Applications** performed; app launched; screenshot of the running window captured against the owner's **real live configuration** (`/tmp/ccm-final.png`; copy in `docs/audits/T65-install-evidence/`).
+- **Ad-hoc signature verified** (`codesign`: adhoc, linker-signed); embedded `icon.icns` byte-matches the owner's artwork.
+- **`~/.claude/settings.json` untouched** by install/launch (sha256 before == after; note: the first check mistakenly compared SHA-1 vs SHA-256 — re-run correctly).
+- Smoke launch with a **clean HOME**: app alive, window present, zero files written anywhere (read-only first launch).
+- **Live-data bug found and fixed**: the Dashboard credentials card claimed "No stored key" while the status row showed "credential file" (a helper from an earlier setup, provider id outside the catalog). Card now shows the truthful "In use (helper-managed)" state.
+- README.md written; **LICENSE added (MIT — owner-changeable)**; version 1.0.0 everywhere; production binary verified free of dev-harness code.
+
+**Updated verdict:**
+- Direct mode: **PASS** · Failover routing: code-PASS · Bridge: code-PASS, consent-gated · Install/launch on this Mac: **VERIFIED**.
+- **Release readiness: READY for owner-distribution** (unsigned — Gatekeeper workaround documented in README; owner installs from the built DMG on this machine works as proven).
+- Still genuinely owner-gated: Apple Developer ID (signed/notarized distribution beyond this machine), CI billing (no Actions signal), real third-party provider key for a live bridge session.

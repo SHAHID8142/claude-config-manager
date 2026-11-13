@@ -134,4 +134,4 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 ## Blockers / open items
 
-Backlog complete through T70. Release remains NOT READY per FINAL_AUDIT.md pending five owner-gated items (signing, LICENSE, bridge consent, clean-install smoke, CI billing).
+Backlog complete through T70 + v4 redesign + bridge (T47–T58) + v1.0.0 release prep. Install/launch smoke verified on-machine (T65 evidence in docs/audits/T65-install-evidence/). Remaining owner-gated: Apple Developer ID, CI billing, live bridge session with a real key.
