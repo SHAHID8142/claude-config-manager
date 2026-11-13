@@ -228,6 +228,7 @@ fn catalog_cannot_dictate_provenance_or_capability() {
     let ModelEntry {
         id,
         display_name,
+        context_window,
         capability_status,
         source,
     } = &models[0];

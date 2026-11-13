@@ -30,6 +30,9 @@ const models = [
 ].map((id) => ({
   id,
   displayName: null,
+  contextWindow: (id.includes("gemini") ? 1_048_576 : id.includes("nemotron") ? 131_072 : 200_000) as
+    | number
+    | null,
   capabilityStatus: "unknown" as const,
   source: "https://openrouter.ai/api/v1/models",
 }));

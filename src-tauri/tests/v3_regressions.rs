@@ -93,9 +93,34 @@ fn openai_only_upstream_receives_anthropic_body_without_translation() {
     let seen_writer = seen.clone();
     let server = std::thread::spawn(move || {
         let (mut sock, _) = listener.accept().expect("accept");
-        let mut buf = [0u8; 8192];
-        let n = sock.read(&mut buf).unwrap_or(0);
-        *seen_writer.lock().unwrap() = String::from_utf8_lossy(&buf[..n]).to_string();
+        // Read until the request is complete (headers + Content-Length body).
+        // A single read can return headers before the body lands when the
+        // machine is under load, which made this fixture flaky.
+        sock.set_read_timeout(Some(Duration::from_secs(5))).ok();
+        let mut buf = Vec::new();
+        let mut chunk = [0u8; 4096];
+        loop {
+            match sock.read(&mut chunk) {
+                Ok(0) => break,
+                Ok(n) => {
+                    buf.extend_from_slice(&chunk[..n]);
+                    let s = String::from_utf8_lossy(&buf);
+                    if let Some(cl) = s
+                        .to_lowercase()
+                        .split("content-length:")
+                        .nth(1)
+                        .and_then(|rest| rest.split('\r').next()?.trim().parse::<usize>().ok())
+                    {
+                        let header_end = s.find("\r\n\r\n").map(|p| p + 4).unwrap_or(0);
+                        if buf.len() >= header_end + cl {
+                            break;
+                        }
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+        *seen_writer.lock().unwrap() = String::from_utf8_lossy(&buf).to_string();
         let body = "{\"error\":{\"message\":\"unknown endpoint\"}}";
         let _ = write!(
             sock,

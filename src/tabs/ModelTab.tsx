@@ -20,6 +20,8 @@ export interface ModelTabProps {
   fetchedFor: string | null;
   onFetch: () => void;
   modelsError: string | null;
+  /** Adopt the catalog-declared context window (D-context: sourced value). */
+  onContextWindowAdopt: (value: string) => void;
   onDismissModelsError: () => void;
   selectedModel: string | null;
   onSelectModel: (id: string) => void;
@@ -135,6 +137,35 @@ export function ModelTab(props: ModelTabProps) {
             className={inputClass}
           />
         </FieldRow>
+
+        {/* Context-window adoption: the catalog publishes the model's native
+            window (sourced, never invented) — one click declares it so
+            Claude Code does not hold an unrecognized id at a 200K-class
+            assumption. */}
+        {(() => {
+          const chosen = props.models?.find((m) => m.id === props.selectedModel);
+          if (chosen?.contextWindow == null) return null;
+          const declared = props.contextWindow.trim() !== "";
+          return (
+            <div className="flex flex-wrap items-center gap-2 text-[12px]">
+              <span className="text-ink-muted tabular-nums">
+                Catalog declares{" "}
+                <span className="font-medium text-ink tabular-nums">
+                  {chosen.contextWindow.toLocaleString()}
+                </span>{" "}
+                tokens
+              </span>
+              <button
+                type="button"
+                onClick={() => props.onContextWindowAdopt(chosen.contextWindow!.toString())}
+                disabled={declared}
+                className="btn btn-secondary !h-7 !px-2 !text-[11.5px]"
+              >
+                {declared ? "declared" : "declare it"}
+              </button>
+            </div>
+          );
+        })()}
 
         {props.modelInvalid && props.modelMessage !== null && (
           <p

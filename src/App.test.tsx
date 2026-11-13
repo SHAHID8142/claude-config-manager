@@ -604,12 +604,14 @@ describe("Model discovery states (T39)", () => {
       {
         id: "model-a",
         displayName: "Model A",
+        contextWindow: null,
         capabilityStatus: "unknown",
         source: "https://openrouter.ai/api/v1/models",
       },
       {
         id: "model-b",
         displayName: null,
+        contextWindow: null,
         capabilityStatus: "unknown",
         source: "https://openrouter.ai/api/v1/models",
       },
@@ -685,13 +687,15 @@ describe("Model selection (T40)", () => {
     {
       id: "model-a",
       displayName: "Model A",
-      capabilityStatus: "unknown",
+      contextWindow: null,
+        capabilityStatus: "unknown",
       source: "https://openrouter.ai/api/v1/models",
     },
     {
       id: "model-b",
       displayName: null,
-      capabilityStatus: "unknown",
+      contextWindow: null,
+        capabilityStatus: "unknown",
       source: "https://openrouter.ai/api/v1/models",
     },
   ];
@@ -823,6 +827,7 @@ describe("Manual Model ID entry (T41)", () => {
       {
         id: "m-1",
         displayName: null,
+        contextWindow: null,
         capabilityStatus: "unknown",
         source: "https://openrouter.ai/api/v1/models",
       },
@@ -860,7 +865,7 @@ describe("Model metadata provenance (T42)", () => {
     const ipc = mockWithProviders();
     ipc.on("discover_models", () =>
       Promise.resolve([
-        { id: "m-1", displayName: null, capabilityStatus: "unknown", source: CATALOG_URL },
+        { id: "m-1", displayName: null, contextWindow: null, capabilityStatus: "unknown", source: CATALOG_URL },
       ]),
     );
     render(<App ipc={ipc} />);
@@ -1129,7 +1134,8 @@ describe("Model selection validation + Save & Apply integration (T43)", () => {
             {
               id: "anthropic/claude-x",
               displayName: "Claude X",
-              capabilityStatus: "unknown",
+              contextWindow: null,
+        capabilityStatus: "unknown",
               source: "https://openrouter.ai/api/v1/models",
             },
           ]),
@@ -1319,5 +1325,45 @@ describe("Credentials panel (V2-21)", () => {
     expect(ipc.calls.find((c) => c.cmd === "save_and_apply")?.args).toMatchObject({
       credentialId: "openrouter-1",
     });
+  });
+});
+
+describe("Context-window adoption (catalog-sourced)", () => {
+  function mockWithWindows(models: ModelEntry[]) {
+    return createMockIpc({
+      handlers: {
+        list_providers: () => Promise.resolve(providerSummaryFixtures),
+        read_status: () => Promise.resolve(statusFixture),
+        check_environment: () =>
+          Promise.resolve({
+            cliFound: true,
+            cliVersion: "2.1.246",
+            cliVersionWarning: null,
+            settingsState: "ok",
+            settingsDetail: null,
+            configDirWritable: true,
+          }),
+        discover_models: () => Promise.resolve(models),
+      },
+    });
+  }
+
+  const catalog: ModelEntry[] = [
+    { id: "m-1m", displayName: null, contextWindow: 1_000_000, capabilityStatus: "unknown", source: "https://x" },
+  ];
+
+  it("offers the catalog-declared window and adopts it on click", async () => {
+    const ipc = mockWithWindows(catalog);
+    render(<App ipc={ipc} />);
+    await userEvent.click(await screen.findByRole("button", { name: "Provider" }));
+    const select = await screen.findByLabelText("Provider", { selector: "select" });
+    await userEvent.selectOptions(select, "openrouter");
+    await userEvent.click(await screen.findByRole("button", { name: "Model" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
+    await userEvent.click(await screen.findByRole("option", { name: /m-1m/ }));
+    expect(await screen.findByText(/Catalog declares/)).toBeInTheDocument();
+    expect(screen.getByText("1,000,000")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "declare it" }));
+    expect(screen.getByRole("button", { name: "declared" })).toBeDisabled();
   });
 });

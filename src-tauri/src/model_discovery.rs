@@ -29,6 +29,10 @@ pub struct ModelEntry {
     pub id: String,
     /// Optional display name from the catalog (display only, never written).
     pub display_name: Option<String>,
+    /// Context window the catalog declares for this model, when published
+    /// (OpenRouter: `context_length`). Sourced, never invented (F12) — the
+    /// UI offers it as a one-click value for `CLAUDE_CODE_MAX_CONTEXT_TOKENS`.
+    pub context_window: Option<u64>,
     /// Always `unknown` at discovery time — capabilities are never invented.
     pub capability_status: &'static str,
     /// Provenance of this record: the verified catalog URL it was read from
@@ -166,6 +170,14 @@ pub fn fetch_models(
         if id.is_empty() || id.len() > 256 || id.chars().any(|c| c.is_control()) {
             continue;
         }
+        // Catalog-declared context window (OpenRouter `context_length`).
+        // Accepted range mirrors config_merge's CLAUDE_CODE_MAX_CONTEXT_TOKENS
+        // validation (1,000–10,000,000) so a suggested value can never be
+        // rejected at apply time.
+        let context_window = obj
+            .get("context_length")
+            .and_then(|v| v.as_u64())
+            .filter(|n| (1_000..=10_000_000).contains(n));
         out.push(ModelEntry {
             id: id.to_string(),
             display_name: obj
@@ -173,6 +185,9 @@ pub fn fetch_models(
                 .or_else(|| obj.get("name"))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
+            context_window,
+            // Always `unknown` at discovery time — capabilities are never
+            // invented (F12).
             capability_status: "unknown",
             // Provenance is the verified template endpoint, not the payload's
             // self-description (a hostile catalog cannot claim its own source).
@@ -376,11 +391,13 @@ mod tests {
         // No capability fields are carried at all — the wire shape is fixed.
         let json = serde_json::to_value(&models[0]).expect("serialize");
         assert_eq!(json["capabilityStatus"], "unknown");
-        assert!(json.get("contextWindow").is_none());
+        // Absent in the catalog -> serialized as null (never a fabricated
+        // number).
+        assert!(json["contextWindow"].is_null());
         assert_eq!(
             json.as_object().expect("object").len(),
-            4,
-            "id/displayName/capabilityStatus/source only"
+            5,
+            "id/displayName/contextWindow/capabilityStatus/source only"
         );
     }
 

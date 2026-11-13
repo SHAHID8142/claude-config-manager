@@ -9,18 +9,21 @@ const models = [
   {
     id: "anthropic/claude-x",
     displayName: "Claude X",
+    contextWindow: 200_000,
     capabilityStatus: "unknown" as const,
     source: CATALOG_SOURCE,
   },
   {
     id: "deepseek/deepseek-y",
     displayName: null,
+    contextWindow: null,
     capabilityStatus: "unknown" as const,
     source: CATALOG_SOURCE,
   },
   {
     id: "openai/gpt-z",
     displayName: "GPT Z",
+    contextWindow: 1_048_576,
     capabilityStatus: "unknown" as const,
     source: CATALOG_SOURCE,
   },
@@ -93,7 +96,7 @@ describe("Model metadata provenance (T42)", () => {
   it("labels a missing source as unknown instead of guessing", () => {
     render(
       <ModelList
-        models={[{ id: "m", displayName: null, capabilityStatus: "unknown", source: "  " }]}
+        models={[{ id: "m", displayName: null, contextWindow: null, capabilityStatus: "unknown", source: "  " }]}
         selectedId={null}
         onSelect={() => {}}
       />,

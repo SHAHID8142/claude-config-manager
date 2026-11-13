@@ -185,6 +185,9 @@ export async function checkEnvironment(ipc: IpcLike = defaultIpc): Promise<Envir
 export interface ModelEntry {
   id: string;
   displayName: string | null;
+  /** Context window the catalog publishes for this model (null = not published).
+   * Sourced suggestion for CLAUDE_CODE_MAX_CONTEXT_TOKENS — never invented. */
+  contextWindow: number | null;
   /** Always "unknown" at discovery time — never invented (F12). */
   capabilityStatus: "unknown";
   /** Provenance: the verified catalog URL this record was read from (T42). */

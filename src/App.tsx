@@ -807,7 +807,13 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                   modelsError={modelsError}
                   onDismissModelsError={() => setModelsError(null)}
                   selectedModel={selectedModel}
-                  onSelectModel={setSelectedModel}
+                  onSelectModel={(id) => {
+                    setSelectedModel(id);
+                    // A newly chosen model starts with a blank declared
+                    // window so the catalog suggestion can propose it fresh.
+                    setContextWindow("");
+                  }}
+                  onContextWindowAdopt={setContextWindow}
                   modelInvalid={modelInvalid}
                   modelMessage={
                     modelValidation !== null && !modelValidation.ok ? modelValidation.message : null
