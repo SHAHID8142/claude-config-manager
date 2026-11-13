@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { BridgeCard } from "./BridgeCard";
@@ -15,9 +15,7 @@ const pin = {
   tarballBytes: 6529968,
 };
 
-const overview = (
-  over: Partial<Parameters<typeof Object>["length"]> extends never ? object : object,
-) => ({
+const overview = (over: Record<string, unknown> = {}) => ({
   consented: false,
   installed: false,
   version: "3.1.3",
