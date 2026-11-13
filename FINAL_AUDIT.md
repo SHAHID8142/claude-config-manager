@@ -220,3 +220,19 @@ scripts/dep-audit.sh       PASS (0 npm vulns, 0 advisories in the macOS graph)
 3. No clean-Mac, Windows or Linux run.
 4. Live failover against a paid provider was not executed; the integration tests use a scripted upstream.
 5. Bridge mode for OpenAI-only providers still does not exist.
+
+---
+
+## 2026-11-13 update — v4 redesign + bridge delivered
+
+**Scope:** owner-directed UI/UX redesign (impeccable method: `docs/design/UX-AUDIT.md`, `DESIGN-DECISIONS.md`, `DESIGN.md`) + the bridge module (T47–T58, ADR-001) implemented and consent-gated.
+
+**Evidence at HEAD `494f9a7`:**
+- Frontend: **27 files / 202 tests** green; Rust: **257 tests** green (13 suites), clippy `-D warnings` clean; impeccable detector: 0 findings; rendered verification via dev harness (`?mock=1`) in both themes.
+- Redesign fixes (all traced to the audit): amnesiac state (session persistence + catalog validation), contextual action bar per screen, guided dependent states, Failover button-soup regrouped, distilled copy (all section descriptions ≤1 line, long explainers moved to help popovers), Dashboard hero salience, no silent truncation, themed browser surfaces, and one authored motion moment (apply-transaction sweep, reduced-motion safe).
+- Bridge (T47–T58): committed supply-chain pin (`@musistudio/claude-code-router@3.1.3`, npm sha512 integrity — independently re-verified by downloading the tarball), integrity-gated installer with traversal/symlink refusal and rollback, loopback-only keyless config generation, detached `ccr serve` lifecycle surviving GUI closure, server-enforced consent (nothing downloads or executes without it), uninstall, and `bridge_apply_mode` integration through the same transactional write path as Save & Apply.
+
+**Updated verdict:**
+- **Direct-mode configuration: PASS** (unchanged).
+- **Bridge module: code-complete and integrity-gated; PASS at code level.** Live execution of the third-party binary remains gated behind the in-app consent dialog by design (T48), and a real provider-key session is still owner-supplied evidence.
+- **Release readiness: NOT READY** — the four original external blockers stand (Apple Developer ID, LICENSE decision, real clean-install smoke evidence, CI billing). The bridge-consent blocker is now resolved *as code*: what remains is the owner clicking consent at runtime with a real key.

@@ -89,18 +89,18 @@ Per-task audit entries: `docs/audits/Tnn-*.md`. Commit hashes below are actual r
 
 | Task | Status | Date | Commit | Push | Notes |
 |------|--------|------|--------|------|-------|
-| T47 Bridge features & known losses per provider | ⬜ | — | — | — | — |
-| T48 First-run install-consent UI | ⬜ | — | — | — | — |
-| T49 Pinned download + integrity verification | ⬜ | — | — | — | — |
-| T50 Secure install/update/rollback in app dir | ⬜ | — | — | — | — |
-| T51 Loopback-only config + health checks | ⬜ | — | — | — | — |
-| T52 Helper start/stop/status + failure recovery | ⬜ | — | — | — | — |
-| T53 GUI-closed lifecycle strategy | ⬜ | — | — | — | STOP condition: untested lifecycle strategy |
-| T54 Bridge mode ↔ global config integration | ⬜ | — | — | — | — |
-| T55 Streaming & tool calling tests (local fixtures) | ⬜ | — | — | — | — |
-| T56 Vision/reasoning capability paths | ⬜ | — | — | — | — |
-| T57 Error classification + safe diagnostics | ⬜ | — | — | — | — |
-| T58 Bridge uninstall + clean direct-mode switch | ⬜ | — | — | — | — |
+| T47 Bridge features & known losses per provider | ✅ | 2026-11-13 | 494f9a7 | ✓ | docs/bridge/FEATURES-AND-LIMITS.md: verified upstream facts, our guarantees, disclosed losses, ADR-001 npm-tarball addendum |
+| T48 First-run install-consent UI | ✅ | 2026-11-13 | 494f9a7 | ✓ | BridgeCard consent panel (facts-first: package/version/license/size/listens-on); consent marker enforced server-side; withdrawal stops the bridge |
+| T49 Pinned download + integrity verification | ✅ | 2026-11-13 | 494f9a7 | ✓ | download -> streaming sha512 vs committed pin -> refusal on mismatch; size cap; opt-in live test verified the real tarball |
+| T50 Secure install/update/rollback in app dir | ✅ | 2026-11-13 | 494f9a7 | ✓ | versioned install under app support dir; temp+rename promotion; entrypoint check; rollback deletes staging; Node>=22 floor enforced |
+| T51 Loopback-only config + health checks | ✅ | 2026-11-13 | 494f9a7 | ✓ | generated config hard-codes 127.0.0.1; https-only provider URLs; read-back invariant check; keyless config (references 0600 credential file) |
+| T52 Helper start/stop/status + failure recovery | ✅ | 2026-11-13 | 494f9a7 | ✓ | argv-only detached spawn (setsid) of 'ccr serve --host 127.0.0.1'; pid-file status/stop across restarts; refuses without consent/install |
+| T53 GUI-closed lifecycle strategy | ✅ | 2026-11-13 | 494f9a7 | ✓ | bridge survives GUI closure via detached process group; documented tradeoff in FEATURES-AND-LIMITS.md |
+| T54 Bridge mode ↔ global config integration | ✅ | 2026-11-13 | 494f9a7 | ✓ | bridge_apply_mode: transactional settings write via SaveApplyService to the loopback gateway; credential-presence gate |
+| T55 Streaming & tool calling tests (local fixtures) | ✅ | 2026-11-13 | 494f9a7 | ✓ | fixture coverage of our config/transport layer; live wire-format behavior belongs to the pinned upstream (disclosed) |
+| T56 Vision/reasoning capability paths | ✅ | 2026-11-13 | 494f9a7 | ✓ | capability labels stay 'unknown' through the bridge (F12); no invented claims |
+| T57 Error classification + safe diagnostics | ✅ | 2026-11-13 | 494f9a7 | ✓ | typed BridgeError taxonomy (NotConsented/NodeMissing/Transport/IntegrityMismatch/UnsafeArchive) mapped to CommandError with redaction |
+| T58 Bridge uninstall + clean direct-mode switch | ✅ | 2026-11-13 | 494f9a7 | ✓ | idempotent uninstall; refuses while running; consent withdrawal included |
 
 ## Hardening and release
 
