@@ -127,6 +127,7 @@ describe("Provider selector (T18)", () => {
       "get_routing",
       "helper_status",
       "list_backups",
+      "list_credentials",
       "list_providers",
       "proxy_status",
       "read_status",
