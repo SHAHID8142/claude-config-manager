@@ -227,7 +227,8 @@ struct ConfigPaths {
 #[tauri::command]
 fn config_paths() -> Result<ConfigPaths, CommandError> {
     let home = home_dir()?;
-    let settings = config_locator::ConfigLocator::new().locate(&home, None);
+    let settings = config_locator::ConfigLocator::new()
+        .locate(&home, config_locator::production_config_dir().as_deref());
     Ok(ConfigPaths {
         secrets_dir: home
             .join(".claude-config-manager")
@@ -386,7 +387,8 @@ fn read_status() -> Result<config_status::EffectiveStatus, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
-    let path = config_locator::ConfigLocator::new().locate(&home, None);
+    let path = config_locator::ConfigLocator::new()
+        .locate(&home, config_locator::production_config_dir().as_deref());
     config_status::read_effective_status(&path).map_err(|e| CommandError::io(e.to_string()))
 }
 
@@ -396,7 +398,8 @@ fn restore_last_backup() -> Result<config_restore::RestoreOutcome, CommandError>
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
-    let settings = config_locator::ConfigLocator::new().locate(&home, None);
+    let settings = config_locator::ConfigLocator::new()
+        .locate(&home, config_locator::production_config_dir().as_deref());
     let backups = config_backup::default_backup_dir(&home);
     config_restore::restore_last_backup(&settings, &backups)
         .map_err(|e| CommandError::io(e.to_string()))
@@ -500,11 +503,21 @@ fn has_credential(provider_id: String) -> Result<bool, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
-    let store = file_secret_store::FileSecretStore::for_home(&home);
-    let creds = credential_service::CredentialService::new(&store);
-    creds
-        .has_credential(&provider_id)
-        .map_err(|e| CommandError::io(e.to_string()))
+    // Vault-aware: a provider whose keys live only as indexed credentials
+    // (secrets/<provider>-N.secret) must answer true, otherwise the UI shows
+    // the "add a key to enable Save & Apply" hint next to a listed key.
+    let vault = credential_vault::CredentialVault::for_home(&home);
+    match vault.has_any(&provider_id) {
+        Ok(true) => Ok(true),
+        Ok(false) => {
+            let store = file_secret_store::FileSecretStore::for_home(&home);
+            let creds = credential_service::CredentialService::new(&store);
+            creds
+                .has_credential(&provider_id)
+                .map_err(|e| CommandError::io(e.to_string()))
+        }
+        Err(e) => Err(CommandError::io(e.to_string())),
+    }
 }
 
 /// V2-21: masked credential metadata for the UI. Never includes the key.
@@ -649,6 +662,11 @@ struct BridgeOverview {
     running: bool,
     pid: Option<u32>,
     gateway_port: u16,
+    /// Honest feature gate: the pinned ccr 3.1.3 keeps providers in its own
+    /// SQLite store, and this build never writes provider configuration into
+    /// it — an installed, running gateway has nothing to route to. The UI
+    /// surfaces this instead of offering a bridge that cannot serve requests.
+    provider_config_ready: bool,
 }
 
 #[tauri::command]
@@ -664,7 +682,8 @@ fn bridge_overview() -> Result<BridgeOverview, CommandError> {
     )
     .join("dist/main/cli.js")
     .is_file();
-    let node = bridge::installer::detect_node(&std::env::var("PATH").unwrap_or_default());
+    let node =
+        bridge::installer::detect_node_with_home(&std::env::var("PATH").unwrap_or_default(), &home);
     Ok(BridgeOverview {
         consented: bridge::runtime::consented_marker(&state),
         installed,
@@ -674,6 +693,7 @@ fn bridge_overview() -> Result<BridgeOverview, CommandError> {
         running: st.running,
         pid: st.pid,
         gateway_port: st.gateway_port,
+        provider_config_ready: false,
     })
 }
 
@@ -702,9 +722,10 @@ fn bridge_start() -> Result<u32, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
-    let node = bridge::installer::check_node(&std::env::var("PATH").unwrap_or_default())
-        .map_err(|e| CommandError::not_available(e.to_string()))?
-        .0;
+    let node =
+        bridge::installer::check_node_with_home(&std::env::var("PATH").unwrap_or_default(), &home)
+            .map_err(|e| CommandError::not_available(e.to_string()))?
+            .0;
     bridge::runtime::start(
         &node,
         &bridge_install_root(&home).join(bridge::manifest::PINNED.version),

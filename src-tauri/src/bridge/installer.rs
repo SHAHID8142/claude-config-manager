@@ -89,37 +89,97 @@ pub fn version_dir(install_root: &Path, version: &str) -> PathBuf {
     install_root.join(version)
 }
 
-/// Locate `node` on PATH (argv-only probe, 3 s cap) and return (path, major).
+/// Locate `node` on PATH (argv-only probe) and return (path, major).
 pub fn detect_node(path_var: &str) -> Option<(PathBuf, u32)> {
     for dir in path_var.split(':') {
         if dir.is_empty() {
             continue;
         }
-        let candidate = Path::new(dir).join("node");
-        if !candidate.is_file() {
-            continue;
-        }
-        if let Ok(output) = std::process::Command::new(&candidate)
-            .arg("--version")
-            .output()
-        {
-            let out = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            // v22.11.0 → 22
-            let major: u32 = out
-                .trim_start_matches('v')
-                .split('.')
-                .next()
-                .and_then(|m| m.parse().ok())
-                .unwrap_or(0);
-            if major > 0 {
-                return Some((candidate, major));
-            }
+        if let Some(found) = probe_node(&Path::new(dir).join("node")) {
+            return Some(found);
         }
     }
     None
 }
 
+/// Run `node --version` on a candidate and parse the major (argv-only).
+fn probe_node(candidate: &Path) -> Option<(PathBuf, u32)> {
+    if !candidate.is_file() {
+        return None;
+    }
+    let output = std::process::Command::new(candidate)
+        .arg("--version")
+        .output()
+        .ok()?;
+    let out = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    // v22.11.0 → 22
+    let major: u32 = out
+        .trim_start_matches('v')
+        .split('.')
+        .next()
+        .and_then(|m| m.parse().ok())
+        .unwrap_or(0);
+    if major > 0 {
+        Some((candidate.to_path_buf(), major))
+    } else {
+        None
+    }
+}
+
+/// Node install locations a Finder-launched app cannot see via PATH: a GUI
+/// app inherits only `/usr/bin:/bin:/usr/sbin:/sbin`, so Homebrew, nvm and
+/// friends are invisible unless probed explicitly (same treatment the Claude
+/// CLI detection in `environment_check` already gets).
+fn candidate_node_paths(home: &Path) -> Vec<PathBuf> {
+    let mut out = vec![
+        PathBuf::from("/opt/homebrew/bin/node"),
+        PathBuf::from("/usr/local/bin/node"),
+        PathBuf::from("/usr/bin/node"),
+    ];
+    for base in [
+        home.join(".nvm/versions/node"),
+        home.join(".fnm/node-versions"),
+    ] {
+        if let Ok(entries) = std::fs::read_dir(&base) {
+            let mut versions: Vec<PathBuf> =
+                entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
+            versions.sort();
+            // Newest version wins (same ordering rule as the CLI detector).
+            for v in versions.into_iter().rev() {
+                out.push(v.join("bin/node"));
+                out.push(v.join("installation/bin/node"));
+            }
+        }
+    }
+    out
+}
+
+/// Detect node via PATH, then the common install locations.
+pub fn detect_node_with_home(path_var: &str, home: &Path) -> Option<(PathBuf, u32)> {
+    detect_node(path_var).or_else(|| {
+        candidate_node_paths(home)
+            .into_iter()
+            .find_map(|p| probe_node(&p))
+    })
+}
+
 /// Verify Node meets the pin's `engines` floor.
+pub fn check_node_with_home(path_var: &str, home: &Path) -> Result<(PathBuf, u32), BridgeError> {
+    match detect_node_with_home(path_var, home) {
+        Some((path, major)) if major >= PINNED.min_node_major => Ok((path, major)),
+        Some((_, major)) => Err(BridgeError::NodeMissing {
+            found_major: Some(major),
+            required: PINNED.min_node_major,
+        }),
+        None => Err(BridgeError::NodeMissing {
+            found_major: None,
+            required: PINNED.min_node_major,
+        }),
+    }
+}
+
+/// Verify Node meets the pin's `engines` floor (PATH-only variant kept for
+/// callers with no HOME context, e.g. pure tests).
 pub fn check_node(path_var: &str) -> Result<(PathBuf, u32), BridgeError> {
     match detect_node(path_var) {
         Some((path, major)) if major >= PINNED.min_node_major => Ok((path, major)),
@@ -302,9 +362,11 @@ pub fn install(
     let dest = version_dir(install_root, PINNED.version);
 
     // Already installed and verified? Re-extract is harmless but wasteful;
-    // treat an existing directory with the entrypoint as done.
+    // treat an existing directory as done only when BOTH the entrypoint and
+    // the dependency tree exist — the dir is promoted before `npm ci` runs, so
+    // an entrypoint alone can be the debris of a failed dependency install.
     let entry = dest.join("dist").join("main").join("cli.js");
-    if entry.is_file() {
+    if entry.is_file() && dest.join("node_modules").join("better-sqlite3").exists() {
         return Ok(InstallReport {
             version: PINNED.version.to_string(),
             install_dir: dest.to_string_lossy().to_string(),
@@ -348,11 +410,16 @@ pub fn install(
 
     // Dependency step (verified gap, 2026-11-13): the tarball does NOT bundle
     // its node_modules. Write the pin-time lockfile and run `npm ci` so the
-    // tree matches the verified dependency set exactly.
+    // tree matches the verified dependency set exactly. A failed dependency
+    // step rolls the promoted dir back — leaving it would make the next
+    // install() report success with no node_modules present.
     let lock_path = dest.join("package-lock.json");
     std::fs::write(&lock_path, super::manifest::LOCKFILE)
         .map_err(|e| BridgeError::Io(e.to_string()))?;
-    npm_ci_install(&dest)?;
+    if let Err(e) = npm_ci_install(&dest) {
+        let _ = std::fs::remove_dir_all(&dest);
+        return Err(e);
+    }
 
     // Post-ci sanity: the heaviest runtime dep must be present.
     if !dest.join("node_modules").join("better-sqlite3").exists() {
@@ -369,30 +436,71 @@ pub fn install(
     })
 }
 
-/// `npm ci --omit=dev --no-audit --no-fund` in `dir`. Argv-only, 10 min cap,
-/// output captured (never inherited) so npm chatter cannot reach the UI.
+/// `npm ci --omit=dev --no-audit --no-fund` in `dir`. Argv-only, 10 min cap
+/// (the child is killed and the error returned when the cap is exceeded),
+/// output captured to a log file (never inherited, never reaches the UI).
+///
+/// Output goes to a FILE, not a pipe: an unread pipe fills at ~64 KiB and npm
+/// then blocks writing it, which would turn every large install into a
+/// timeout. The file drains unboundedly; we read the tail only on failure.
 fn npm_ci_install(dir: &Path) -> Result<(), BridgeError> {
+    const NPM_CI_CAP: std::time::Duration = std::time::Duration::from_secs(10 * 60);
     let node = check_node(&std::env::var("PATH").unwrap_or_default())?.0;
     let npm = node
         .parent()
         .map(|p| p.join("npm"))
         .ok_or_else(|| BridgeError::Io("node path has no parent".into()))?;
-    let output = std::process::Command::new(npm)
+    let log_path = dir.join("npm-ci.log");
+    let log = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(&log_path)
+        .map_err(|e| BridgeError::Io(e.to_string()))?;
+    let log_err = log
+        .try_clone()
+        .map_err(|e| BridgeError::Io(e.to_string()))?;
+
+    let mut child = std::process::Command::new(npm)
         .arg("ci")
         .arg("--omit=dev")
         .arg("--no-audit")
         .arg("--no-fund")
         .current_dir(dir)
-        .output()
+        .stdout(std::process::Stdio::from(log))
+        .stderr(std::process::Stdio::from(log_err))
+        .spawn()
         .map_err(|e| BridgeError::Io(format!("npm spawn: {e}")))?;
-    if !output.status.success() {
-        let tail = String::from_utf8_lossy(&output.stderr)
+
+    let deadline = std::time::Instant::now() + NPM_CI_CAP;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(st)) => break Ok(st),
+            Ok(None) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+            }
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = std::fs::remove_file(&log_path);
+                break Err(BridgeError::Io(
+                    "npm ci exceeded 10 minutes — killed".into(),
+                ));
+            }
+            Err(e) => break Err(BridgeError::Io(format!("npm wait: {e}"))),
+        }
+    }?;
+
+    if !status.success() {
+        let tail = std::fs::read_to_string(&log_path)
+            .unwrap_or_default()
             .lines()
             .last()
             .unwrap_or("npm ci failed")
             .to_string();
         return Err(BridgeError::Io(format!("npm ci failed: {tail}")));
     }
+    let _ = std::fs::remove_file(&log_path);
     Ok(())
 }
 

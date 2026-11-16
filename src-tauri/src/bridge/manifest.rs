@@ -76,7 +76,11 @@ mod tests {
             .decode(b64)
             .expect("valid base64");
         assert_eq!(raw.len(), 64, "sha512 digest must be 64 bytes");
-        assert!(PINNED.min_node_major >= 22);
+        // Const-evaluated: clippy (1.100+) rightly flags a runtime assert on
+        // a constant as always-true.
+        const {
+            assert!(PINNED.min_node_major >= 22);
+        }
         assert_eq!(PINNED.license, "MIT");
     }
 
