@@ -1,10 +1,16 @@
 import type { EffectiveStatus, StatusWarning } from "./ipc";
+import { isLoopback } from "./connectionLabel";
 
-/** Human phrase for how Claude Code is reaching a provider. */
+/** Human phrase for how Claude Code is reaching a provider.
+ * Routed mode also installs an apiKeyHelper (it prints the proxy token), so
+ * helper + loopback base URL means routed — not direct. Keeps the Dashboard
+ * hero from contradicting the header's "routed" pill. */
 export function modeLabel(status: EffectiveStatus | null): string {
   if (status === null) return "unknown";
   if (!status.settingsFound) return "not configured";
-  if (status.apiKeyHelper !== null) return "direct (credential helper)";
+  if (status.apiKeyHelper !== null) {
+    return isLoopback(status.envBaseUrl) ? "routed (local proxy)" : "direct (credential helper)";
+  }
   if (status.apiKeyPresent || status.authTokenPresent) return "direct (plaintext env)";
   return "not configured";
 }

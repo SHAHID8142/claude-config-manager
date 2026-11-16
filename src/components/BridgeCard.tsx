@@ -93,6 +93,12 @@ export function BridgeCard({ ipc, providerId, providerName, model, onApplied }: 
 
   const routing = phase.kind === "ready" && phase.overview.running && providerId !== null;
 
+  // Honest feature gate: this build cannot write provider configuration into
+  // the pinned ccr (it reads its own SQLite store), so an installed gateway
+  // would have nothing to route to. Setup actions stay disabled until the
+  // wiring ships; cleanup actions (stop/uninstall) remain available.
+  const providerConfigReady = phase.kind !== "loading" && phase.overview.providerConfigReady;
+
   return (
     <Section
       title="Bridge"
@@ -131,6 +137,14 @@ export function BridgeCard({ ipc, providerId, providerName, model, onApplied }: 
           <p className="text-[12.5px] text-ink-muted">Checking bridge…</p>
         )}
 
+        {!providerConfigReady && phase.kind !== "loading" && (
+          <StatusBanner
+            severity="warning"
+            message="The bridge cannot serve requests yet."
+            detail="This build does not yet write provider configuration into the pinned claude-code-router (it reads its own internal store), so an installed gateway would have nothing to route to. Install and start are disabled until that wiring ships. Use an Anthropic-compatible provider (direct mode) in the meantime."
+          />
+        )}
+
         {phase.kind === "consent" && (
           <div className="flex flex-col gap-3 rounded-[8px] border border-line bg-surface-muted p-3.5">
             <p className="text-[13px] font-medium text-ink">Install the bridge?</p>
@@ -155,7 +169,7 @@ export function BridgeCard({ ipc, providerId, providerName, model, onApplied }: 
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                disabled={busy !== null}
+                disabled={busy !== null || !providerConfigReady}
                 onClick={() =>
                   run("consent", async () => {
                     await bridgeConsentRecord(ipc);
@@ -196,7 +210,7 @@ export function BridgeCard({ ipc, providerId, providerName, model, onApplied }: 
                   label="Install"
                   pendingLabel="Installing…"
                   pending={busy === "install"}
-                  disabled={!phase.overview.nodeFound}
+                  disabled={!phase.overview.nodeFound || !providerConfigReady}
                   variant="secondary"
                   onClick={() =>
                     run("install", async () => {
@@ -210,6 +224,7 @@ export function BridgeCard({ ipc, providerId, providerName, model, onApplied }: 
                   label="Start"
                   pendingLabel="Starting…"
                   pending={busy === "start"}
+                  disabled={!providerConfigReady}
                   variant="secondary"
                   onClick={() =>
                     run("start", async () => {
@@ -250,6 +265,7 @@ export function BridgeCard({ ipc, providerId, providerName, model, onApplied }: 
                   label={`Route ${providerName} through bridge`}
                   pendingLabel="Applying…"
                   pending={busy === "route"}
+                  disabled={!providerConfigReady}
                   variant="primary"
                   onClick={() =>
                     run("route", async () => {

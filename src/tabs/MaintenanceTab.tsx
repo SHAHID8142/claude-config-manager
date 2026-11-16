@@ -171,6 +171,13 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
                 </span>
               </li>
             ))}
+            {props.backups.length > 6 && (
+              <li className="px-3 py-2 text-[11.5px] text-ink-muted">
+                {props.backups.length - 6} older backup
+                {props.backups.length - 6 === 1 ? "" : "s"} not shown — deleting backups prunes this
+                list.
+              </li>
+            )}
           </ul>
         )}
       </Section>

@@ -308,8 +308,16 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     }
   }
 
+  // Supersede in-flight catalog/connection requests when the provider
+  // changes — a resolved response for provider A must never render as
+  // provider B's result.
+  const fetchModelsSeq = useRef(0);
+  const testConnSeq = useRef(0);
+
   async function handleFetchModels() {
     if (selected === null || isCustom) return;
+    const seq = ++fetchModelsSeq.current;
+    const forProvider = selected.id;
     setFetchingModels(true);
     setModelsError(null);
     setModelsFetchedFor(null);
@@ -317,30 +325,35 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     try {
       // Pass the typed key only if the catalog needs it; otherwise the
       // backend resolves the stored credential itself.
-      const entries = await discoverModels(selected.id, apiKey.trim() || undefined, ipc);
+      const entries = await discoverModels(forProvider, apiKey.trim() || undefined, ipc);
+      if (seq !== fetchModelsSeq.current) return; // provider switched mid-flight
       setModels(entries);
-      setModelsFetchedFor(selected.id);
+      setModelsFetchedFor(forProvider);
     } catch (err: unknown) {
+      if (seq !== fetchModelsSeq.current) return;
       setModelsError(isCommandError(err) ? err.message : "Model discovery failed.");
     } finally {
-      setFetchingModels(false);
+      if (seq === fetchModelsSeq.current) setFetchingModels(false);
     }
   }
 
   async function handleTestConnection() {
     if (selected === null || isCustom) return;
+    const seq = ++testConnSeq.current;
     setTestingConnection(true);
     setConnectionTest(null);
     setConnectionTestError(null);
     try {
       const result = await testConnection(selected.id, apiKey.trim() || undefined, ipc);
+      if (seq !== testConnSeq.current) return; // provider switched mid-flight
       setConnectionTest(result);
     } catch (err: unknown) {
+      if (seq !== testConnSeq.current) return;
       setConnectionTestError(
         isCommandError(err) ? err.message : "The connection test could not be completed.",
       );
     } finally {
-      setTestingConnection(false);
+      if (seq === testConnSeq.current) setTestingConnection(false);
     }
   }
 
@@ -440,7 +453,17 @@ export default function App({ ipc = defaultIpc }: AppProps) {
   }, [selectedId, ipc]);
 
   async function handleAddCredential(label: string, secret: string) {
-    if (selectedId === "" || selectedId === EMPTY_ID || selectedId === CUSTOM_ID) return;
+    if (selectedId === "" || selectedId === EMPTY_ID) return;
+    if (selectedId === CUSTOM_ID) {
+      // Custom endpoints store their key through the API-key field on the
+      // Provider screen (the id is not a real provider, so the vault cannot
+      // index multiple keys under it). Say so instead of silently doing
+      // nothing with the typed secret.
+      setCredentialsError(
+        "Custom endpoints keep the key typed on the Provider screen. Multi-key storage for custom endpoints is not supported yet.",
+      );
+      return;
+    }
     try {
       await addCredential(selectedId, label, secret, ipc);
       setCredentialsError(null);
@@ -740,6 +763,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                   providers={providers}
                   selectedId={selectedId}
                   onSelectProvider={(id) => {
+                    if (id === selectedId) return;
                     setSelectedId(id);
                     if (id === EMPTY_ID || id === CUSTOM_ID) clearSessionString("provider");
                     else saveSessionString("provider", id);
@@ -748,6 +772,18 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                     setModels(null);
                     setModelsFetchedFor(null);
                     setModelsError(null);
+                    // Invalidate any in-flight catalog/connection request and
+                    // stale results for the previous provider.
+                    fetchModelsSeq.current += 1;
+                    testConnSeq.current += 1;
+                    setTestingConnection(false);
+                    // A typed key belongs to the provider it was typed for —
+                    // carrying it into another provider's Apply would send
+                    // that key to a different endpoint.
+                    setApiKey("");
+                    setConnectionTest(null);
+                    setConnectionTestError(null);
+                    setContextWindow("");
                   }}
                   selected={selected}
                   isCustom={isCustom}
@@ -973,7 +1009,7 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                   <p className="mr-auto text-[12px] text-ink-muted">{applyHint}</p>
                   <LoadingButton
                     testId="apply"
-          label="Save & Apply"
+                    label="Save & Apply"
                     pendingLabel="Applying…"
                     pending={applying}
                     disabled={!canApply || tab === "maintenance"}

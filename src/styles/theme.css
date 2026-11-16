@@ -254,12 +254,18 @@
   transform: none;
 }
 
-/* Primary — the clay gradient CTA with top light + bottom reflection edge. */
+/* Primary — the clay gradient CTA with top light + bottom reflection edge.
+   Text color is the managed token: white on the deep light-theme accent,
+   near-black on the brighter dark-theme accent (white text there is a
+   WCAG-failing 2.57:1; the token is ~7.9:1). */
 .btn-primary {
-  color: #ffffff;
+  color: var(--ink-on-accent);
   background: var(--btn-primary-face);
   box-shadow: var(--btn-primary-edge), var(--btn-primary-shadow);
   text-shadow: 0 1px 1px rgb(0 0 0 / 0.18);
+}
+.dark .btn-primary {
+  text-shadow: 0 1px 1px rgb(255 255 255 / 0.28);
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--btn-primary-face-hover);

@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Info } from "lucide-react";
 
 export interface TooltipProps {
@@ -26,6 +26,12 @@ export function Tooltip({ content, label = "More information", className = "" }:
   function hideSoon() {
     timer.current = window.setTimeout(() => setOpen(false), 80);
   }
+
+  useEffect(() => {
+    return () => {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+    };
+  }, []);
 
   return (
     <span className={`relative inline-flex align-middle ${className}`}>

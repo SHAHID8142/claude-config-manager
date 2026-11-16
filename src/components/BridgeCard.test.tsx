@@ -24,6 +24,8 @@ const overview = (over: Record<string, unknown> = {}) => ({
   running: false,
   pid: null,
   gatewayPort: 3456,
+  // Flow tests exercise the wired state; the gate test overrides it to false.
+  providerConfigReady: true,
   ...over,
 });
 
@@ -42,6 +44,24 @@ function mock(over: Record<string, unknown> = {}) {
 }
 
 describe("BridgeCard (T48/T52/T54)", () => {
+  it("disables setup actions and discloses why while provider config is not wired", async () => {
+    const ipc = mock({
+      bridge_overview: () => Promise.resolve(overview({ providerConfigReady: false })),
+    });
+    render(
+      <BridgeCard
+        ipc={ipc}
+        providerId="nvidia-nim"
+        providerName="NVIDIA NIM"
+        model={null}
+        onApplied={() => {}}
+      />,
+    );
+    expect(await screen.findByText(/The bridge cannot serve requests yet/)).toBeInTheDocument();
+    const consent = await screen.findByRole("button", { name: "I understand — enable the bridge" });
+    expect(consent).toBeDisabled();
+  });
+
   it("shows the consent panel with the full pin facts before anything installs", async () => {
     render(
       <BridgeCard

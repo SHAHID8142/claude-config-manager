@@ -383,8 +383,13 @@ describe("Save & Apply (T33)", () => {
     expect(calls[0].providerId).toBe("deepseek");
     expect(calls[0].baseUrl).toBe("https://api.deepseek.com/anthropic");
 
-    // Custom path
+    // Custom path — the key must be re-typed: a key typed for deepseek is
+    // cleared on the provider switch so it can never be sent to a different
+    // endpoint (regression: the field used to carry the old key over).
     await userEvent.selectOptions(select, "__custom__");
+    const customKey = screen.getByLabelText("API key", { selector: "input" });
+    expect(customKey).toHaveValue("");
+    await userEvent.type(customKey, "sk-custom");
     await userEvent.type(
       screen.getByLabelText("Custom endpoint URL", { selector: "input" }),
       "https://gw.example.com",

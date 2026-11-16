@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { isLoopback } from "../lib/connectionLabel";
 import { AlertTriangle, KeyRound, Layers, Route, Sparkles, Terminal } from "lucide-react";
 import { CapabilityBadge, BridgeBadge } from "../components/CapabilityBadge";
 import { StatusBanner } from "../components/StatusBanner";
@@ -125,12 +126,13 @@ export function DashboardTab(props: DashboardTabProps) {
 
   const configured = status !== null && status.settingsFound;
   const warned = needsAttention(status);
-  const activeCredential =
-    credentials.find((c) => c.enabled) ?? (credentials.length > 0 ? credentials[0] : null);
+  // Only an ENABLED key is ever handed to Claude Code; when every key is
+  // disabled the note must not claim one is in use.
+  const activeCredential = credentials.find((c) => c.enabled) ?? null;
   const targets = routing?.targets ?? [];
   const enabledTargets = targets.filter((t) => t.enabled);
   const proxyRunning = proxy !== null && proxy.running;
-  const proxyUrl = status?.envBaseUrl?.startsWith("http://127.0.0.1") ?? false;
+  const proxyUrl = isLoopback(status?.envBaseUrl);
 
   // D2: with no in-app selection, a helper-configured provider is still
   // knowable — the helper file name is the backend's own provider record.
@@ -334,9 +336,11 @@ export function DashboardTab(props: DashboardTabProps) {
               <Note>
                 {helperManagedUnknown
                   ? "Set up earlier; Claude Code reads it through the helper. Re-save through this app to take over management."
-                  : activeCredential === null
-                    ? "Save & Apply needs a key."
-                    : `Using ${activeCredential.label}${activeCredential.last4 !== "" ? ` · …${activeCredential.last4}` : ""}`}
+                  : count > 0 && activeCredential === null
+                    ? "All stored keys are disabled — enable one to use it."
+                    : activeCredential === null
+                      ? "Save & Apply needs a key."
+                      : `Using ${activeCredential.label}${activeCredential.last4 !== "" ? ` · …${activeCredential.last4}` : ""}`}
               </Note>
             </Card>
           );

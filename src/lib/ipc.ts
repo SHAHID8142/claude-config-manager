@@ -446,6 +446,10 @@ export interface BridgeOverview {
   running: boolean;
   pid: number | null;
   gatewayPort: number;
+  /** Honest feature gate: this build cannot configure providers into the
+   * pinned ccr (it reads its own SQLite store), so the bridge cannot yet
+   * serve requests. The UI disables install/start while false. */
+  providerConfigReady: boolean;
 }
 
 export interface BridgeInstallReport {

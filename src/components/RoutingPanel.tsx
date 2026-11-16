@@ -46,6 +46,19 @@ function reorder(targets: RouteTarget[], from: number, to: number): RouteTarget[
   return next;
 }
 
+/** Next free `<provider>-<n>` id: one past the highest numeric suffix already
+ * present, so ids stay unique across add/remove sequences and app restarts. */
+function nextTargetId(config: RoutingConfig, providerId: string): string {
+  const prefix = `${providerId}-`;
+  let max = 0;
+  for (const t of config.targets) {
+    if (!t.id.startsWith(prefix)) continue;
+    const n = Number(t.id.slice(prefix.length));
+    if (Number.isInteger(n) && n > max) max = n;
+  }
+  return `${prefix}${max + 1}`;
+}
+
 export function RoutingPanel({
   config,
   providers,
@@ -80,7 +93,11 @@ export function RoutingPanel({
   function addTarget() {
     if (!provider || !canAdd) return;
     const target: RouteTarget = {
-      id: `${provider.id}-${config.targets.length + 1}`,
+      // Collision-proof: continue from the HIGHEST existing numeric suffix for
+      // this provider, not from the list length — after a removal, length-based
+      // ids could duplicate an existing target (two `p-2`s), conflating their
+      // React keys and per-target health/cooldown state.
+      id: nextTargetId(config, provider.id),
       providerId: provider.id,
       credentialId: draftCredential,
       model: draftModel.trim() === "" ? null : draftModel.trim(),

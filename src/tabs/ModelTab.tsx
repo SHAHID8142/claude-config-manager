@@ -135,6 +135,7 @@ export function ModelTab(props: ModelTabProps) {
             onChange={(e) => props.onSelectModel(e.target.value)}
             placeholder="provider-model-id"
             aria-invalid={props.modelInvalid}
+            aria-describedby={props.modelInvalid ? "model-input-error" : undefined}
             className={inputClass}
           />
         </FieldRow>

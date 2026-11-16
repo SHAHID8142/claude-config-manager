@@ -181,7 +181,11 @@ export function ProviderTab(props: ProviderTabProps) {
               id="endpoint-input"
               type="url"
               disabled
-              value={selected.protocol === "anthropic_native" ? "https://api.anthropic.com" : ""}
+              value={
+                selected.protocol === "anthropic_native"
+                  ? "https://api.anthropic.com"
+                  : (selected.directBaseUrl ?? "")
+              }
               readOnly
               className={inputClass}
             />
