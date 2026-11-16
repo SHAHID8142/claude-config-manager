@@ -13,6 +13,21 @@
 
 use std::path::{Path, PathBuf};
 
+/// Production `CLAUDE_CONFIG_DIR` override, read once per call site.
+///
+/// Claude Code itself honors this documented variable (T02 config matrix), so
+/// the app must read and write the same settings file Claude Code uses —
+/// editing `~/.claude/settings.json` while the CLI runs from
+/// `$CLAUDE_CONFIG_DIR/settings.json` would report success against the wrong
+/// file. Empty/whitespace values mean unset, matching the CLI's behavior.
+pub fn production_config_dir() -> Option<PathBuf> {
+    std::env::var("CLAUDE_CONFIG_DIR")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+}
+
 /// What exists at the located settings path (lstat-based; no content read).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LocatedStatus {

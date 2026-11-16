@@ -55,6 +55,19 @@ pub struct CredentialVault {
     store: FileSecretStore,
 }
 
+/// Process-wide mutex around every read-modify-write of `credentials.json`.
+/// Without it, two concurrent commands (two windows, or a mutation racing an
+/// apply) interleave their load/save and the second save silently drops the
+/// first's record. Cross-process races remain possible on paper; a single user
+/// running one app process is the real deployment shape.
+static VAULT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn lock_vault() -> std::sync::MutexGuard<'static, ()> {
+    VAULT_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 impl CredentialVault {
     /// `~/.claude-config-manager/` (space-free, like the helper paths).
     pub fn for_home(home: &Path) -> Self {
@@ -168,6 +181,7 @@ impl CredentialVault {
         if secret.trim().is_empty() {
             return Err(VaultError::Invalid("credential is empty".into()));
         }
+        let _guard = lock_vault();
         let mut index = self.load()?;
         let id = self.next_id(&index, provider_id)?;
         let creds = CredentialService::new(&self.store);
@@ -197,21 +211,31 @@ impl CredentialVault {
     }
 
     /// Delete a credential and its secret. Idempotent: `false` when unknown.
+    ///
+    /// Order matters: the index is persisted BEFORE the secret is deleted.
+    /// If the secret delete fails, the worst case is an orphaned 0600 key file
+    /// no record points at; the reverse order would leave a record whose
+    /// secret is gone, and the helper fails closed at request time.
     pub fn remove(&self, credential_id: &str) -> Result<bool, VaultError> {
         validate_credential_id(credential_id)?;
+        let _guard = lock_vault();
         let mut index = self.load()?;
         if !index.remove(credential_id) {
+            // Unknown record — still clean up a possible orphan secret so a
+            // failed earlier remove cannot leave key material behind.
+            let _ = CredentialService::new(&self.store).delete_credential(credential_id);
             return Ok(false);
         }
+        self.save(&index)?;
         CredentialService::new(&self.store)
             .delete_credential(credential_id)
             .map_err(|e| VaultError::Secret(e.to_string()))?;
-        self.save(&index)?;
         Ok(true)
     }
 
     pub fn set_enabled(&self, credential_id: &str, enabled: bool) -> Result<bool, VaultError> {
         validate_credential_id(credential_id)?;
+        let _guard = lock_vault();
         let mut index = self.load()?;
         let Some(slot) = index.credentials.iter_mut().find(|c| c.id == credential_id) else {
             return Ok(false);
@@ -224,6 +248,7 @@ impl CredentialVault {
     /// Move a credential to the front of its provider's chain.
     pub fn promote(&self, credential_id: &str) -> Result<bool, VaultError> {
         validate_credential_id(credential_id)?;
+        let _guard = lock_vault();
         let mut index = self.load()?;
         if !index.promote(credential_id) {
             return Ok(false);

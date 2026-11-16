@@ -238,6 +238,9 @@ fn catalog_cannot_dictate_provenance_or_capability() {
     assert!(source.starts_with("http://127.0.0.1:"));
     assert_ne!(source, "https://evil.example.com");
     assert_eq!(*capability_status, "unknown");
+    // The catalog's self-declared 999999999 window exceeds the accepted range
+    // and must never surface as a sourced value.
+    assert_eq!(*context_window, None);
 }
 
 fn one_shot_static(body: &str) -> String {

@@ -141,22 +141,52 @@ fn is_executable_file(p: &Path) -> bool {
 
 /// Last resort: ask the user's login shell (PATH from `.zprofile` etc. that a GUI
 /// app never inherits). Only the resolved path is used; output is discarded.
+///
+/// The probe is bounded (3 s per shell): `zsh -l` runs the user's profile,
+/// which can block indefinitely (hanging network mounts, interactive
+/// prompts) — an unbounded `.output()` here would freeze `check_environment`
+/// and with it the UI awaiting it. The other probes got this treatment; this
+/// one was missed.
 fn find_claude_cli_extra_path(path_var: &str, home: &Path) -> Option<PathBuf> {
     for shell in ["/bin/zsh", "/bin/bash"] {
         if !Path::new(shell).exists() {
             continue;
         }
-        let out = std::process::Command::new(shell)
+        let mut child = std::process::Command::new(shell)
             .args(["-lc", "command -v claude"])
             .env("PATH", path_var)
             .stdin(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .output()
+            .stdout(std::process::Stdio::piped())
+            .spawn()
             .ok()?;
-        if !out.status.success() {
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let mut finished_successfully = false;
+        loop {
+            match child.try_wait() {
+                Ok(Some(st)) => {
+                    finished_successfully = st.success();
+                    break;
+                }
+                Ok(None) if Instant::now() < deadline => {
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                // Timed out or wait failed: kill and move on to the next shell.
+                _ => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break;
+                }
+            }
+        }
+        if !finished_successfully {
             continue;
         }
-        let text = String::from_utf8_lossy(&out.stdout);
+        let mut text = String::new();
+        if let Some(mut out) = child.stdout.take() {
+            use std::io::Read;
+            let _ = out.read_to_string(&mut text);
+        }
         let candidate = PathBuf::from(text.lines().next().unwrap_or("").trim());
         if is_executable_file(&candidate) && candidate.starts_with(home) {
             return Some(candidate);

@@ -107,7 +107,9 @@ impl SaveApplyService {
             store,
             helpers_dir: default_helpers_dir(home),
             backups_dir: default_backup_dir(home),
-            config_dir_override: None,
+            // Claude Code honors CLAUDE_CONFIG_DIR; the app must edit the same
+            // file the CLI reads, never silently fall back to ~/.claude.
+            config_dir_override: crate::config_locator::production_config_dir(),
         }
     }
 
@@ -209,22 +211,35 @@ impl SaveApplyService {
         let live_secrets: Vec<String> = api_key.map(|k| vec![k.to_string()]).unwrap_or_default();
         let secret_refs: Vec<&str> = live_secrets.iter().map(|s| s.as_str()).collect();
 
-        // --- Credential storage (Keychain via the store) ---
-        let creds = CredentialService::new(self.store.as_ref());
-        match api_key {
-            Some(key) if !key.trim().is_empty() => {
-                creds
-                    .set_credential(provider_id, key)
-                    .map_err(|e| ApplyError::Io(e.to_string()))?;
-                applied_keys.push(format!("credential:{provider_id}"));
-            }
-            _ => {}
-        }
-
         // --- Helper script (helper mode is the only mode in T33) ---
         // V2-21: with several credentials per provider the helper must read the
         // one the owner selected, not a provider-wide default file.
         let account = credential_account.unwrap_or(provider_id);
+        // The legacy alias record resolves to the provider-level file (see
+        // `CredentialVault::secret`), so both the has-check and any freshly
+        // typed key must address that same file, not the alias name.
+        let store_account =
+            if account == crate::credential_migration::legacy_credential_id(provider_id) {
+                provider_id
+            } else {
+                account
+            };
+
+        // --- Credential storage (Keychain via the store) ---
+        // A freshly typed key replaces the credential the helper will serve —
+        // the selected account, not a provider-wide default. Storing it in the
+        // provider file while the helper reads the account file would leave the
+        // typed key silently unused and duplicated in plaintext.
+        let creds = CredentialService::new(self.store.as_ref());
+        match api_key {
+            Some(key) if !key.trim().is_empty() => {
+                creds
+                    .set_credential(store_account, key)
+                    .map_err(|e| ApplyError::Io(e.to_string()))?;
+                applied_keys.push(format!("credential:{store_account}"));
+            }
+            _ => {}
+        }
         let stored = creds
             .has_credential(account)
             .map_err(|e| ApplyError::Io(e.to_string()))?;
@@ -285,17 +300,24 @@ impl SaveApplyService {
         if token.len() < 16 {
             return Err(ApplyError::InvalidInput("proxy token is too short".into()));
         }
-        // Store the token exactly like a provider credential so the same
-        // permission checks and the same helper template apply.
-        let store = crate::file_secret_store::FileSecretStore::for_home(&self.home);
-        store
+        // Store the token under the ONE account the helper process itself
+        // authenticates with (`ensure_token` → proxy-helper). The routed
+        // helper script then reads the same file, so a regenerated helper
+        // token can never drift away from what settings point at.
+        self.store
             .set_secret(
-                "com.claude-config-manager.proxy",
-                crate::secret_store::PROXY_ACCOUNT,
+                crate::helper::TOKEN_SERVICE,
+                crate::helper::TOKEN_ACCOUNT,
                 token,
             )
             .map_err(|e| ApplyError::Io(e.to_string()))?;
-        let script = generate_helper_script_for("proxy", crate::secret_store::PROXY_ACCOUNT)
+        // Best-effort cleanup of the pre-unification account so no second
+        // token file lingers on disk.
+        let _ = self.store.delete_secret(
+            "com.claude-config-manager.proxy",
+            crate::secret_store::PROXY_ACCOUNT,
+        );
+        let script = generate_helper_script_for("proxy", crate::helper::TOKEN_ACCOUNT)
             .map_err(|e| ApplyError::Io(e.to_string()))?;
         let helper_path = install_helper_script(&self.helpers_dir, "proxy", &script)
             .map_err(|e| ApplyError::Backup(e.to_string()))?;
@@ -361,6 +383,17 @@ impl SaveApplyService {
                 applied_keys.push(k.to_string());
             }
         }
+        // Callers pre-push keys they unconditionally applied (apiKeyHelper,
+        // credentials); keep the report insertion-ordered and duplicate-free.
+        let mut seen: Vec<String> = Vec::new();
+        applied_keys.retain(|k| {
+            if seen.contains(k) {
+                false
+            } else {
+                seen.push(k.clone());
+                true
+            }
+        });
 
         // --- Backup (T29) — only when the file exists to back up ---
         if matches!(
@@ -436,7 +469,7 @@ mod tests {
     #[test]
     fn routed_mode_points_claude_code_at_the_loopback_proxy() {
         let (home, store) = fixture("routed");
-        let svc = service(&home, store);
+        let svc = service(&home, store.clone());
         let token = "0123456789abcdef0123456789abcdef";
         let out = svc
             .apply_routed(51234, token, Some("nvidia/nemotron-3-ultra"))
@@ -455,14 +488,35 @@ mod tests {
         assert_eq!(written["model"], "nvidia/nemotron-3-ultra");
         assert!(out.helper_path.ends_with("proxy.sh"));
 
-        // The token lives in a 0600 file and the helper returns it verbatim.
-        let secret = home.join(".claude-config-manager/secrets/proxy.secret");
-        let mode = fs::metadata(&secret)
-            .expect("token file")
-            .permissions()
-            .mode()
-            & 0o777;
-        assert_eq!(mode, 0o600, "proxy token must be owner-only");
+        // The token is stored through the INJECTED store (no seam bypass),
+        // under the one account the helper process itself authenticates with.
+        let stored = store
+            .get_secret(crate::helper::TOKEN_SERVICE, crate::helper::TOKEN_ACCOUNT)
+            .expect("token readable");
+        assert_eq!(stored.as_deref(), Some(token));
+        // No second, legacy token file may be written.
+        assert!(
+            !home
+                .join(".claude-config-manager/secrets/proxy.secret")
+                .exists()
+        );
+
+        // The installed script prints the account's file verbatim. With the
+        // mock store no real file exists, so materialize the file exactly as
+        // the real FileSecretStore would (0600) and run the script.
+        let secret = home.join(".claude-config-manager/secrets/proxy-helper.secret");
+        {
+            fs::create_dir_all(secret.parent().expect("secrets dir parent")).expect("secrets dir");
+            use std::os::unix::fs::OpenOptionsExt;
+            let mut f = fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .mode(0o600)
+                .open(&secret)
+                .expect("token file");
+            use std::io::Write;
+            f.write_all(token.as_bytes()).expect("write token");
+        }
         let script_path = home.join(&out.helper_path);
         let output = std::process::Command::new("sh")
             .arg(&script_path)

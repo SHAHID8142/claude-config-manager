@@ -35,8 +35,8 @@ pub struct RouteTarget {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RoutingConfig {
     pub version: u32,
-    /// Failover is opt-in; `false` means Claude Code talks to the provider直接
-    /// (the app never invents a proxy hop).
+    /// Failover is opt-in; `false` means Claude Code talks to the provider
+    /// directly (the app never invents a proxy hop).
     pub enabled: bool,
     pub targets: Vec<RouteTarget>,
 }
@@ -127,8 +127,21 @@ impl RoutingConfig {
                 // Loopback upstreams are legitimate (tests, local gateways).
                 crate::provider_catalog::EndpointCheck::Local => {}
                 crate::provider_catalog::EndpointCheck::Insecure => {
-                    let loopback = t.base_url.starts_with("http://127.0.0.1")
-                        || t.base_url.starts_with("http://localhost");
+                    // The PARSED host decides, never a string prefix: both
+                    // `http://127.0.0.1.evil.com` and
+                    // `http://127.0.0.1:3128@evil.example.com` start with
+                    // "http://127.0.0.1" but resolve elsewhere — a prefix check
+                    // would send the target's bearer key to that host in
+                    // cleartext.
+                    let loopback = url::Url::parse(&t.base_url)
+                        .ok()
+                        .map(|u| {
+                            matches!(
+                                u.host_str(),
+                                Some("127.0.0.1") | Some("localhost") | Some("[::1]")
+                            )
+                        })
+                        .unwrap_or(false);
                     if !loopback {
                         return Err(RoutingError::Invalid(format!(
                             "target {}: base URL must be https (http is only allowed for loopback)",
@@ -274,6 +287,29 @@ mod tests {
         let mut ok = cfg(vec![target("t1")]);
         ok.targets[0].base_url = "http://127.0.0.1:41234".into();
         assert!(ok.validate().is_ok());
+    }
+
+    /// Regression: the loopback carve-out must not accept look-alike hosts.
+    /// `http://127.0.0.1.evil.com` once passed the prefix check, and the proxy
+    /// would have sent the target's bearer key to it in cleartext.
+    #[test]
+    fn loopback_carve_out_rejects_lookalike_hosts() {
+        for lookalike in [
+            "http://127.0.0.1.evil.com/v1",
+            "http://localhostic.example.com/v1",
+            "http://127.0.0.1:3128@evil.example.com/v1",
+        ] {
+            let mut bad = cfg(vec![target("t1")]);
+            bad.targets[0].base_url = lookalike.into();
+            assert!(
+                matches!(bad.validate(), Err(RoutingError::Invalid(_))),
+                "{lookalike} must be refused"
+            );
+        }
+        // Bare loopback hosts without a port stay allowed (test fixtures).
+        let mut bare = cfg(vec![target("t1")]);
+        bare.targets[0].base_url = "http://localhost".into();
+        assert!(bare.validate().is_ok());
     }
 
     #[test]

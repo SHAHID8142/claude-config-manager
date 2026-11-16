@@ -24,6 +24,7 @@ pub const MANAGED_ENV_KEYS: &[&str] = &[
     "ANTHROPIC_DEFAULT_HAIKU_MODEL",
     "ANTHROPIC_DEFAULT_SONNET_MODEL",
     "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
 ];
 
 /// Top-level keys this app manages.
@@ -639,6 +640,7 @@ mod tests {
             "ANTHROPIC_DEFAULT_HAIKU_MODEL",
             "ANTHROPIC_DEFAULT_SONNET_MODEL",
             "ANTHROPIC_DEFAULT_OPUS_MODEL",
+            "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
         ];
         assert_eq!(writable, MANAGED_ENV_KEYS);
     }

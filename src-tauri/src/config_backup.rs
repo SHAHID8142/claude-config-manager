@@ -78,31 +78,39 @@ pub fn create_backup(config_path: &Path, backup_dir: &Path) -> Result<PathBuf, B
 
     write_private(&backup_path, &content)?;
 
-    // Verify the copy is byte-exact before declaring success.
+    // Verify the copy is byte-exact before declaring success (content, not
+    // just size — a torn write with equal length would restore corrupted).
     let written = std::fs::read(&backup_path).map_err(|e| BackupError::Io(e.to_string()))?;
-    if written.len() != content.len() {
-        return Err(BackupError::Io("backup verification failed (size)".into()));
+    if written != content {
+        let _ = std::fs::remove_file(&backup_path);
+        return Err(BackupError::Io(
+            "backup verification failed (content)".into(),
+        ));
     }
 
     Ok(backup_path)
 }
 
 /// Write bytes with 0600 permissions and fsync (best-effort durability).
+///
+/// The mode is set at CREATION: backups intentionally carry plaintext env
+/// secrets (restore completeness), so there must be no window in which the
+/// file exists world-readable before the chmod lands — the same rule the
+/// credential store follows.
 fn write_private(path: &Path, bytes: &[u8]) -> Result<(), BackupError> {
     use std::io::Write;
-    use std::os::unix::fs::PermissionsExt;
+    use std::os::unix::fs::OpenOptionsExt;
 
     let mut f = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
+        .mode(0o600)
         .open(path)
         .map_err(|e| BackupError::Io(e.to_string()))?;
     f.write_all(bytes)
         .map_err(|e| BackupError::Io(e.to_string()))?;
     let _ = f.sync_all();
     drop(f);
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-        .map_err(|e| BackupError::Io(e.to_string()))?;
     Ok(())
 }
 

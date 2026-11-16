@@ -30,8 +30,12 @@ use std::time::{Duration, Instant};
 pub const HELPER_ARG: &str = "--proxy-helper";
 /// Port the helper should try to keep (set by whoever starts it).
 const PREFERRED_PORT_ENV: &str = "CCM_PROXY_PREFERRED_PORT";
-const TOKEN_SERVICE: &str = "com.claude-config-manager.proxy-helper";
-const TOKEN_ACCOUNT: &str = "proxy-helper";
+/// Service/account of the proxy bearer token. The routed-mode helper script
+/// (`proxy.sh`) reads this same account's file, so there is exactly ONE token
+/// file for the proxy — two independently writable files could drift and 401
+/// every request with no diagnostic.
+pub const TOKEN_SERVICE: &str = "com.claude-config-manager.proxy-helper";
+pub const TOKEN_ACCOUNT: &str = "proxy-helper";
 /// Reverse-DNS label of the optional login agent (user domain, no admin rights).
 pub const AGENT_LABEL: &str = "io.github.shahid8142.claude-config-manager.proxy";
 
