@@ -1,6 +1,6 @@
 # PRODUCT.md — Claude Config Manager
 
-*(Authored 2026-11-13 by the coding agent from `01-PRD.md` + owner messages; the owner delegated design decisions in brief: "cleaner, less text, more polished, professional, animated, perfect".)*
+*(Authored 2026-11-13 by the coding agent from `docs/internal/01-PRD.md` + owner messages; the owner delegated design decisions in brief: "cleaner, less text, more polished, professional, animated, perfect".)*
 
 ## What this is
 

@@ -6,7 +6,7 @@
 
 ## Workspace audit
 - Path: `/Users/maryamahad/Desktop/claude-config-manager-autonomous-handoff-v0.2` — confirmed on disk, contains the complete v0.2 documentation pack (8 files).
-- Pre-T01 state: specification only, no code — matches `00-START-HERE.md` ("Specification only. No code has been implemented or audited.").
+- Pre-T01 state: specification only, no code — matches `docs/internal/00-START-HERE.md` ("Specification only. No code has been implemented or audited.").
 - No stray/untrusted files found (no archives, no downloads, no dotfiles beyond expected).
 
 ## Repository & remote audit

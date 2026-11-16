@@ -1,7 +1,7 @@
 # TASK_PROGRESS.md
 
-Autonomous execution tracker for the complete backlog in `04-TASK-BACKLOG.md`.
-Rules of engagement: `03-AGENT-RULES.md` (v0.2 binding). On interruption, resume from the first ⬜ task; never redo completed work; never infer success without recorded evidence.
+Autonomous execution tracker for the complete backlog in `docs/internal/04-TASK-BACKLOG.md`.
+Rules of engagement: `docs/internal/03-AGENT-RULES.md` (v0.2 binding). On interruption, resume from the first ⬜ task; never redo completed work; never infer success without recorded evidence.
 
 - **Workspace:** `/Users/maryamahad/Desktop/claude-config-manager-autonomous-handoff-v0.2`
 - **Remote (confirmed by user 2026-11-08):** `https://github.com/SHAHID8142/claude-config-manager.git` (public, created via `gh` on user authorization)

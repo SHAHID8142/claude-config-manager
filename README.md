@@ -59,7 +59,7 @@ React UI  ──►  typed Tauri commands  ──►  Rust application service
 ```
 
 - **ProviderCatalog** — versioned, compile-time-verified templates (endpoint, auth style, model-catalog endpoint, capability status). A template cannot smuggle an `http://` URL or an unverified capability claim.
-- **CredentialVault** — owner-only credential files (`0600`) under `~/Library/Application Support/ClaudeConfigManager/secrets/`. `CLAUDE_CODE_MAX_CONTEXT_TOKENS`-style keys are written only after validation; keys never appear in settings, logs, or errors.
+- **CredentialVault** — owner-only credential files (`0600`) under `~/.claude-config-manager/secrets/`, indexed by `~/.claude-config-manager/credentials.json`. Keys are handed to the CLI via an `apiKeyHelper` script and never appear in settings, logs, or errors.
 - **ConfigWriter** — refuses symlinks, refuses concurrent edits, refuses to overwrite a broken file, snapshots before writing, writes to a temp file, fsyncs, renames atomically, re-reads to verify, and rolls back on any mismatch.
 - **ModelDiscovery** — fetches only documented catalog endpoints, caps payload size and entry count, and carries capability data verbatim (unknown stays unknown).
 - **BridgeManager** — the optional translator for OpenAI-only providers: pinned version, sha512-verified download, dependencies from a committed lockfile, loopback-only binding, consent-gated execution, clean uninstall.
@@ -68,23 +68,27 @@ The application service orchestrates one transaction per apply — there is no p
 
 ## Features
 
-- Verified presets: **Anthropic, OpenRouter, DeepSeek, Z.AI, NVIDIA NIM** — plus custom Anthropic-compatible endpoints
+- Verified presets: **Anthropic, OpenRouter, DeepSeek, Z.AI** — plus custom Anthropic-compatible endpoints. (NVIDIA NIM ships as an OpenAI-only preset; serving it requires the bridge below, which is **not functional in this release** — the app says so on the Bridge card.)
 - Model catalogs from documented endpoints, searchable, with per-model declared context windows — **never auto-selected**
 - Multiple keys per provider with priority ordering (first enabled wins)
 - Optional **failover proxy**: loopback-only, bearer-token-protected, tries targets in order, detached helper survives GUI closure
-- Optional **bridge** for OpenAI-only providers: pinned `claude-code-router`, consent-gated, uninstalls cleanly
+- Optional **bridge** for OpenAI-only providers: pinned `claude-code-router`, consent-gated, uninstalls cleanly — **status: install/start are disabled in this release** because provider configuration is not yet wired into the pinned router (its own internal store is not written by this build)
 - Maintenance: environment checks, backups list, one-click reversible restore
 - Light/dark/system themes, full keyboard navigation, screen-reader labels, reduced-motion support
 
 ## Install
 
-1. Download `Claude.Config.Manager_1.0.0_aarch64.dmg` from the [releases page](https://github.com/SHAHID8142/claude-config-manager/releases/latest).
+1. Download `Claude.Config.Manager_1.0.1_aarch64.dmg` from the [releases page](https://github.com/SHAHID8142/claude-config-manager/releases/latest).
 2. Verify it: `shasum -a 256 -c SHA256SUMS.txt`
 3. Open the DMG and drag **Claude Config Manager** to **Applications**.
-4. Launch — the build is unsigned, so Gatekeeper warns once: right-click → **Open** → **Open**, or:
+4. Launch — the build is **ad-hoc signed but not notarized** (no Apple Developer account yet), so
+   Gatekeeper asks for confirmation once: right-click → **Open** → **Open**, or use
+   **System Settings → Privacy & Security → Open Anyway**. If a launch is refused outright, run:
    ```sh
    xattr -dr com.apple.quarantine "/Applications/Claude Config Manager.app"
    ```
+   (v1.0.0 DMGs showed *"damaged and can't be opened"* because the bundle shipped without a code
+   signature — that is fixed in v1.0.1.)
 
 ## Build from source
 
@@ -102,7 +106,7 @@ Requires Node ≥ 22 and Rust (stable). macOS Apple Silicon is the supported tar
 
 ```sh
 npm run check:frontend   # eslint + prettier + tsc + vitest
-npm run check:rust       # fmt + clippy -D warnings + cargo test (13 suites)
+npm run check:rust       # fmt + clippy -D warnings + cargo test (unit + 10 integration suites)
 ```
 
 Per-feature evidence lives in [`docs/audits/`](docs/audits/); the threat model in [`docs/security/`](docs/security/); design system in [`DESIGN.md`](DESIGN.md).

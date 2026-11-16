@@ -6,8 +6,8 @@
 - Working tree: clean except one untracked file, `Claude Config Manager Icon.png` (owner's branding
   reference, 1254×1254, alpha channel). Preserved verbatim as
   `assets/Claude Config Manager Icon.png`; the root copy is left untouched.
-- Existing docs read for this phase: `00-START-HERE.md`, `01-PRD.md`, `02-ARCHITECTURE-SECURITY.md`,
-  `03-AGENT-RULES.md`, `04-TASK-BACKLOG.md`, `06-REVIEW-CHECKLIST.md`, `07-MASTER-AUTONOMOUS-PROMPT.md`,
+- Existing docs read for this phase: `docs/internal/00-START-HERE.md`, `docs/internal/01-PRD.md`, `docs/internal/02-ARCHITECTURE-SECURITY.md`,
+  `docs/internal/03-AGENT-RULES.md`, `docs/internal/04-TASK-BACKLOG.md`, `docs/internal/06-REVIEW-CHECKLIST.md`, `docs/internal/07-MASTER-AUTONOMOUS-PROMPT.md`,
   `FINAL_AUDIT.md`, `TASK_PROGRESS.md`, `docs/audits/*` (T41–T70, G1–G16).
 
 ## Baseline gates (run, not assumed)

@@ -1,5 +1,13 @@
 # Bridge — Supported Features and Known Losses (T47)
 
+> **Status (2026-11-17, v1.0.1):** the install/lifecycle machinery below is real and tested
+> (integrity pin, safe extraction, consent gate, detached run, uninstall). **But this build cannot
+> serve requests through the bridge yet**: the pinned ccr 3.1.3 keeps its provider configuration
+> in its own SQLite store, and this build never writes provider configuration into it (the
+> generated `gateway.config.json` is read by nothing). The app therefore disables bridge
+> install/start and discloses this on the Bridge card until the wiring ships. The integrity and
+> supply-chain facts remain accurate.
+
 **Date:** 2026-11-13 · **Pin:** `@musistudio/claude-code-router@3.1.3` (sha512-verified, see `src-tauri/src/bridge/manifest.rs`) · **ADR:** ADR-001 (companion addendum below)
 
 ## What the bridge does for this app

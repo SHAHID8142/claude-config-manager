@@ -147,7 +147,12 @@ credential-looking is replaced with `[REDACTED]`).
 
 ---
 
-## 9. Bridge limitations (still not shipped in V3)
+## 9. Bridge limitations (gated off in this release)
+
+The bridge install/lifecycle code ships, but **the app disables it**: this build does not yet write
+provider configuration into the pinned claude-code-router, so an installed gateway would have
+nothing to route to. The Bridge card says so. Use an Anthropic-compatible provider in direct mode
+instead. Original design constraints, still binding:
 
 If bridge support is ever approved, these are the constraints it must satisfy (already recorded as design
 requirements, not as shipped features):
