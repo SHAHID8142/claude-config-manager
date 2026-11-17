@@ -494,3 +494,11 @@ in Date.toISOString and break rendering. Fixed with a visible Unknown timestamp
 fallback while valid dates keep semantic time markup. Four focused regressions
 pass; frontend total219. No backend production-source changes or key operations.
 The1.0.5 published artifact is unchanged;1.0.6 is a separate unsigned prerelease.
+
+
+Final publication: v1.0.6 unsigned prerelease targets
+8fc69bdd27543c6fdb6560acf04b317b0b8115da. Downloaded DMG hash matches the local
+artifact and SHA256SUMS. CI44115270919 passed frontend, Rust and security jobs.
+User-triggered live verification remains blocked before inference pending a
+usable stored NVIDIA credential; no successful hosted inference is claimed.
+See the publication receipt and source fingerprint evidence.

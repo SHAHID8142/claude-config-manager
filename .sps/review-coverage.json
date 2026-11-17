@@ -40,9 +40,9 @@
     },
     {
       "path": ".sps/agent.md",
-      "bytes": 612,
-      "sha256": "86b85adac14ee94940b6ef9a51bca1a0b241538da752df670e66cb48ff516910",
-      "lines": 10,
+      "bytes": 777,
+      "sha256": "5e2302fc1c6f326f0b898cf9fc1e2a99570db35fce938ee33cf2f8d16d2b6351",
+      "lines": 13,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -68,9 +68,9 @@
     },
     {
       "path": ".sps/handoff.md",
-      "bytes": 8354,
-      "sha256": "0950dacac3155f0511cbb9804b3b8151933fd5fc1dba4559fcba15139c5620f8",
-      "lines": 134,
+      "bytes": 12227,
+      "sha256": "d8c9dcc7dec11e59e5339ac503a2682da362aeee440e5de4caa680568e7baeca",
+      "lines": 199,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -96,9 +96,9 @@
     },
     {
       "path": ".sps/plan.md",
-      "bytes": 13994,
-      "sha256": "8ba632b01ab450e8610c1af57859666a96ed0705cd5c0df644ef3103651344f1",
-      "lines": 220,
+      "bytes": 14464,
+      "sha256": "4c52777fc76d6c6ff1e1287a491ebc756675c45e8b1e836f3178bae787eb92c9",
+      "lines": 229,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -110,10 +110,10 @@
     },
     {
       "path": ".sps/review-coverage.json",
-      "bytes": 71486,
+      "bytes": null,
       "sha256": null,
-      "reviewStatus": "inventory itself; self hash omitted",
-      "lines": 1548
+      "reviewStatus": "inventory itself; self measurements omitted",
+      "lines": null
     },
     {
       "path": ".sps/section-registry.md",
@@ -124,9 +124,9 @@
     },
     {
       "path": ".sps/section-todos/repairs.md",
-      "bytes": 1037,
-      "sha256": "0c1d3b5f9d161ae85df3ee67169e852a9a92c1babe9e0f8f11cffc046e98beb0",
-      "lines": 16,
+      "bytes": 1243,
+      "sha256": "9533d3b9332e7abd15f7f94ba6f69a4995d485b6a28d5f19c22ea004f89e8567",
+      "lines": 18,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -181,22 +181,22 @@
     {
       "path": "PRODUCT.md",
       "bytes": 1960,
-      "sha256": "147995ec37052aec2a62ffc15b2ddbdc1a5be9e684dc710bd3df46403647a847",
+      "sha256": "04526c7c427653ced2d14311d5715d5da64299088179b9603f6761df8da64db9",
       "lines": 28,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
       "path": "README.md",
-      "bytes": 4441,
-      "sha256": "edf74132d9527a8d8d6b0794530a8fe1b9915c2f4680a7c3698f4c465ab54a36",
-      "lines": 79,
+      "bytes": 4752,
+      "sha256": "64308deaa1b79cc8508129ad72cd7f4809b2ab3815164feb7af4e086324b167b",
+      "lines": 83,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
       "path": "docs/USER_GUIDE.md",
-      "bytes": 11641,
-      "sha256": "cebaa1f5db881bdb5ab38cc8a5949adba2509ab927799997431cc256523fe127",
-      "lines": 188,
+      "bytes": 11779,
+      "sha256": "e4f69bfcd670951dae0fd59fefae0708f9914c8d0ceb88dccfc4443309453dca",
+      "lines": 189,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -307,7 +307,7 @@
     {
       "path": "docs/V3/LIMITATIONS.md",
       "bytes": 3673,
-      "sha256": "6f9d601f9ef4d545003b97bdd97eb16fd53a5fc7f39161ce304484df0113d1ed",
+      "sha256": "9cafe7a1e27607fe39dde3ef939f18e2227062e965a925ccb286751dbaec2d37",
       "lines": 51,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
@@ -398,15 +398,15 @@
     {
       "path": "docs/architecture/MODULE-BOUNDARIES.md",
       "bytes": 3810,
-      "sha256": "f9cf9b118023e3eaf3d27fe7138a7e45a9e77c8d184ce0c25f74125b44d2a3d0",
+      "sha256": "a6451727221df2116279f1ac84a2b3a02b3822a08914811b0614bbda859ba2f5",
       "lines": 54,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
       "path": "docs/audits/2026-11-17-project-review.md",
-      "bytes": 44234,
-      "sha256": "e19c8efabb55c646b3a2938449d0a8e552c96b5bb31052f1e55678ba28438134",
-      "lines": 478,
+      "bytes": 45633,
+      "sha256": "b0fadcdc5fc06e62f4214747f421492c6cab0df1d1582ee5c27a4092b83dc837",
+      "lines": 504,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -1019,10 +1019,38 @@
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
+      "path": "docs/releases/1.0.5-publication.json",
+      "bytes": 628,
+      "sha256": "00116c623fa5a22dd10ff33baaa7bb774755b16fdb02e19059dd9da43c5b9cb5",
+      "lines": 14,
+      "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
+    },
+    {
       "path": "docs/releases/1.0.5.md",
       "bytes": 6038,
       "sha256": "685c54f0cdb1111a582836e2052308fe5f918ca92151a395293e7c86ab7134e7",
       "lines": 91,
+      "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
+    },
+    {
+      "path": "docs/releases/1.0.6-evidence.json",
+      "bytes": 22217,
+      "sha256": "ebdf3945a299dbe0c6540b7eddc29a55ae3ac6297e97c5d9a2b8318fdb8e30cc",
+      "lines": 616,
+      "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
+    },
+    {
+      "path": "docs/releases/1.0.6-publication.json",
+      "bytes": 704,
+      "sha256": "12a34203f1f98899f7152557dbac938e03d3f4520610edc3d1e8b34480ce6f38",
+      "lines": 15,
+      "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
+    },
+    {
+      "path": "docs/releases/1.0.6.md",
+      "bytes": 2308,
+      "sha256": "96964a32d16d2377f4e988a1c826af0dbfbdaf5a7e27d6a7705696d1b6f7c99b",
+      "lines": 37,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -1042,7 +1070,7 @@
     {
       "path": "docs/security/THREAT-MODEL.md",
       "bytes": 4687,
-      "sha256": "38003d8eabda8bc14f41370dab9edfc12e8219dd0b226fe3d06147a764a5599b",
+      "sha256": "ed8fbc7be9dc2e2676bbe01df639f54b3f99abfd70e7af412de7e9a44c6c0310",
       "lines": 31,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
@@ -1070,14 +1098,14 @@
     {
       "path": "package-lock.json",
       "bytes": 157646,
-      "sha256": "c4b75ec51f537e3a3a2acccc859392c6ae8deaef5900cc3b16008bec0d90cc8b",
+      "sha256": "972431f2ecfbdab63dae5bd388913c0173c25fe037bc3700df63c3203b8e2102",
       "lines": 4579,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
       "path": "package.json",
       "bytes": 1635,
-      "sha256": "6df8e4ecfa701c05decd7f789f9f2c3b809f4129229205d46aeaefe062ffc130",
+      "sha256": "7d8d0cb2f3a9176729eda2bf648057fb90829d69852ab2340e9d36036484ce81",
       "lines": 53,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
@@ -1112,14 +1140,14 @@
     {
       "path": "src-tauri/Cargo.lock",
       "bytes": 119332,
-      "sha256": "fe6178925bad736c6e0bb575bc6a8e08ce69c83a30aee6a9f3450f784c794e59",
+      "sha256": "9986c20a41d8982b14ef6e7af84386ec49b529cd8672b8f5a25b42880b707c10",
       "lines": 4897,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
       "path": "src-tauri/Cargo.toml",
       "bytes": 1367,
-      "sha256": "da38c5901e51b5642ac91f2c7cceb74e3d3e10186f03b4c0a674615b07c4c842",
+      "sha256": "f77001b4f674e2bb0dff3c83b2812fc9d2c32251444f86f1245d2fca405e68e9",
       "lines": 44,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
@@ -1441,7 +1469,7 @@
     {
       "path": "src-tauri/tauri.conf.json",
       "bytes": 999,
-      "sha256": "1733e133749b792eb64bcf5f4595bb15134ff44eeccd901005c4009c49bd1b7a",
+      "sha256": "28dc517b526750de4d60065bf59909ce2dac6588b977898bd98d779003236d76",
       "lines": 41,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
@@ -1824,10 +1852,17 @@
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
+      "path": "src/components/SwitchHistory.test.tsx",
+      "bytes": 1190,
+      "sha256": "eab7c5a18da2c2a835c705e3b0fc81ec541e46e60ae21698fef4b5ed0a100e1f",
+      "lines": 27,
+      "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
+    },
+    {
       "path": "src/components/SwitchHistory.tsx",
-      "bytes": 2394,
-      "sha256": "fa171d1090e2277b620feb417e4bd98f14c710c568bea4788ba8113a08a2c275",
-      "lines": 70,
+      "bytes": 2578,
+      "sha256": "4db859932770417da07723a3ae193e4588116e6bedcdd68cc9f3354ffdaa5901",
+      "lines": 74,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -2006,10 +2041,17 @@
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
+      "path": "src/lib/providerDraft.test.ts",
+      "bytes": 1401,
+      "sha256": "faf2baab8f44bfee70a3cdd36fc0e85bf70b3c94040c11e34acef463c0a108a6",
+      "lines": 28,
+      "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
+    },
+    {
       "path": "src/lib/providerDraft.ts",
-      "bytes": 3470,
-      "sha256": "194744f1201000405691c0ae4eaacde88317adc9d153829bededbdcea1e2d121",
-      "lines": 99,
+      "bytes": 3704,
+      "sha256": "a8c5c6d089bef74c7e0afdae4d492620d900ddf2f206d0ae0ce8f8e76d03425b",
+      "lines": 106,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -2193,271 +2235,271 @@
       "path": "assets/Claude Config Manager Icon.png",
       "bytes": 1711438,
       "sha256": "7130363f91f5b8dac087e7ca7fb6361c8a9603f62fd6ce73811eebc6fec598d9",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "docs/assets/demo.gif",
       "bytes": 2590874,
       "sha256": "d72a9e9facf17e36941da3834670f8eb894996114d51e96bffb2cd34f19fe5ef",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "docs/assets/demo.webm",
       "bytes": 419363,
       "sha256": "8e437bd00cc4b382678d19702030df70e976e666c038cc377dbf517d6002d6c8",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "docs/assets/screenshot-dashboard-dark.png",
       "bytes": 126057,
       "sha256": "05aac71f789f768a3a777f852bbda66e5579217345913203d8240370f21d910e",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "docs/assets/screenshot-dashboard.png",
       "bytes": 121581,
       "sha256": "7bebd3a73a06e3ed4023d45bcf91fbebecffee0c77ffbb45f8038e76043b83bf",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "docs/assets/screenshot-failover.png",
       "bytes": 167064,
       "sha256": "ce8c17a9c0070010d228adef876a13a31112fa7f3ac245d57be8248148514c08",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "docs/assets/screenshot-maintenance.png",
       "bytes": 111482,
       "sha256": "509ae3fec2291b241b3408cc10d9f9e7cca04144215964f7a814ca49e8ecec41",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "docs/assets/screenshot-model.png",
       "bytes": 127878,
       "sha256": "a5da97ffec782c1d607877600ac54bffb7ddbb25bba46c629460d38ad4422369",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "docs/assets/screenshot-provider.png",
       "bytes": 104391,
       "sha256": "d33327ea9692299594d5d9a34a7103a31cd4eedd8cb60e6cabb270871ad097c6",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "public/app-icon.png",
       "bytes": 100219,
       "sha256": "7c57c95d6d63c6fc1bc023c80c2e3546478f3a8d6a974e2dd9e51a5354c009a5",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/128x128.png",
       "bytes": 27726,
       "sha256": "efe20bdb45d63aafbdafc2d19f5371da7631cbab6c5ce70e0ec97dd3665c2c88",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/128x128@2x.png",
       "bytes": 83038,
       "sha256": "1216177471ae55fb1751604807c789f4228c03f1f5b4ff1e6bc884c4d40fdf27",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/32x32.png",
       "bytes": 3009,
       "sha256": "5445e433ef26eed908cb475604b8621421a35d5708617a13175a7e1cd48fdf3a",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/64x64.png",
       "bytes": 9347,
       "sha256": "b24d4737b5c83d5dffff35450e1a7604f4117308afa81d61b63b4f4812cbaba4",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/Square107x107Logo.png",
       "bytes": 20960,
       "sha256": "d09cb80110b542ed72923684704e5ece6ebdabd20c1b128837336fdfb933a28f",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/Square142x142Logo.png",
       "bytes": 32544,
       "sha256": "543e6a62fc83f5737bc200dad50febe07d5ccdb1d159047f8639a43f261ab581",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/Square150x150Logo.png",
       "bytes": 35362,
       "sha256": "a589d6d6cfbe38d3a1c675231808ae1bf86a4dfeaa6a4adc70b3d75c91987fdd",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/Square284x284Logo.png",
       "bytes": 99008,
       "sha256": "bcf656b038e9ac46ee989d2a98cc83194ec897ef4d433f4f525979d9216f88cc",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/Square30x30Logo.png",
       "bytes": 2736,
       "sha256": "cf0b0d72e0133a7629de4aa04cf6d1b2d7e18a5b44baf21fc91fd1fda6a6b0ce",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/Square310x310Logo.png",
       "bytes": 115545,
       "sha256": "23648adcbf8630a3048a9dc4798e0e730aa80fad69703f44212b41f049c73239",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/Square44x44Logo.png",
       "bytes": 5126,
       "sha256": "fefa827bb968059c246547c3081863325eb8ad362bd2ad9f42386d0c22d0d405",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/Square71x71Logo.png",
       "bytes": 11072,
       "sha256": "45870cbe2d31a563edb6705627ba5ec61b630c3e6dd22e378837aecdfd2f9a84",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/Square89x89Logo.png",
       "bytes": 15808,
       "sha256": "e9689f882bc4702781e3d055ab67e496bff0b615839e8b859903af3bcc17ce57",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/StoreLogo.png",
       "bytes": 6267,
       "sha256": "e3341bba6f101b31b9ba17c84034ac8e01aa99362d680499ed8f1fdaef6b8412",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/icon.icns",
       "bytes": 1919990,
       "sha256": "772c4c5cc4a906e87afe815f5a2f885b9c5d7c06305600016ac97bc6391f75ed",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/icon.ico",
       "bytes": 104210,
       "sha256": "58b0b1f6dc8cd0047ade7f9592aae2f814c272a8fc1df3e7b051534e0dfd166e",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/icon.png",
       "bytes": 292602,
       "sha256": "f0ff6c8bcc4006c394f011a539cc5c1191670657d46ac3b58a9a8c2c5f2e4268",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-20x20@1x.png",
       "bytes": 1314,
       "sha256": "c416e716b308cc44b184867fbc8a95effc5fd4b8f8d49cd1a18d9f5b9e52d1d9",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-20x20@2x-1.png",
       "bytes": 4202,
       "sha256": "cf5e69eee2e08d3044cc2b51d7f94a7d16f8bb6d5ef960c0052ff7ebe82a5e7e",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-20x20@2x.png",
       "bytes": 4202,
       "sha256": "cf5e69eee2e08d3044cc2b51d7f94a7d16f8bb6d5ef960c0052ff7ebe82a5e7e",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-20x20@3x.png",
       "bytes": 8174,
       "sha256": "b3752bb585b1a77c22cfb0ed2976a9157d73f3a86572a6b4ab1f9c80d6d1fa32",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-29x29@1x.png",
       "bytes": 2478,
       "sha256": "072f87622eb8e58d1a051a55b227b9aff1d83027d6e2e994715cf63319a6a6b1",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-29x29@2x-1.png",
       "bytes": 7690,
       "sha256": "b22f0f61489d7d68babd9ed488799cfa5048e3bb3f33023c3b7bda316ce8cab2",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-29x29@2x.png",
       "bytes": 7690,
       "sha256": "b22f0f61489d7d68babd9ed488799cfa5048e3bb3f33023c3b7bda316ce8cab2",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-29x29@3x.png",
       "bytes": 14696,
       "sha256": "9cb96af8381eef08a32e9f0912ab12d0135dfc70df6c8a20352d7bb3009494df",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-40x40@1x.png",
       "bytes": 4202,
       "sha256": "cf5e69eee2e08d3044cc2b51d7f94a7d16f8bb6d5ef960c0052ff7ebe82a5e7e",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-40x40@2x-1.png",
       "bytes": 12946,
       "sha256": "65da8033c9afdd3e240f8d4bd5dee91564d658353391b303214815435b189ffc",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-40x40@2x.png",
       "bytes": 12946,
       "sha256": "65da8033c9afdd3e240f8d4bd5dee91564d658353391b303214815435b189ffc",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-40x40@3x.png",
       "bytes": 24416,
       "sha256": "22317fc4b57ad70cd7b8c22486b1d2f1ef980da7ec8766f6746d5c4313a3a481",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-512@2x.png",
       "bytes": 1105482,
       "sha256": "2f57e9a7cbd79cc68b72e00a06227a5473ccc6b76edb6144247ef48ebc3ab9e8",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-60x60@2x.png",
       "bytes": 24416,
       "sha256": "22317fc4b57ad70cd7b8c22486b1d2f1ef980da7ec8766f6746d5c4313a3a481",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-60x60@3x.png",
       "bytes": 45856,
       "sha256": "81e4c51f4931a5bd73b95c0100b0e77e8efe18d4f8f7ebef29eb4dee65c3a0c6",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-76x76@1x.png",
       "bytes": 11910,
       "sha256": "1ac88be1021b6dff6ef70087c8b89cfed976d02fdd8dc24d478b87c1fe4c5ff5",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-76x76@2x.png",
       "bytes": 35232,
       "sha256": "c3dfb50bb30126a233f2203069917a31aa5daec19f86ff7a7143f72ad8a11fc5",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     },
     {
       "path": "src-tauri/icons/ios/AppIcon-83.5x83.5@2x.png",
       "bytes": 40933,
       "sha256": "258316fdfedc5dcf1d1c6582244339b3c854e84d73e907829dfc4ce8d0ee5174",
-      "reviewStatus": "binary/media inventoried; historical/screenshots and icon visual checks described in audit; no full animation/variant certification"
+      "reviewStatus": "binary/media inventoried; explicit visual checks and remaining frame/variant coverage described in audit"
     }
   ]
 }

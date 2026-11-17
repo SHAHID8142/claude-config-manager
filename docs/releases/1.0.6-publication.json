@@ -1,0 +1,15 @@
+{
+  "downloadExit": 0,
+  "releaseUrl": "https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.6",
+  "sourceCommit": "8fc69bdd27543c6fdb6560acf04b317b0b8115da",
+  "prerelease": true,
+  "draft": false,
+  "assetName": "Claude-Config-Manager_1.0.6_aarch64.dmg",
+  "sha256": "84f0bd92de9d302784427a50e42ab2bd88818a86d77a9c0234f4ff94c3ea2beb",
+  "checksumMatches": true,
+  "matchesBuiltDmg": true,
+  "ciRunUrl": "https://github.com/SHAHID8142/claude-config-manager/actions/runs/44115270919",
+  "ciState": "success",
+  "ciJobs": ["Frontend checks: success", "Rust checks: success", "Secrets & dependencies: success"],
+  "hostedNvidiaInference": "unverified; awaiting usable stored credential"
+}

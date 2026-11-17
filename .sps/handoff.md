@@ -1,3 +1,36 @@
+# Current handoff — v1.0.6 published; key correction pending
+
+Release: https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.6
+Source commit8fc69bdd27543c6fdb6560acf04b317b0b8115da pushed to main/tag.
+GitHub non-draft unsigned prerelease observed. Downloaded DMG/SHA256SUMS match
+local build:84f0bd92de9d302784427a50e42ab2bd88818a86d77a9c0234f4ff94c3ea2beb.
+Remote CI44115270919 passed frontend, Rust and security. Frontend219 pass;
+backend401 (unchanged production Rust from1.0.5); final packaged realCLI Read
+fixture passed against1.0.6 with spaced/quoted home. Signature/image/mount/copy
+integrity pass; Gatekeeper rejects ad-hoc app. No Developer ID/notarization.
+
+User said they added a key and asked to check. Minimal1.0.6 verification inspected
+private metadata/key privately, found no usable NVIDIA token: the sole stored
+NVIDIA entry contains internal whitespace. No inference request was sent. Asked
+user via async prompt to save exact token in NVIDIA Stored keys > New API key,
+with a short Key label and Add key, then report ready. Do not paste/read key values
+in tool output/chat. OpenRouter authenticated key check previously returned200.
+Do not infer readiness or normalize/replace the real secret automatically.
+
+Outstanding: corrected-key hosted NVIDIA inference; native620×560/200% zoom/
+VoiceOver and reboot/login/clean Mac; exhaustive manual per-line/frame coverage;
+explicit model-override removal UI (currently manual edit). Full audit register
+and release limitations remain truthful, not all-tasks-complete. Installed app
+was removed earlier; build-output inspection candidate may still be open and
+may have recreated cache data. Private settings/keys/backups were preserved.
+Disposable native fixture was stopped. Do not restart user's editing window.
+
+Current1.0.6 patch fixed draft-cap data loss and invalid timestamp rendering;
+four focused regressions pass. No additional dependency or paid request.
+Next action depends on key-ready reply; remaining manual audit can continue.
+
+--- Historical preparation/publication records below ---
+
 # Active patch — 1.0.6
 
 Two final-review edge cases fixed: draft write cap now matches its read cap with

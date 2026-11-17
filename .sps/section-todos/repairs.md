@@ -9,8 +9,8 @@
 - [x] Current source/history secret scans and dependency audit recorded.
 - [x] Source pushed and unsigned v1.0.5 prerelease published; remote DMG hash verified.
 - [x] v1.0.5 remote CI: frontend, Rust and security all passed.
-- [ ] Publish1.0.6 hardening patch after focused checks and artifact verification.
-- [ ] Updated NVIDIA key readiness and successful hosted inference.
+- [x] Published1.0.6, remote DMG hash matches; frontend/Rust/security CI all passed.
+- [ ] Correct exact-token NVIDIA entry (current stored value has internal whitespace), then hosted inference.
 - [ ] Native minimum window/200% zoom/VoiceOver, real reboot/login and clean Mac.
 - [ ] Exhaustive manual per-line/frame coverage and explicit model-removal control.
 

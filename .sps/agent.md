@@ -8,3 +8,6 @@
 - Real NVIDIA retry waits for user readiness after key update.
 - SPS checker reports unknown/latest4.0.0; installed VERSION is4.0.0. No inferred
   global skill update. Native acceptance and hosted inference remain separate.
+
+- Latest:1.0.6 published, source8fc69bd; remoteCI all pass, remote artifact matches.
+- Current key check blocked before inference; await user correction/readiness.
