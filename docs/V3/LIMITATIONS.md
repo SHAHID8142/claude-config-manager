@@ -36,7 +36,7 @@ Updated 2026-11-17; supersedes conflicting V2/V3 historical acceptance claims.
   with 32 concurrent connections. No retry after response streaming starts.
   A timeout may leave upstream processing uncertain; duplicate charges cannot
   be ruled out. Saved history retains 100 redacted failure/fallback events, not complete request logs.
-- Catalog/key checks do not verify model inference. OpenRouter key check returned200. The prior NVIDIA credential was rejected; a retry awaits a user key update. No successful hosted inference is claimed. The installed CLI completed a
+- Catalog/key checks do not verify model inference. OpenRouter key check returned200. A later minimal NVIDIA inference through the1.0.6 packaged helper returned200 with nonempty text. This does not certify every model/tool or live failover. The installed CLI completed a
   streamed response through the packaged helper using loopback fixtures only.
 - Overview reads one global scope. Project/managed settings and another
   terminal's environment may override it; helper output can be cached by CLI.

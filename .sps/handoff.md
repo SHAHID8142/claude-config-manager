@@ -1,3 +1,28 @@
+# Active handoff — live NVIDIA verified, user activation pending
+
+User needed help finding New API key. Native window exposed NVIDIA controls;
+collapsed optional direct-key area, set nonsecret label Work and focused secure
+New API key. User entered/submitted the key themselves. Native AX confirmed new
+Work entry first; old malformed Shahid entry remained. User could not delete old
+entry because active direct settings still referenced it; guard behaved as designed.
+
+One minimal request through final1.0.6 packaged helper in disposable config now
+PASS: HTTP200, nonempty text,20 input/3 output tokens; no secret/label/prompt copied
+into public output. Raw private script/result only in/tmp; sanitized evidence in
+docs/releases/1.0.6-live-verification.json. No live tool/fallback claim.
+
+Set public model nvidia/nemotron-3-ultra-550b-a55b in native draft; AX observed
+Save & Apply ENABLED. User instructed: clickSave & Apply, waitsuccess, thenDelete
+oldShahid. Async status question pending. Did NOT click their real Apply or delete
+any real credential. CUA completion summaries sent for observed preparation tasks.
+Next: observe their Apply/delete result, verify only nonsecret settings/metadata,
+then update final evidence and handoff. Do not request a second API key/account.
+
+Published1.0.6 source8fc69bd, remoteCI all pass, downloadhash matches. Supplementary
+live verification/notes were uploaded; final documentation commit follows. Original binary unchanged.
+
+--- Prior record ---
+
 # Current handoff — v1.0.6 published; key correction pending
 
 Release: https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.6

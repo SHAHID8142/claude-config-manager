@@ -10,7 +10,8 @@
 - [x] Source pushed and unsigned v1.0.5 prerelease published; remote DMG hash verified.
 - [x] v1.0.5 remote CI: frontend, Rust and security all passed.
 - [x] Published1.0.6, remote DMG hash matches; frontend/Rust/security CI all passed.
-- [ ] Correct exact-token NVIDIA entry (current stored value has internal whitespace), then hosted inference.
+- [x] User stored the correct token; minimal hosted NVIDIA inference returned200 with nonempty text.
+- [ ] User global Save & Apply, then old protected-entry removal (model filled; Save enabled).
 - [ ] Native minimum window/200% zoom/VoiceOver, real reboot/login and clean Mac.
 - [ ] Exhaustive manual per-line/frame coverage and explicit model-removal control.
 

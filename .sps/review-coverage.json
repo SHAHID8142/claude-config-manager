@@ -68,9 +68,9 @@
     },
     {
       "path": ".sps/handoff.md",
-      "bytes": 12227,
-      "sha256": "d8c9dcc7dec11e59e5339ac503a2682da362aeee440e5de4caa680568e7baeca",
-      "lines": 199,
+      "bytes": 13721,
+      "sha256": "fe1a6aa2ed174fa2bc9778315a7105da24148c602a881eabe052ce46f45239e8",
+      "lines": 224,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -124,9 +124,9 @@
     },
     {
       "path": ".sps/section-todos/repairs.md",
-      "bytes": 1243,
-      "sha256": "9533d3b9332e7abd15f7f94ba6f69a4995d485b6a28d5f19c22ea004f89e8567",
-      "lines": 18,
+      "bytes": 1329,
+      "sha256": "9c65a5eda803c39d3f496e0e62ded914913edf3273cd33677e5fa76bf976d689",
+      "lines": 19,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -194,9 +194,9 @@
     },
     {
       "path": "docs/USER_GUIDE.md",
-      "bytes": 11779,
-      "sha256": "e4f69bfcd670951dae0fd59fefae0708f9914c8d0ceb88dccfc4443309453dca",
-      "lines": 189,
+      "bytes": 12353,
+      "sha256": "f25fcc31dbcf4608d4267e4738c7903cd216ab8a7a9edea9450704dc8ec349e4",
+      "lines": 199,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -306,8 +306,8 @@
     },
     {
       "path": "docs/V3/LIMITATIONS.md",
-      "bytes": 3673,
-      "sha256": "9cafe7a1e27607fe39dde3ef939f18e2227062e965a925ccb286751dbaec2d37",
+      "bytes": 3709,
+      "sha256": "6e1b8806c0925bdd88fb95cb0af01b0252cc8232c3a0b535ef5b959838ac68c8",
       "lines": 51,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
@@ -404,9 +404,9 @@
     },
     {
       "path": "docs/audits/2026-11-17-project-review.md",
-      "bytes": 45633,
-      "sha256": "b0fadcdc5fc06e62f4214747f421492c6cab0df1d1582ee5c27a4092b83dc837",
-      "lines": 504,
+      "bytes": 46406,
+      "sha256": "beb18b30b9729e3216fadbf30ebbfe4b6e4688c62aad265d015c82790c1fbf0f",
+      "lines": 517,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -1040,6 +1040,13 @@
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
+      "path": "docs/releases/1.0.6-live-verification.json",
+      "bytes": 603,
+      "sha256": "dc0db039ff6fe32581bcc9126eb74685bdc38bab08964f6283852b2fab69d0b9",
+      "lines": 15,
+      "reviewStatus": "inventory; supplementary verification/documentation, not per-line certification"
+    },
+    {
       "path": "docs/releases/1.0.6-publication.json",
       "bytes": 704,
       "sha256": "12a34203f1f98899f7152557dbac938e03d3f4520610edc3d1e8b34480ce6f38",
@@ -1048,9 +1055,9 @@
     },
     {
       "path": "docs/releases/1.0.6.md",
-      "bytes": 2308,
-      "sha256": "96964a32d16d2377f4e988a1c826af0dbfbdaf5a7e27d6a7705696d1b6f7c99b",
-      "lines": 37,
+      "bytes": 2600,
+      "sha256": "887b5558580ca68a9a52461dbe64d676089cabe5d9184e8228d91cce0ad931c6",
+      "lines": 41,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {

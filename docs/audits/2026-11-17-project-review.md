@@ -502,3 +502,16 @@ artifact and SHA256SUMS. CI44115270919 passed frontend, Rust and security jobs.
 User-triggered live verification remains blocked before inference pending a
 usable stored NVIDIA credential; no successful hosted inference is claimed.
 See the publication receipt and source fingerprint evidence.
+
+
+## Live NVIDIA and active-key replacement follow-up
+
+After user-owned secure entry, one minimal request through the final packaged
+1.0.6 helper returned HTTP200 with nonempty text (20 input/3 output tokens).
+No live tool/failover coverage is inferred from this basic inference. Supplementary
+evidence was uploaded and release notes updated; the binary/checksum is unchanged.
+Native inspection confirmed the replacement key saved first, and explained the
+old-entry delete refusal: saved direct settings still reference it. The tested
+NVIDIA model was entered as a draft; Save & Apply was observed ENABLED. User
+activation and old-entry deletion remain pending. Guide now explains this sequence
+and that a second API key/account is unnecessary. No real credential deleted.

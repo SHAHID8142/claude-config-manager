@@ -73,6 +73,16 @@ the separate switching activation above. Promoting a key does not rewrite a
 previously applied direct helper. Apply the new selection first. The app refuses
 to disable/delete the credential referenced by an active owned direct helper.
 
+### Replace a key that cannot be deleted
+
+An active direct key is protected because saved settings still reference it.
+You do not need a second provider account. Add the correct token with a new
+**Key label** under **New API key**, select the provider's model, then use
+**Save & Apply**. After the saved confirmation, remove the old entry. Adding a
+key alone does not redirect an existing direct helper. For NVIDIA, Apply
+activates the built-in local connection first. The optional direct-key input
+and **Add key** are separate controls; Add requires both label and token.
+
 Blank context and role fields preserve saved values. Use their explicit Reset
 buttons to remove overrides. Review old model/role settings when moving between
 providers: names are not portable. Manual model entry stays editable after a

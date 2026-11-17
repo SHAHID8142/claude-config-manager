@@ -1,0 +1,15 @@
+{
+  "provider": "nvidia-nim",
+  "version": "1.0.6",
+  "maxOutputTokens": 16,
+  "model": "nvidia/nemotron-3-ultra-550b-a55b",
+  "status": 200,
+  "nonemptyText": true,
+  "usage": {
+    "input_tokens": 20,
+    "output_tokens": 3
+  },
+  "date": "2026-11-17",
+  "scope": "One minimal hosted text inference through the final packaged1.0.6 helper, disposable configuration, stored credential copied privately; no credential values or labels recorded",
+  "limits": "Does not certify every model, tool, account condition or a live cross-provider failover. CLI tool/failover acceptance remains fixture-backed."
+}
