@@ -1,4 +1,4 @@
-# Current release limitations — 1.0.5
+# Current release limitations — 1.0.6
 
 Updated 2026-11-17; supersedes conflicting V2/V3 historical acceptance claims.
 

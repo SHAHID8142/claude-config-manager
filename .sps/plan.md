@@ -218,3 +218,12 @@ restart the user's Mac, weaken security or invent a signing identity. Real
 provider validation is in the user's requested remaining scope; use minimal
 bounded requests with already stored keys and no private prompt content. Missing
 usable credentials/certificates/device acceptance must be reported concretely.
+
+
+## Follow-up1.0.6 hardening — existing batch scope
+
+Preserve valid drafts at the storage cap by evicting oldest entries before writing
+(32 entries/64KiB text cap, most recently edited retained); handle invalid history
+timestamps without throwing during render. Add focused regressions. Version and
+rebuild1.0.6 as a new unsigned prerelease; keep published1.0.5 immutable. Root owns
+these small shared UI/storage edits. No new dependency, key action or paid request.

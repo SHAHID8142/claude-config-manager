@@ -1,0 +1,14 @@
+{
+  "downloadExit": 0,
+  "assetName": "Claude-Config-Manager_1.0.5_aarch64.dmg",
+  "checksumMatches": true,
+  "matchesBuiltDmg": true,
+  "sha256": "1ad173d0441575c222f15e71ff9ab5676c64639948a81e507d40dfc931ffcca0",
+  "releaseUrl": "https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.5",
+  "sourceCommit": "de16792964d1929271b074283fb41a49305a34df",
+  "prerelease": true,
+  "draft": false,
+  "ciRunUrl": "https://github.com/SHAHID8142/claude-config-manager/actions/runs/44113582905",
+  "ciState": "success",
+  "ciJobs": ["Frontend checks: success", "Rust checks: success", "Secrets & dependencies: success"]
+}

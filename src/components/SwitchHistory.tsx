@@ -53,14 +53,18 @@ export function SwitchHistory({ ipc }: { ipc: IpcLike }) {
           {events
             .slice(-20)
             .reverse()
-            .map((event, i) => (
-              <li key={`${event.epoch}-${i}`}>
-                <time dateTime={new Date(event.epoch * 1000).toISOString()}>
-                  {new Date(event.epoch * 1000).toLocaleString()}
-                </time>{" "}
-                · {event.providerId} · {outcomeLabels[event.outcome]}
-              </li>
-            ))}
+            .map((event, i) => {
+              const date = new Date(event.epoch * 1000);
+              const validTime = Number.isFinite(date.getTime());
+              return (
+                <li key={`${event.epoch}-${i}`}>
+                  <time dateTime={validTime ? date.toISOString() : undefined}>
+                    {validTime ? date.toLocaleString() : "Unknown timestamp"}
+                  </time>{" "}
+                  · {event.providerId} · {outcomeLabels[event.outcome]}
+                </li>
+              );
+            })}
         </ol>
       ) : (
         <p>No saved switching events yet.</p>

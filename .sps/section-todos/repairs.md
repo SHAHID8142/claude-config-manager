@@ -7,7 +7,9 @@
 - [x] Frontend215/Rust401 pass; explicit final packaged real CLI fixture passes.
 - [x] Final1.0.5 DMG integrity, signature, read-only mount/copy/hash checks pass.
 - [x] Current source/history secret scans and dependency audit recorded.
-- [ ] Push/publication receipt (unsigned prerelease approved; prepared).
+- [x] Source pushed and unsigned v1.0.5 prerelease published; remote DMG hash verified.
+- [x] v1.0.5 remote CI: frontend, Rust and security all passed.
+- [ ] Publish1.0.6 hardening patch after focused checks and artifact verification.
 - [ ] Updated NVIDIA key readiness and successful hosted inference.
 - [ ] Native minimum window/200% zoom/VoiceOver, real reboot/login and clean Mac.
 - [ ] Exhaustive manual per-line/frame coverage and explicit model-removal control.

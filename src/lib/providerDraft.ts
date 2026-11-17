@@ -85,12 +85,19 @@ export function saveProviderDraft(id: string, draft: ProviderDraft, customId?: s
   if (!/^[a-z0-9_-]{1,80}$/.test(id) || id === "__none__") return;
   const all = drafts();
   const safe = clean(draft);
+  delete all[id];
   all[id] = safe;
-  if (customId && safe.customEndpoint && safe.model) all[customId] = safe;
-  saveSessionString(
-    "provider-drafts-v1",
-    JSON.stringify(Object.fromEntries(Object.entries(all).slice(-32))),
-  );
+  if (customId && safe.customEndpoint && safe.model) {
+    delete all[customId];
+    all[customId] = safe;
+  }
+  const entries = Object.entries(all).slice(-32);
+  let encoded = JSON.stringify(Object.fromEntries(entries));
+  while (encoded.length > 65536 && entries.length > 1) {
+    entries.shift();
+    encoded = JSON.stringify(Object.fromEntries(entries));
+  }
+  saveSessionString("provider-drafts-v1", encoded);
 }
 export function customProviderDrafts(): Array<{ id: string; draft: ProviderDraft }> {
   return Object.entries(drafts())

@@ -1,3 +1,35 @@
+# Active patch — 1.0.6
+
+Two final-review edge cases fixed: draft write cap now matches its read cap with
+oldest-entry eviction and recent-edit retention; invalid history timestamp no
+longer throws during render. Four new regressions; frontend219 pass. Backend
+production source is unchanged from1.0.5 (401 tests and packagedCLI pass).
+1.0.6 app/DMG building; next artifact checks, exact hashes/evidence and publication.
+1.0.5 remains published, immutable, with remote frontend/Rust/security CI allPASS.
+No updated-key readiness reply; no new live NVIDIA request. Remaining manual,
+native and model-removal limitations still recorded. No certificate/signing change.
+
+--- Published predecessor ---
+
+# Published handoff — 1.0.5 unsigned prerelease
+
+Release: https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.5
+Source commit de16792964d1929271b074283fb41a49305a34df pushed to main.
+GitHub release observed non-draft/prerelease; DMG, SHA256SUMS and evidence uploaded.
+Downloaded all assets again: DMG checksum matches SHA256SUMS and local final build.
+SHA256:1ad173d0441575c222f15e71ff9ab5676c64639948a81e507d40dfc931ffcca0.
+Remote CI run44113582905 passed all three jobs.
+Local215 frontend/401 Rust pass, packaged real CLI fixture pass, source hashes
+match release commit. Installed /Applications app absent. No signing identity;
+Gatekeeper rejects ad-hoc app. Live NVIDIA retry still awaits user key readiness.
+
+Open items: explicit model-removal control, exhaustive manual per-line/animation
+coverage; minimum native window/zoom/VoiceOver, actual reboot/login/clean Mac.
+Do not claim all work/acceptance is complete. Finish independent checks while
+waiting for the key, and preserve this published prerelease as the recorded build.
+
+--- Prior preparation record ---
+
 # Current handoff — 1.0.5 unsigned prerelease prepared
 
 2026-11-17. User authorized complete remaining work, commit/push and publication,

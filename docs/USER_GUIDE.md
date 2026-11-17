@@ -1,6 +1,6 @@
 # Claude Config Manager — user guide
 
-Updated for 1.0.5, 2026-11-17. This app edits Claude Code's global user settings.
+Updated for 1.0.6, 2026-11-17. This app edits Claude Code's global user settings.
 Project settings, managed settings and terminal environment variables can take
 precedence. Restart Claude Code after changing authentication: helper output may
 be cached. [Official settings documentation](https://code.claude.com/docs/en/settings).
@@ -136,7 +136,8 @@ Valid model/role/context drafts are retained per provider on this device and
 restored when switching providers or reopening the app. Completed custom endpoint
 and model drafts can be reopened from **Saved custom provider drafts**. API key
 inputs are never persisted in draft storage; invalid/incomplete values remain
-session-only. Clearing app WebKit data removes these drafts. Drafts do not activate
+session-only. Clearing app WebKit data removes these drafts. Draft storage is capped at 32 entries and 64 KiB of text; oldest drafts are
+evicted first and the most recently edited draft is retained. Drafts do not activate
 settings. The **Review changes** panel distinguishes pending and saved values.
 
 Apply validates inputs/settings before managed side effects, takes backups,
@@ -185,4 +186,4 @@ that output limit. Interrupted/malformed streams are not replayed.
 Save and tool execution were tested end to end with the installed CLI using
 loopback fixtures and fake keys. A real NVIDIA account/inference request was not
 run, so model availability, account credit and hosted-model behavior remain
-provider-dependent. See [1.0.5 release evidence](releases/1.0.5.md).
+provider-dependent. See [1.0.6 release evidence](releases/1.0.6.md).

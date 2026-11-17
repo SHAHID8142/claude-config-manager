@@ -225,7 +225,7 @@ Priority order is stability → credential correctness → switching → usabili
 - [x] T51 Bump all release metadata together and build a repaired local .app/DMG from a recorded source revision.
 - [ ] T52 Verify signature, DMG checksum, mount/copy/launch, installed behavior and rollback; provide SHA256SUMS.
 - [x] T53 Record Gatekeeper/notarization truthfully; use Developer ID only if the owner supplies an identity.
-- [ ] T54 Deliver artifact, release notes, migration instructions and unresolved limitations; publish only when requested.
+- [x] T54 Deliver artifact, release notes, migration instructions and unresolved limitations; publish only when requested.
 
 ## Checks actually run
 
@@ -476,3 +476,21 @@ evidence. Two full-desktop T65 captures were removed from the current tree after
 inspection because they contained unrelated desktop content; private local copies
 were retained and earlier Git history is unchanged. Icon variants and GIF/WebM
 assets are inventoried/hashed; full animation frame-by-frame review remains open.
+
+
+Publication observed: v1.0.5 non-draft unsigned prerelease at GitHub, targeting
+source commit de16792964d1929271b074283fb41a49305a34df. DMG, checksum and evidence
+assets were downloaded after upload; the remote DMG matches the local final build.
+CI run44113582905 passed frontend, Rust and security jobs.
+
+
+## Final-review patch — 1.0.6
+
+F31: a valid large draft collection could exceed its64KiB read cap, causing all
+drafts to be ignored on the next read. Fixed by applying both count/text caps
+before writing, evicting oldest entries and retaining recent edits.
+F32: a syntactically valid but out-of-range saved history timestamp could throw
+in Date.toISOString and break rendering. Fixed with a visible Unknown timestamp
+fallback while valid dates keep semantic time markup. Four focused regressions
+pass; frontend total219. No backend production-source changes or key operations.
+The1.0.5 published artifact is unchanged;1.0.6 is a separate unsigned prerelease.
