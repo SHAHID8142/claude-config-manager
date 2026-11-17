@@ -1,3 +1,34 @@
+# Published handoff — 1.0.7 unsigned prerelease
+
+2026-11-18. Published https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.7
+Source bd1a84b8d5411197d01121dc07237c6f608758e8 pushed/tagged. Downloaded DMG/evidence
+matches local final artifact and published SHA256SUMS. DMG SHA256:
+33b5696a4dbb8d3af1e778b1ddf5fa77aebe1b157995c74805e550005316a7aa.
+141 build-source fingerprints match tagged commit. CI44164810051 frontend/Rust PASS; security FAIL on newly reviewed high npm
+picomatch advisory. No patched release exists; latest4.0.7 affected. Production-only
+npm audit0; gate NOT waived. Cargo audit skipped by CI after npm failure, local
+cargo-audit unavailable. Current dependency security acceptance remains OPEN.
+Full409 Rust/219 frontend, fmt/clippy/lint/format/typecheck; packaged real CLI
+bare/default both pass; final hosted inline-system NVIDIA200 with nonempty text.
+
+Real helper upgraded to7 at existing configured port after attesting/stopping two
+old helpers. Health/version and recorded state align. Settings and all credential
+files byte-identical before/after. No user key changed/deleted. /Applications
+remains absent; user's GUI untouched. No prompts/response content logged.
+
+User confirmed original Claude conversation now responds successfully after active
+helper upgrade. This acceptance is recorded separately from minimal hosted fixture.
+If another error arrives inspect only safe status/static categories; never log user request.
+No need to re-enter working key for the repaired role error.
+
+Remaining acceptance: minimum native window/zoom/VoiceOver, reboot/login/clean Mac,
+explicit model-override removal UI, exhaustive manual per-line/animation review.
+Unsigned prerelease: ad-hoc integrity pass, Gatekeeper rejects, no notarization.
+Previous6 immutable. Publication receipt records source CI failure honestly; final
+metadata-only docs commit does not alter app/DMG/source tag.
+
+--- Historical records ---
+
 # Active handoff — 1.0.7 verified, publishing
 
 2026-11-18. Role400 repaired with current official docs; six system-scope adapter

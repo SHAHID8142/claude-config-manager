@@ -55,3 +55,10 @@ instructions into NVIDIA's initial system message. Turn expiry is respected;
 cache placement is not portable. Dynamic tool changes/per-message effort remain
 unsupported. Basic bare/default-CLI fixtures use the actual saved NVIDIA model,
 not a forced Claude model; this is broader coverage, not every CLI feature.
+
+
+Source CI for1.0.7 passes frontend/Rust but the full dependency gate fails on
+[GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf), a high
+ReDoS advisory in picomatch4.0.7 used by Vite/Vitest. No upstream patched release
+was available when checked. Production-only npm audit reports0; this does not
+clear the development gate. Cargo audit was skipped after npm failed.

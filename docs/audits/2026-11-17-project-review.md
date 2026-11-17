@@ -536,3 +536,24 @@ frontend219. Final release evidence records package and active-helper checks.
 Still open: user retry of the actual conversation, accessibility/minimum native
 window/zoom, reboot/login/clean Mac, explicit model-override removal UI, exhaustive
 manual per-line/animation review. No blanket completion claim follows from counts.
+
+
+## Post-release dependency gate follow-up — 2026-11-18
+
+- [ ] **P1 open: GHSA-fc5q-39xc-vjpf**. GitHub reviewed the high picomatch ReDoS
+  advisory on Nov17. Source CI44164810051 passes frontend/Rust but fails npm audit
+  with12 high transitive entries originating from this advisory. Installed/latest
+  picomatch4.0.7; upstream patched version None. Do not apply `npm audit fix --force`
+  blindly: its proposed Vitest downgrade is not a verified fix for the vulnerable
+  matcher. Upgrade to a verified patched version when available and repeat full CI.
+- npm tree locates the matcher under Vite/Vitest development tooling. Production-only
+  npm audit reports0; that scoped result does not waive the full development gate.
+- CI cargo-audit did not execute after npm audit failed; local tool unavailable.
+  No fresh cargo-audit pass is claimed. Earlier OSV/macOS baseline remains historical.
+- Original release files remain immutable; publication receipt adds the new status.
+  Reference: https://github.com/advisories/GHSA-fc5q-39xc-vjpf.
+
+
+User acceptance2026-11-18: the original400 conversation was retried against active
+1.0.7; user confirmed Claude responds successfully. This closes that observed
+message-role failure. Other unverified/manual items and dependency advisory remain.

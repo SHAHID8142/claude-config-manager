@@ -1,0 +1,59 @@
+{
+  "version": "1.0.7",
+  "releaseUrl": "https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.7",
+  "sourceCommit": "bd1a84b8d5411197d01121dc07237c6f608758e8",
+  "releaseIsDraft": false,
+  "releaseIsPrerelease": true,
+  "publishedAt": "2026-11-17T20:01:31Z",
+  "remoteDmgSha256": "33b5696a4dbb8d3af1e778b1ddf5fa77aebe1b157995c74805e550005316a7aa",
+  "matchesLocalDmg": true,
+  "matchesPublishedChecksum": true,
+  "matchesPublishedEvidence": true,
+  "assets": ["1.0.7-evidence.json", "Claude-Config-Manager_1.0.7_aarch64.dmg", "SHA256SUMS"],
+  "sourceCI": {
+    "runId": 44164810051,
+    "url": "https://github.com/SHAHID8142/claude-config-manager/actions/runs/44164810051",
+    "conclusion": "failure",
+    "headSha": "bd1a84b8d5411197d01121dc07237c6f608758e8",
+    "jobs": [
+      {
+        "name": "Rust checks",
+        "conclusion": "success"
+      },
+      {
+        "name": "Frontend checks",
+        "conclusion": "success"
+      },
+      {
+        "name": "Secrets & dependencies",
+        "conclusion": "failure"
+      }
+    ],
+    "failure": "npm audit high: GHSA-fc5q-39xc-vjpf in picomatch4.0.7; cargo audit skipped after this failure"
+  },
+  "activeHelper": {
+    "targetVersion": "1.0.7",
+    "portPreserved": true,
+    "helperHealthy": true,
+    "rollbackUsed": false,
+    "attestedOldHelpers": 2,
+    "activeVersion": "1.0.7",
+    "stateMatchesHealth": true,
+    "settingsUnchanged": true,
+    "credentialFilesUnchanged": true
+  },
+  "secretScan": "172 commits and final source snapshot passed; no credentials logged",
+  "sourceFingerprintsMatchReleaseCommit": true,
+  "userConversationRetry": "User confirmed Claude responds successfully in the original failing conversation after the active helper upgrade",
+  "dependencyAdvisory": {
+    "id": "GHSA-fc5q-39xc-vjpf",
+    "severity": "high",
+    "package": "picomatch",
+    "installedAndLatestVersion": "4.0.7",
+    "patchedVersion": "none listed by upstream as of verification",
+    "scope": "Vite/Vitest development tooling dependency tree",
+    "npmOmitDevReportedVulnerabilities": 0,
+    "gateWaived": false,
+    "localCargoAudit": "tool unavailable; no local cargo-audit pass claimed"
+  }
+}

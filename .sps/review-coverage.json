@@ -40,9 +40,9 @@
     },
     {
       "path": ".sps/agent.md",
-      "bytes": 824,
-      "sha256": "3f6fc1f126299435cd2448e413c334555a347eecaea1a8737c1b70ec6db105b0",
-      "lines": 12,
+      "bytes": 764,
+      "sha256": "c5f7843916f9f03536dfa988dd4a0d5a23d8a714444116450b8bc29add3ca302",
+      "lines": 11,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -68,9 +68,9 @@
     },
     {
       "path": ".sps/handoff.md",
-      "bytes": 16797,
-      "sha256": "efb25825dc4cda9dc0dda87e23d941d0764ac435c5c71d126b14554b03b5c632",
-      "lines": 274,
+      "bytes": 18750,
+      "sha256": "6b17c5182408fe533593e3408b3f42c10b800046b4c06fe65b692cd655cd26d5",
+      "lines": 305,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -313,9 +313,9 @@
     },
     {
       "path": "docs/V3/LIMITATIONS.md",
-      "bytes": 4105,
-      "sha256": "5e8394f7afe8ab6217b22671ec76c7010303f10f9d67ddbc0dc0db62c6c15038",
-      "lines": 57,
+      "bytes": 4496,
+      "sha256": "2edf7100c55507bf14d689ad1174b4821b40b08c1631d32511d88884d294092e",
+      "lines": 64,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -467,9 +467,9 @@
     },
     {
       "path": "docs/audits/2026-11-17-project-review.md",
-      "bytes": 47698,
-      "sha256": "0fbe7d5300740ea08f76c5d4ba20cb3ee7dd08f7404eced5a219c4a645ce18ad",
-      "lines": 538,
+      "bytes": 48988,
+      "sha256": "1fea9459ed44839672618d70e9d92bb883fc298bfa6a5c419939eb479dba016d",
+      "lines": 559,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -1131,10 +1131,17 @@
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
+      "path": "docs/releases/1.0.7-publication.json",
+      "bytes": 2180,
+      "sha256": "94d3083389135d7bc1eaf6afb7384ad9f390304dda74e1ad92e82fe55f4a816c",
+      "lines": 59,
+      "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
+    },
+    {
       "path": "docs/releases/1.0.7.md",
-      "bytes": 2533,
-      "sha256": "d6a82c3f28fcbefee48319fa53660becce823ee404278c8a1873db1f3192aa8f",
-      "lines": 35,
+      "bytes": 3746,
+      "sha256": "62a585eed837967f066949d89acd0c3e991730bdc1f0531105562a544688ddb1",
+      "lines": 56,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
