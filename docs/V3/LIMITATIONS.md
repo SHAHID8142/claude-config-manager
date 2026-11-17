@@ -1,4 +1,4 @@
-# Current release limitations — 1.0.7
+# Current release limitations — 1.0.8
 
 Updated 2026-11-18; supersedes conflicting V2/V3 historical acceptance claims.
 
@@ -62,3 +62,10 @@ Source CI for1.0.7 passes frontend/Rust but the full dependency gate fails on
 ReDoS advisory in picomatch4.0.7 used by Vite/Vitest. No upstream patched release
 was available when checked. Production-only npm audit reports0; this does not
 clear the development gate. Cargo audit was skipped after npm failed.
+
+
+1.0.8 adds ordered model fallback with primary +4 alternatives per provider.
+Provider/model/key order, scoped cooldowns, no-replay and full real-CLI tool flow
+are fixture-tested. Actual hosted multi-model inference remains unverified. Older
+apps reject fallbackModels; remove alternatives before downgrading. Current7 helper
+is deliberately left running until the owner reopens8 and saves/enables its policy.

@@ -3,21 +3,21 @@
 A macOS desktop utility for Claude Code global settings, provider credentials
 and automatic provider/key switching. Built with Tauri 2, Rust and React.
 
-## Version 1.0.7 — unsigned prerelease
+## Version 1.0.8 — unsigned prerelease
 
-[Download the Apple Silicon prerelease](https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.7) · [SHA256SUMS](https://github.com/SHAHID8142/claude-config-manager/releases/download/v1.0.7/SHA256SUMS)
+[Download the Apple Silicon prerelease](https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.8) · [SHA256SUMS](https://github.com/SHAHID8142/claude-config-manager/releases/download/v1.0.8/SHA256SUMS)
 
 Not notarized: macOS Gatekeeper may block it. See the release notes for acceptance limits.
 
 The repair adds built-in NVIDIA activation, selected-backup previews, interrupted-save recovery, durable drafts/history and provider cards with ordered
-keys, per-provider models, safer credential resolution and accessible information
+keys, ordered model fallbacks, safer credential resolution and accessible information
 buttons. The interface has four screens: Overview, Providers & keys, Automatic
 switching, and Recovery & diagnostics.
 
 **Set up:** choose a provider → add its keys → choose its model → add it to
 switching. Repeat for another provider, order the cards, then **Save & enable
-automatic switching**. Requests try A1 → A2 → B1 in that order. Failed keys cool
-down; all-cooling keys are skipped. Caller/model errors stop the chain. Streaming
+automatic switching**. Requests try provider A → model 1 (keys in order) → model 2 → provider B. Failed keys and unavailable models cool
+down; paused choices are skipped. Malformed caller requests stop the chain. Streaming
 responses are never replayed. Timeouts still carry upstream-processing and
 charging uncertainty.
 
@@ -25,7 +25,7 @@ Existing explicit-key policies retain their ordering; conversion to all enabled
 provider keys is explicit. Single-key direct Apply remains available.
 
 Read the [user guide](docs/USER_GUIDE.md), [audit and complete todo register](docs/audits/2026-11-17-project-review.md),
-[release notes](docs/releases/1.0.7.md), and [limitations](docs/V3/LIMITATIONS.md).
+[release notes](docs/releases/1.0.8.md), and [limitations](docs/V3/LIMITATIONS.md).
 Old screenshots/recordings in `docs/assets` demonstrate earlier versions, not
 acceptance evidence for the current interface. Historical V2/V3 audits describe
 their own checkpoints; the dated repair audit supersedes conflicting claims.
@@ -68,7 +68,7 @@ npm run build:macos
 Development browser mode uses an in-memory fixture transport; it does not write
 real settings or contact providers. `?fail=env|catalog|models|apply` injects errors.
 
-Artifacts appear under `src-tauri/target/release/bundle/`. Version 1.0.7 is an
+Artifacts appear under `src-tauri/target/release/bundle/`. Version 1.0.8 is an
 **unsigned prerelease** (ad-hoc signature only). It is ad-hoc signed without
 Developer ID/notarization. Clean-Mac Gatekeeper acceptance, VoiceOver, reboot and
 real paid-provider end-to-end behavior must not be assumed. See release evidence.

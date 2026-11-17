@@ -895,6 +895,18 @@ export default function App({ ipc = defaultIpc }: AppProps) {
     const existing = routing.targets.find(
       (t) => t.providerId === credentialProviderId && t.credentialId === null,
     );
+    if (
+      existing &&
+      selectedModel !== existing.model &&
+      !(existing.fallbackModels ?? []).includes(selectedModel) &&
+      (existing.fallbackModels?.length ?? 0) >= 4
+    ) {
+      setRoutingError(
+        "Use at most 5 models per provider. Remove a model in Automatic switching first.",
+      );
+      navigate("routing");
+      return;
+    }
     const target = {
       id:
         existing?.id ??
@@ -906,7 +918,15 @@ export default function App({ ipc = defaultIpc }: AppProps) {
           : `${credentialProviderId}-group`),
       providerId: credentialProviderId,
       credentialId: null,
-      model: selectedModel,
+      model: existing?.model ?? selectedModel,
+      fallbackModels: existing
+        ? [
+            ...new Set([
+              ...(existing.fallbackModels ?? []),
+              ...(selectedModel !== existing.model ? [selectedModel] : []),
+            ]),
+          ]
+        : [],
       baseUrl: isCustom
         ? customEndpoint.trim()
         : selected?.id === "nvidia-nim"
@@ -1453,14 +1473,14 @@ export default function App({ ipc = defaultIpc }: AppProps) {
                   <h3 className="text-[14px] font-semibold">
                     Use this provider for automatic switching{" "}
                     <HelpPopover title="Provider order">
-                      This adds one provider group. Every enabled stored key is tried in key
-                      priority order before moving to the next provider. Save the order, then enable
-                      switching to activate routed mode.
+                      This adds the selected model to its provider’s model order. Enabled keys are
+                      tried for each model before the next model or provider. Save the order, then
+                      enable switching.
                     </HelpPopover>
                   </h3>
                   <p className="mt-1 text-[12px] text-ink-muted">
-                    Add keys above and choose a model, then add this provider to your switching
-                    order.
+                    Add keys and choose a model. Adding another model from the same provider appends
+                    it to that provider’s fallback order.
                   </p>
                   <button
                     type="button"

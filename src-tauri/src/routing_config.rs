@@ -27,6 +27,9 @@ pub struct RouteTarget {
     pub credential_id: Option<String>,
     /// Model id to force for this target. `None` = pass the caller's model.
     pub model: Option<String>,
+    /// Ordered alternatives after the primary model; absent in legacy policies.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fallback_models: Vec<String>,
     /// Upstream base URL, without `/v1/messages`.
     pub base_url: String,
     pub enabled: bool,
@@ -117,8 +120,39 @@ impl RoutingConfig {
                 })?;
             }
             if let Some(model) = &t.model {
+                if model.trim() != model {
+                    return Err(RoutingError::Invalid(
+                        "remove whitespace around model IDs".into(),
+                    ));
+                }
                 crate::config_merge::validate_model_id(model)
                     .map_err(|e| RoutingError::Invalid(format!("target {}: {e}", t.id)))?;
+            }
+            if t.fallback_models.len() > 4 {
+                return Err(RoutingError::Invalid(
+                    "at most 5 models per provider".into(),
+                ));
+            }
+            if !t.fallback_models.is_empty() && t.model.is_none() {
+                return Err(RoutingError::Invalid(
+                    "choose a primary model before fallback models".into(),
+                ));
+            }
+            let mut models = t.model.iter().collect::<Vec<_>>();
+            for model in &t.fallback_models {
+                if model.trim() != model {
+                    return Err(RoutingError::Invalid(
+                        "remove whitespace around model IDs".into(),
+                    ));
+                }
+                crate::config_merge::validate_model_id(model)
+                    .map_err(|e| RoutingError::Invalid(format!("target {}: {e}", t.id)))?;
+                if models.contains(&model) {
+                    return Err(RoutingError::Invalid(
+                        "model order contains a duplicate".into(),
+                    ));
+                }
+                models.push(model);
             }
             // Upstream must be https, except a loopback http endpoint, which
             // exists only so tests can run a local upstream. A public http
@@ -240,6 +274,7 @@ mod tests {
             provider_id: "openrouter".into(),
             credential_id: Some("openrouter-1".into()),
             model: Some("nvidia/nemotron-x".into()),
+            fallback_models: Vec::new(),
             base_url: "https://openrouter.ai/api".into(),
             enabled: true,
         }
@@ -379,5 +414,39 @@ mod tests {
         c.targets[1].enabled = false;
         assert_eq!(c.ordered().len(), 1);
         assert_eq!(c.ordered()[0].id, "t1");
+    }
+}
+
+#[cfg(test)]
+mod model_order_tests {
+    use super::*;
+    fn config() -> RoutingConfig {
+        RoutingConfig::parse(r#"{"version":1,"enabled":true,"targets":[{"id":"provider","providerId":"openrouter","credentialId":null,"model":"primary","baseUrl":"https://openrouter.ai/api","enabled":true}]}"#).unwrap()
+    }
+    #[test]
+    fn legacy_model_stays_primary_and_optional_order_round_trips() {
+        let mut c = config();
+        assert!(c.targets[0].fallback_models.is_empty());
+        assert!(!c.to_json().unwrap().contains("fallbackModels"));
+        c.targets[0].fallback_models = vec!["second".into(), "third".into()];
+        assert_eq!(RoutingConfig::parse(&c.to_json().unwrap()).unwrap(), c);
+    }
+    #[test]
+    fn model_order_rejects_duplicates_invalid_ids_overflow_and_missing_primary() {
+        for choices in [
+            vec!["primary"],
+            vec!["same", "same"],
+            vec![" "],
+            vec![" spaced"],
+            vec!["one", "two", "three", "four", "five"],
+        ] {
+            let mut c = config();
+            c.targets[0].fallback_models = choices.into_iter().map(String::from).collect();
+            assert!(c.validate().is_err());
+        }
+        let mut c = config();
+        c.targets[0].model = None;
+        c.targets[0].fallback_models = vec!["second".into()];
+        assert!(c.validate().is_err());
     }
 }

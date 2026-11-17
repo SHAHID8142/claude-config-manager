@@ -13,6 +13,20 @@ export function createDevMockIpc(): IpcLike {
   let running = false;
   let loginStart = false;
   let routing: RoutingConfig = { version: 1, enabled: false, targets: [] };
+  // Explicit browser-only model editor fixture; no keys or provider requests.
+  if (new URLSearchParams(window.location.search).has("modelOrder")) {
+    routing.targets = [
+      {
+        id: "nvidia-group",
+        providerId: "nvidia-nim",
+        credentialId: null,
+        model: "nvidia/nemotron-3-ultra-550b-a55b",
+        fallbackModels: [],
+        baseUrl: "https://integrate.api.nvidia.com",
+        enabled: true,
+      },
+    ];
+  }
   let credentials: CredentialView[] = [];
   let status: EffectiveStatus = {
     envDefaultHaiku: null,

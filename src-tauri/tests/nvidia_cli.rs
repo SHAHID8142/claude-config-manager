@@ -98,6 +98,11 @@ fn save_nvidia_then_real_cli_reads_a_file_and_finishes_through_key_failover() {
                 sock.write_all(b"HTTP/1.1 401 Unauthorized\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}").unwrap();
                 continue;
             }
+            if body["model"] == "fixture-unavailable-model" {
+                let payload = r#"{"error":{"code":"model_not_found"}}"#;
+                write!(sock,"HTTP/1.1 404 Not Found\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",payload.len(),payload).unwrap();
+                continue;
+            }
             let (delta, finish) = if successful == 0 {
                 let tools = body["tools"].as_array().expect("CLI sends tools");
                 let name = tools
@@ -151,6 +156,11 @@ fn save_nvidia_then_real_cli_reads_a_file_and_finishes_through_key_failover() {
     // settings, helper script, credentials and token are used without alteration.
     let mut policy = routing_config::load(&home).unwrap();
     policy.targets[0].base_url = format!("http://127.0.0.1:{port}");
+    let model_fallback = std::env::var_os("CCM_CLI_MODEL_FALLBACK_FIXTURE").is_some();
+    if model_fallback {
+        policy.targets[0].model = Some("fixture-unavailable-model".into());
+        policy.targets[0].fallback_models = vec!["nvidia/nemotron-3-ultra-550b-a55b".into()];
+    }
     routing_config::save(&home, &policy).unwrap();
     let mut cli = Command::new("claude");
     if std::env::var_os("CCM_CLI_STANDARD_FIXTURE").is_none() {
@@ -204,15 +214,28 @@ fn save_nvidia_then_real_cli_reads_a_file_and_finishes_through_key_failover() {
     let requests = seen.lock().unwrap();
     assert_eq!(
         requests.len(),
-        3,
-        "first key 401, second key tool call, second key tool result"
+        if model_fallback { 4 } else { 3 },
+        "key failure, optional model failure, tool call and tool result"
     );
     assert!(requests[0]["firstKey"].as_bool().unwrap());
     assert!(!requests[1]["firstKey"].as_bool().unwrap());
     assert!(!requests[2]["firstKey"].as_bool().unwrap());
     assert!(requests.iter().all(|r| r["path"] == "/v1/chat/completions"));
+    if model_fallback {
+        assert_eq!(requests[0]["body"]["model"], "fixture-unavailable-model");
+        assert_eq!(requests[1]["body"]["model"], "fixture-unavailable-model");
+        assert_eq!(
+            requests[2]["body"]["model"],
+            "nvidia/nemotron-3-ultra-550b-a55b"
+        );
+        assert_eq!(
+            requests[3]["body"]["model"],
+            "nvidia/nemotron-3-ultra-550b-a55b"
+        );
+        assert!(!requests[3]["firstKey"].as_bool().unwrap());
+    }
     assert!(
-        requests[2]["body"]["messages"]
+        requests.last().unwrap()["body"]["messages"]
             .as_array()
             .unwrap()
             .iter()
@@ -222,7 +245,7 @@ fn save_nvidia_then_real_cli_reads_a_file_and_finishes_through_key_failover() {
                     .is_some_and(|s| s.contains("LOCAL_READ_PROOF_4182")))
     );
     println!(
-        "Save -> generated helper -> NVIDIA A1 401 -> A2 tool call -> real CLI Read -> A2 final SSE: PASS"
+        "Save -> helper -> key failure -> optional model fallback -> real CLI Read -> final SSE: PASS"
     );
     drop(requests);
     drop(fixture);

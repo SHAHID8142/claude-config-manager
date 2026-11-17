@@ -36,7 +36,7 @@ export const TAB_META: Record<TabId, { title: string; purpose: string }> = {
   },
   routing: {
     title: "Automatic switching",
-    purpose: "Try keys within the preferred provider first, then move to the next provider.",
+    purpose: "Try each provider’s models and keys in order, then move to the next provider.",
   },
   maintenance: {
     title: "Recovery & diagnostics",

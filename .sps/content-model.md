@@ -38,3 +38,9 @@ provider/timestamp events, never prompts/responses/endpoints/key values/key labe
 private regular file holding an OS exclusive lease for the helper lifetime. It is
 not an age-based transaction lock. System text is translated to one initial
 NVIDIA instruction with active turn scopes; dynamic tool-state changes are rejected.
+
+1.0.8: optional fallbackModels (max4 strings) extends routing target alongside the
+existing primary model. Old policies round-trip without the field. Multi-model
+expanded IDs include quoted model identity so reorder preserves scoped cooldowns.
+History adds fixed model_unavailable outcome; status adds lastModel. No key data.
+Older app versions reject the extra field; remove alternatives before downgrade.

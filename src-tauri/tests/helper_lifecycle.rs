@@ -199,3 +199,24 @@ fn a_second_raw_helper_cannot_rebind_or_overwrite_the_active_state() {
     assert_eq!(restarted.port, first.port);
     helper::stop(&home).unwrap();
 }
+
+#[test]
+#[ignore = "requires CCM_OLD_HELPER_EXE pointing to a verified older helper; fixture home only"]
+fn older_helper_is_upgraded_before_new_policy_is_saved() {
+    let home = temp_home("version-upgrade");
+    let old = PathBuf::from(std::env::var_os("CCM_OLD_HELPER_EXE").expect("older binary fixture"));
+    let before = helper::start_with_exe(&home, &old).unwrap();
+    let old_version = helper::health(before.port).unwrap().version;
+    assert_ne!(old_version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
+    let token = helper::ensure_token(&home).unwrap();
+    let after = helper::start_with_exe(&home, &bin()).unwrap();
+    assert_ne!(before.pid, after.pid);
+    assert_eq!(before.port, after.port);
+    assert_eq!(
+        helper::health(after.port).unwrap().version.as_deref(),
+        Some(env!("CARGO_PKG_VERSION"))
+    );
+    assert_eq!(helper::ensure_token(&home).unwrap(), token);
+    helper::stop(&home).unwrap();
+    std::fs::remove_dir_all(home).unwrap();
+}

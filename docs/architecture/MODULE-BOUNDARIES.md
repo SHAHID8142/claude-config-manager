@@ -1,4 +1,4 @@
-# Current module boundaries — 1.0.7
+# Current module boundaries — 1.0.8
 
 Reviewed 2026-11-17. This is an implementation map, superseding the original v1
 CLIAdapter/Keychain design sketch. No CLIAdapter abstraction or KeychainStore is

@@ -251,3 +251,39 @@ nonblocking File::try_lock; release on process death), not timestamp stale locks
 Verify duplicate raw helper startup cannot overwrite state or bind another port,
 and existing crash/restart tests still pass. Rebuild7 before consolidating only
 attested old helper PIDs on the configured port; settings/secrets must not change.
+
+
+## Ordered model fallback — requested 2026-11-18
+
+User explicitly requested multiple model selection and automatic next-model fallback.
+Implement under existing full batch approval and this concrete feature request. Root
+owns this section; no new delegation. Keep current keys and settings untouched.
+
+- Each provider has a primary model and up to4 ordered fallback models. Catalog
+  suggestions plus manual IDs, Add/Remove/Move buttons, preview and info help.
+- Preserve old single-model configs with optional `fallbackModels`; validate IDs,
+  duplicates and limits in Rust. UI saves explicitly, never on catalog selection.
+- Provider -> model -> ordered enabled keys. Auth/credit failures pause that key
+  across its models; documented model-unavailable errors pause that model across
+  keys; transient failures try the next combination. Generic malformed400/422
+  and unsupported content stop; never replay after streaming starts.
+- Keep total attempt/time bounds. Independent key/model cooldown identities prevent
+  a failed model disabling healthy alternatives. Status exposes last selected model.
+- Preserve fallback choices when provider setup updates its primary model. A new
+  helper version must be started before saving a policy older helpers cannot parse.
+- Verify legacy round-trip, bounded/duplicate validation, provider/model/key order,
+  model failure vs bad request, cooldowns across requests, auth skip, no replay,
+  UI catalog/manual/add/reorder/remove and save persistence with fixture homes.
+- Build next unsigned candidate1.0.8; publish under existing release authorization.
+  Do not waive open picomatch development-tool advisory or imply all CI passed.
+
+Research before implementation: NVIDIA Chat Completions requires one `model` per
+request (https://docs.api.nvidia.com/nim/reference/nvidia-nemotron-3-ultra-550b-a55b-infer);
+ordered fallback is orchestrated locally. Anthropic distinguishes malformed requests
+from provider availability (https://platform.claude.com/docs/en/api/errors).
+OpenRouter describes ordered model fallbacks and returned serving model
+(https://openrouter.ai/docs/guides/routing/model-fallbacks); this app also supports
+NVIDIA/local routing rather than passing OpenRouter-only fields to other providers.
+Modern-web-guidance forms guide read; use native controls, labels, identifier input
+hints, explicit saves and inline feedback. React guideline: derive list state, no
+new library, catalog load on explicit action and cancel stale provider results.

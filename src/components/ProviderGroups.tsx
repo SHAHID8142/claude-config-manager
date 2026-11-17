@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Trash2 } from "lucide-react";
+import { ModelFallbackEditor } from "./ModelFallbackEditor";
 import { CredentialsPanel } from "./CredentialsPanel";
 import { FieldRow } from "./FieldRow";
 import { HelpPopover } from "./HelpPopover";
@@ -29,9 +30,11 @@ function ProviderGroup({
   name,
   ipc,
   onChange,
+  busy,
 }: {
   target: RouteTarget;
   name: string;
+  busy: boolean;
   ipc: IpcLike;
   onChange: (target: RouteTarget) => void;
 }) {
@@ -93,7 +96,7 @@ function ProviderGroup({
           ? "Reading stored keys…"
           : target.credentialId
             ? "Existing route: uses its explicitly selected key. Convert to all keys to use this provider’s priority order."
-            : `${keys.filter((k) => k.enabled).length} enabled keys · tried top to bottom before the next provider`}
+            : `${keys.filter((k) => k.enabled).length} enabled keys · tried top to bottom for each model`}
       </p>
       {target.credentialId && (
         <button
@@ -104,20 +107,14 @@ function ProviderGroup({
           Use all enabled keys for {name}
         </button>
       )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <FieldRow
-          label="Model"
-          htmlFor={`model-${target.id}`}
-          hint="Required model mapping for this provider."
-        >
-          <input
-            id={`model-${target.id}`}
-            className="h-9 w-full rounded-md border border-control bg-surface px-2 text-[13px]"
-            value={target.model ?? ""}
-            onChange={(e) => onChange({ ...target, model: e.target.value.trim() || null })}
-            spellCheck={false}
-          />
-        </FieldRow>
+      <ModelFallbackEditor
+        key={`${target.id}:${target.providerId}`}
+        target={target}
+        ipc={ipc}
+        busy={busy}
+        onChange={onChange}
+      />
+      <div>
         <FieldRow
           label="Endpoint URL"
           htmlFor={`endpoint-${target.id}`}
@@ -181,9 +178,10 @@ export function ProviderGroups({ config, providers, ipc, onChange, busy }: Props
       <div className="flex items-center gap-1 text-[13px] font-medium">
         Provider priority{" "}
         <HelpPopover title="Provider and key order">
-          Try all enabled keys in provider 1, in their key order, then provider 2. A healthy first
-          key stays in use. Temporary failures pause keys; keys from one account may share a limit.
-          Changes to provider/model order remain pending until you save.
+          Try provider 1’s first model with its enabled keys, then its fallback models, then
+          provider 2. A healthy first choice stays in use. Temporary failures pause keys or models;
+          keys from one account may share a limit. Changes to provider/model order remain pending
+          until you save.
         </HelpPopover>
       </div>
       {config.targets.length === 0 && (
@@ -256,6 +254,7 @@ export function ProviderGroups({ config, providers, ipc, onChange, busy }: Props
               target={target}
               name={name}
               ipc={ipc}
+              busy={busy}
               onChange={(next) =>
                 onChange({
                   ...config,

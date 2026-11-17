@@ -18,6 +18,7 @@ pub enum Outcome {
     Timeout,
     Network,
     Request,
+    ModelUnavailable,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -88,6 +89,7 @@ impl From<crate::failover::FailureClass> for Outcome {
             F::Timeout => Self::Timeout,
             F::Network => Self::Network,
             F::Request => Self::Request,
+            F::Model => Self::ModelUnavailable,
         }
     }
 }

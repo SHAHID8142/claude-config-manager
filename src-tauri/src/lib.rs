@@ -240,6 +240,11 @@ fn save_routing(config: routing_config::RoutingConfig) -> Result<(), CommandErro
     config
         .validate()
         .map_err(|e| CommandError::invalid_input(e.to_string()))?;
+    if config.targets.iter().any(|t| !t.fallback_models.is_empty())
+        && helper::running_identity(&home).is_some()
+    {
+        helper::start(&home).map_err(CommandError::io)?;
+    }
     routing_config::save(&home, &config).map_err(|e| CommandError::io(e.to_string()))
 }
 

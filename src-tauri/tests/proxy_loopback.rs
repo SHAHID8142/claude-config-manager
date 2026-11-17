@@ -96,6 +96,7 @@ fn target(id: &str, addr: &str, model: Option<&str>) -> RouteTarget {
         provider_id: "openrouter".into(),
         credential_id: Some("openrouter-1".into()),
         model: model.map(|m| m.to_string()),
+        fallback_models: Vec::new(),
         base_url: addr.into(),
         enabled: true,
     }
@@ -469,6 +470,7 @@ fn setup_nvidia(
                     provider_id: "nvidia-nim".into(),
                     credential_id: None,
                     model: Some("nvidia/nemotron-3-ultra-550b-a55b".into()),
+                    fallback_models: Vec::new(),
                     base_url: nv.addr.clone(),
                     enabled: true,
                 },
@@ -477,6 +479,7 @@ fn setup_nvidia(
                     provider_id: "openrouter".into(),
                     credential_id: None,
                     model: Some("backup-model".into()),
+                    fallback_models: Vec::new(),
                     base_url: backup.addr.clone(),
                     enabled: true,
                 },
@@ -514,7 +517,10 @@ fn nvidia_keys_exhaust_then_anthropic_provider_serves_its_own_model() {
 fn nvidia_interrupted_stream_is_not_replayed_on_backup() {
     let nv=spawn_upstream(vec![(200,"data: {\"id\":\"nv\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"PARTIAL\"},\"finish_reason\":null}]}\n\n".into())]);
     let backup = spawn_upstream(vec![(200, "SHOULD_NOT_BE_USED".into())]);
-    let (_home, handle) = setup_nvidia("nv-truncated", &nv, &backup);
+    let (home, handle) = setup_nvidia("nv-truncated", &nv, &backup);
+    let mut policy = routing_config::load(&home).unwrap();
+    policy.targets[0].fallback_models = vec!["must-not-replay-on-model".into()];
+    routing_config::save(&home, &policy).unwrap();
     let (status, body) = call(
         handle.port,
         &handle.token,
@@ -585,4 +591,223 @@ fn nvidia_inline_system_text_reaches_upstream_as_one_initial_system_message() {
     assert_eq!(sent["messages"][1]["role"], "user");
     assert_eq!(nv.hits.load(Ordering::SeqCst), 1);
     assert_eq!(backup.hits.load(Ordering::SeqCst), 0);
+}
+
+fn sent_models(upstream: &Upstream) -> Vec<String> {
+    upstream
+        .bodies
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|s| {
+            serde_json::from_str::<serde_json::Value>(s).unwrap()["model"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect()
+}
+#[test]
+fn models_try_all_keys_before_next_model_then_next_provider() {
+    let a = spawn_upstream(vec![
+        (503, "busy".into()),
+        (503, "busy".into()),
+        (503, "busy".into()),
+        (503, "busy".into()),
+    ]);
+    let b = spawn_upstream(vec![(200, "backup-provider".into())]);
+    let mut first = target("first", &a.addr, Some("model-one"));
+    first.credential_id = None;
+    first.fallback_models = vec!["model-two".into()];
+    let mut second = target("second", &b.addr, Some("model-three"));
+    second.provider_id = "deepseek".into();
+    second.credential_id = None;
+    let (home, mut handle) = setup("model-key-order", vec![first, second]);
+    let vault = CredentialVault::for_home(&home);
+    vault
+        .add("openrouter", "second", "model-order-second-fixture")
+        .unwrap();
+    vault
+        .add("deepseek", "backup", "model-order-third-fixture")
+        .unwrap();
+    assert!(
+        call(
+            handle.port,
+            &handle.token,
+            r#"{"model":"caller","messages":[]}"#
+        )
+        .0
+        .contains("200")
+    );
+    assert_eq!(
+        sent_models(&a),
+        vec!["model-one", "model-one", "model-two", "model-two"]
+    );
+    assert_eq!(sent_models(&b), vec!["model-three"]);
+    assert_eq!(handle.status().last_model.as_deref(), Some("model-three"));
+    handle.shutdown();
+    std::fs::remove_dir_all(home).unwrap();
+}
+#[test]
+fn unavailable_model_skips_its_other_keys_and_stays_paused_on_next_request() {
+    let a = spawn_upstream(vec![
+        (404, r#"{"error":{"code":"model_not_found"}}"#.into()),
+        (200, "fallback-model".into()),
+        (200, "fallback-again".into()),
+    ]);
+    let mut first = target("first", &a.addr, Some("missing-model"));
+    first.credential_id = None;
+    first.fallback_models = vec!["working-model".into()];
+    let (home, mut handle) = setup("missing-model", vec![first]);
+    CredentialVault::for_home(&home)
+        .add("openrouter", "second", "second-model-fixture")
+        .unwrap();
+    for _ in 0..2 {
+        assert!(
+            call(
+                handle.port,
+                &handle.token,
+                r#"{"model":"caller","messages":[]}"#
+            )
+            .0
+            .contains("200")
+        );
+    }
+    assert_eq!(
+        sent_models(&a),
+        vec!["missing-model", "working-model", "working-model"]
+    );
+    assert_eq!(handle.status().last_model.as_deref(), Some("working-model"));
+    assert_eq!(handle.status().cooling.len(), 2);
+    handle.shutdown();
+    std::fs::remove_dir_all(home).unwrap();
+}
+#[test]
+fn rejected_key_is_not_retried_for_other_models_and_model_cooldowns_survive_reorder() {
+    let a = spawn_upstream(vec![
+        (401, "bad key".into()),
+        (503, "busy".into()),
+        (200, "second-model".into()),
+        (200, "second-again".into()),
+    ]);
+    let mut first = target("first", &a.addr, Some("one"));
+    first.credential_id = None;
+    first.fallback_models = vec!["two".into()];
+    let (home, mut handle) = setup("model-auth-scope", vec![first]);
+    CredentialVault::for_home(&home)
+        .add("openrouter", "second", "second-key-model-fixture")
+        .unwrap();
+    assert!(
+        call(
+            handle.port,
+            &handle.token,
+            r#"{"model":"caller","messages":[]}"#
+        )
+        .0
+        .contains("200")
+    );
+    let mut policy = routing_config::load(&home).unwrap();
+    policy.targets[0].model = Some("two".into());
+    policy.targets[0].fallback_models = vec!["one".into()];
+    routing_config::save(&home, &policy).unwrap();
+    assert!(
+        call(
+            handle.port,
+            &handle.token,
+            r#"{"model":"caller","messages":[]}"#
+        )
+        .0
+        .contains("200")
+    );
+    assert_eq!(sent_models(&a), vec!["one", "one", "two", "two"]);
+    handle.shutdown();
+    std::fs::remove_dir_all(home).unwrap();
+}
+#[test]
+fn malformed_request_with_model_list_preserves_error_body_and_never_falls_back() {
+    let payload = format!(
+        "{{\"error\":{{\"type\":\"invalid_request_error\",\"message\":\"{}\"}}}}",
+        "request validation ".repeat(1000)
+    );
+    let a = spawn_upstream(vec![(400, payload.clone()), (200, "must-not-call".into())]);
+    let mut first = target("first", &a.addr, Some("one"));
+    first.fallback_models = vec!["two".into()];
+    let (home, mut handle) = setup("model-400", vec![first]);
+    let (status, body) = call(
+        handle.port,
+        &handle.token,
+        r#"{"model":"caller","messages":[]}"#,
+    );
+    assert!(status.contains("400"));
+    assert!(body.contains(&payload));
+    assert_eq!(a.hits.load(Ordering::SeqCst), 1);
+    handle.shutdown();
+    std::fs::remove_dir_all(home).unwrap();
+}
+#[test]
+fn nvidia_model_failure_uses_next_model_through_translation() {
+    let nv=spawn_upstream(vec![(404,r#"{"error":{"code":"model_not_found"}}"#.into()),(200,serde_json::json!({"id":"nv","model":"fallback-model","choices":[{"message":{"content":"OK"},"finish_reason":"stop"}]}).to_string())]);
+    let backup = spawn_upstream(vec![(200, "unused".into())]);
+    let (home, mut handle) = setup_nvidia("nv-model-fallback", &nv, &backup);
+    let mut policy = routing_config::load(&home).unwrap();
+    policy.targets[0].fallback_models = vec!["fallback-model".into()];
+    routing_config::save(&home, &policy).unwrap();
+    let (status, body) = call(
+        handle.port,
+        &handle.token,
+        r#"{"model":"caller","messages":[{"role":"user","content":"Hi"}]}"#,
+    );
+    assert!(status.contains("200"));
+    assert!(body.contains("OK"));
+    assert_eq!(
+        sent_models(&nv),
+        vec!["nvidia/nemotron-3-ultra-550b-a55b", "fallback-model"]
+    );
+    assert_eq!(backup.hits.load(Ordering::SeqCst), 0);
+    handle.shutdown();
+    std::fs::remove_dir_all(home).unwrap();
+}
+
+#[test]
+fn skipped_model_combinations_do_not_consume_the_network_attempt_budget() {
+    let a = spawn_upstream((0..20).map(|_| (401, "bad key".into())).collect());
+    let b = spawn_upstream(vec![(200, "reached-backup".into())]);
+    let mut targets = Vec::new();
+    for i in 0..3 {
+        let mut t = target(&format!("group-{i}"), &a.addr, Some("one"));
+        t.credential_id = None;
+        t.fallback_models = vec!["two".into(), "three".into(), "four".into(), "five".into()];
+        targets.push(t);
+    }
+    let mut backup = target("backup", &b.addr, Some("backup-model"));
+    backup.provider_id = "deepseek".into();
+    backup.credential_id = None;
+    targets.push(backup);
+    let (home, mut handle) = setup("skips-not-attempts", targets);
+    let vault = CredentialVault::for_home(&home);
+    for i in 0..19 {
+        vault
+            .add(
+                "openrouter",
+                &format!("Fixture {i}"),
+                &format!("unique-model-budget-fixture-{i}"),
+            )
+            .unwrap();
+    }
+    vault
+        .add("deepseek", "backup", "budget-backup-fixture")
+        .unwrap();
+    assert!(
+        call(
+            handle.port,
+            &handle.token,
+            r#"{"model":"caller","messages":[]}"#
+        )
+        .0
+        .contains("200")
+    );
+    assert_eq!(a.hits.load(Ordering::SeqCst), 20);
+    assert_eq!(b.hits.load(Ordering::SeqCst), 1);
+    handle.shutdown();
+    std::fs::remove_dir_all(home).unwrap();
 }

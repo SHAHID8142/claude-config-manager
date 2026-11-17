@@ -138,12 +138,12 @@ export function RoutingTab(props: RoutingTabProps) {
       )}
       <Section
         title="Switching order"
-        description="Keys within one provider first. Then the next provider."
+        description="Models and keys within one provider first. Then the next provider."
       >
         <div className="mb-4 rounded-lg bg-surface-sunken p-3 text-[12px] leading-relaxed text-ink-muted">
-          Provider A: Key 1 → Key 2 → Key 3 <span className="mx-1">→</span> Provider B: Key 1 → Key
-          2.
-          <br />A working key keeps serving requests. A failure moves to the next usable key.
+          Provider A: Model 1 (Key 1 → Key 2) → Model 2 (usable keys) → Provider B.
+          <br />A working choice keeps serving requests. Add fallback models inside each provider
+          card.
         </div>
         {props.error && (
           <p role="alert" className="mb-3 text-[12px] text-danger">
@@ -217,6 +217,11 @@ export function RoutingTab(props: RoutingTabProps) {
             ? `${props.status.requests} requests · ${props.status.fallbacks} fallback attempts · ${props.status.failures} failures`
             : "No helper activity available."}
         </p>
+        {props.status?.lastModel && (
+          <p className="mt-3 break-all text-[12px] text-ink-muted">
+            Last selected model: {props.status.lastModel}
+          </p>
+        )}
         {props.status?.lastTarget && (
           <p className="mt-1 break-all text-[12px]">
             Last response key: {props.status.lastKeyLabel ?? props.status.lastTarget}
@@ -229,8 +234,9 @@ export function RoutingTab(props: RoutingTabProps) {
         )}
         {props.status?.cooldownSeconds && Object.keys(props.status.cooldownSeconds).length > 0 && (
           <p className="mt-1 text-[12px] text-warn">
-            Next paused key eligible in {Math.min(...Object.values(props.status.cooldownSeconds))}{" "}
-            seconds. Restart the helper to explicitly clear pauses.
+            Next paused choice eligible in{" "}
+            {Math.min(...Object.values(props.status.cooldownSeconds))} seconds. Restart the helper
+            to explicitly clear pauses.
           </p>
         )}
         <SwitchHistory ipc={props.ipc ?? defaultIpc} />

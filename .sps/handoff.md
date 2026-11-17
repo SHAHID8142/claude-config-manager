@@ -1,3 +1,38 @@
+# Active handoff — model fallback1.0.8 verified, publishing
+
+User requested multiple models + automatic next-model fallback. Implemented primary
+plus4 alternatives per provider, catalog/manual editor, reorder/remove/info/preview;
+repeated provider model selection appends. Backend validates order/limits/legacy;
+provider -> model -> keys, scoped model/key cooldowns, generic400 preserved and no
+midstream replay. Paused combinations do not consume actual200-attempt cap.
+Full419 Rust/225 frontend, fmt/clippy/lint/typecheck/format PASS. Packaged CLI bare
+key-fallback and default model-fallback -> real Read -> final SSE PASS, fixtures only.
+Verified old7->new8 helper upgrade retains port/token in fixture. Safari fixture
+add/reorder/save via AX PASS; detailed screenshot/native WKWebView unverified.
+
+Final8 app/DMG integrity, readonly mount, copy/signature/executable match PASS.
+No Developer ID/notarization, Gatekeeper rejects. Evidence has exact source hashes.
+No real key/settings/policy written. Existing real7 helper/window left running;
+owner reopens8 and saves/enables model list to upgrade helper. Do not populate real
+policy with demonstration model IDs. Actual hosted multi-model calls unverified.
+
+Next: final source scan + commit/push, publish8 unsigned, remote download/hash and
+CI observation, publication receipt. Existing7 immutable. Picomatch high advisory
+is open; full CI security may fail; never call it passed or remove the gate.
+
+--- Historical records ---
+
+# Active feature — ordered model fallback1.0.8
+
+User requested multi-model choice + next-model fallback. Concrete scope appended
+to approved plan; current official docs/forms guidance read before code. Root alone.
+Existing7 works and user confirmed original conversation success. Preserve real
+keys/settings. Implement primary +4 ordered alternatives per provider, safe failure
+scopes and legacy preservation; fixture checks then unsigned8 build/publication.
+Open picomatch advisory remains, no weakened CI. Existing binary7 immutable.
+
+--- Prior record ---
+
 # Published handoff — 1.0.7 unsigned prerelease
 
 2026-11-18. Published https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.7

@@ -52,6 +52,8 @@ pub struct ProxyStatus {
     pub fallbacks: u64,
     pub failures: u64,
     pub last_target: Option<String>,
+    #[serde(default)]
+    pub last_model: Option<String>,
     pub last_error: Option<String>,
     /// Target ids currently in cooldown (never key material).
     pub cooling: Vec<String>,
@@ -371,6 +373,7 @@ fn handle_conn(mut stream: TcpStream, ctx: &Ctx) -> std::io::Result<()> {
                     s.fallbacks += 1;
                 }
                 s.last_target = Some(ok.target_id.clone());
+                s.last_model = Some(ok.model.clone());
                 s.last_error = None;
             });
             let result = if ok.nvidia {
@@ -689,15 +692,36 @@ pub fn expand_provider_keys(home: &std::path::Path, cfg: &RoutingConfig) -> Rout
     let vault = crate::credential_vault::CredentialVault::for_home(home);
     let mut targets = Vec::new();
     for target in &cfg.targets {
-        if target.credential_id.is_some() || !target.enabled {
-            targets.push(target.clone());
-            continue;
-        }
-        if let Ok(keys) = vault.list(&target.provider_id) {
-            for key in keys.into_iter().filter(|key| key.enabled) {
+        let keys: Vec<Option<String>> = if !target.enabled || target.credential_id.is_some() {
+            vec![target.credential_id.clone()]
+        } else {
+            vault
+                .list(&target.provider_id)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|key| key.enabled)
+                .map(|key| Some(key.id))
+                .collect()
+        };
+        for model in std::iter::once(target.model.clone())
+            .chain(target.fallback_models.iter().cloned().map(Some))
+        {
+            for key in &keys {
                 let mut expanded = target.clone();
-                expanded.id = format!("{}--{}", target.id, key.id);
-                expanded.credential_id = Some(key.id);
+                expanded.id = key
+                    .as_ref()
+                    .filter(|_| target.credential_id.is_none())
+                    .map(|key| format!("{}--{}", target.id, key))
+                    .unwrap_or_else(|| target.id.clone());
+                if !target.fallback_models.is_empty() {
+                    // JSON quoting cannot collide with the slug-only route/key IDs.
+                    expanded
+                        .id
+                        .push_str(&format!("--{}", serde_json::to_string(&model).unwrap()));
+                }
+                expanded.model = model.clone();
+                expanded.fallback_models.clear();
+                expanded.credential_id = key.clone();
                 targets.push(expanded);
             }
         }
@@ -752,13 +776,22 @@ fn forward(
     let mut attempts = 0usize;
     let mut reasons: Vec<String> = Vec::new();
     let started = Instant::now();
-    for id in candidates.into_iter().take(200) {
-        if started.elapsed() >= Duration::from_secs(60) {
+    for id in candidates {
+        if attempts >= 200 || started.elapsed() >= Duration::from_secs(60) {
             break;
         }
         let Some(target) = ordered.iter().find(|t| t.id == id).copied() else {
             continue;
         };
+        // Earlier attempts can pause a key/model shared by later combinations.
+        if ctx
+            .cooldowns
+            .lock()
+            .map(|mut cd| cd.is_cooling(&id, Instant::now()))
+            .unwrap_or(true)
+        {
+            continue;
+        }
         if adapter_for(&target.provider_id) == Some(Adapter::OpenAiUnbridged) {
             reasons.push(format!("{}: needs a protocol bridge", target.provider_id));
             continue;
@@ -812,7 +845,17 @@ fn forward(
                         .ok()
                         .and_then(|v| v["stream"].as_bool())
                         .unwrap_or(false),
-                    model: target.model.clone().unwrap_or_default(),
+                    model: target
+                        .model
+                        .clone()
+                        .or_else(|| {
+                            serde_json::from_slice::<serde_json::Value>(body)
+                                .ok()?
+                                .get("model")?
+                                .as_str()
+                                .map(String::from)
+                        })
+                        .unwrap_or_default(),
                 })));
             }
             Ok(TargetOutcome::RejectedNvidia(status)) => return Ok(Final::RejectedNvidia(status)),
@@ -829,7 +872,22 @@ fn forward(
                     ));
                 });
                 if let Ok(mut cd) = ctx.cooldowns.lock() {
-                    cd.mark(&id, class, detail.retry_after, Instant::now());
+                    for candidate in &ordered {
+                        let same_destination = candidate.provider_id == target.provider_id
+                            && candidate.base_url == target.base_url;
+                        let same_scope = match class {
+                            FailureClass::Auth | FailureClass::Quota => {
+                                same_destination && candidate.credential_id == target.credential_id
+                            }
+                            FailureClass::Model => {
+                                same_destination && candidate.model == target.model
+                            }
+                            _ => candidate.id == id,
+                        };
+                        if same_scope {
+                            cd.mark(&candidate.id, class, detail.retry_after, Instant::now());
+                        }
+                    }
                 }
                 reasons.push(format!("{}: {}", id, class.as_str()));
                 if !class.retryable() {
@@ -943,6 +1001,23 @@ fn try_target(
             let status = resp.status().as_u16();
             if (200..300).contains(&status) {
                 return Ok(TargetOutcome::Answered(resp));
+            }
+            if matches!(status, 400 | 403 | 404 | 422) && target.model.is_some() {
+                // Read a bounded prefix, then restore it in front of the remaining
+                // response so ordinary validation errors are forwarded unchanged.
+                let original =
+                    std::mem::replace(resp.body_mut(), ureq::Body::builder().data(Vec::new()));
+                let mut reader = original.into_reader();
+                let mut prefix = Vec::new();
+                let _ = reader.by_ref().take(8192).read_to_end(&mut prefix);
+                if failover::model_unavailable(status, &prefix) {
+                    return Err(AttemptError {
+                        class: FailureClass::Model,
+                        detail: RetryDetail::none(),
+                    });
+                }
+                *resp.body_mut() =
+                    ureq::Body::builder().reader(std::io::Cursor::new(prefix).chain(reader));
             }
             if failover::classify(status, "") == FailureClass::Request {
                 if nvidia {

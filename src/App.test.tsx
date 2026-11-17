@@ -1446,3 +1446,55 @@ describe("Context-window adoption (catalog-sourced)", () => {
     expect(screen.getByRole("button", { name: "declared" })).toBeDisabled();
   });
 });
+
+it("appends another chosen model to an existing provider and saves its complete order", async () => {
+  const ipc = mockWithProviders();
+  ipc.on("get_routing", async () => ({
+    version: 1,
+    enabled: true,
+    targets: [
+      {
+        id: "nv",
+        providerId: "nvidia-nim",
+        credentialId: null,
+        model: "primary-model",
+        fallbackModels: ["second-model"],
+        baseUrl: "https://integrate.api.nvidia.com",
+        enabled: true,
+      },
+    ],
+  }));
+  ipc.on("list_credentials", async () => [
+    {
+      id: "nv-key",
+      providerId: "nvidia-nim",
+      label: "Fixture key",
+      last4: "test",
+      priority: 0,
+      enabled: true,
+      legacy: false,
+    },
+  ]);
+  ipc.on("save_routing", async () => undefined);
+  render(<App ipc={ipc} />);
+  await goTo("Provider");
+  await userEvent.selectOptions(
+    await screen.findByLabelText("Provider", { selector: "select" }),
+    "nvidia-nim",
+  );
+  const model = screen.getByLabelText("Model", { selector: "input" });
+  await userEvent.clear(model);
+  await userEvent.type(model, "third-model");
+  const add = screen.getByRole("button", { name: "Add provider to switching order" });
+  await waitFor(() => expect(add).toBeEnabled());
+  await userEvent.click(add);
+  expect(await screen.findByLabelText("Primary model")).toHaveValue("primary-model");
+  expect(screen.getByLabelText("Fallback model 1")).toHaveValue("second-model");
+  expect(screen.getByLabelText("Fallback model 2")).toHaveValue("third-model");
+  await userEvent.click(screen.getByRole("button", { name: "Save order" }));
+  await waitFor(() =>
+    expect(ipc.calls.find((c) => c.cmd === "save_routing")?.args?.config).toMatchObject({
+      targets: [{ model: "primary-model", fallbackModels: ["second-model", "third-model"] }],
+    }),
+  );
+});

@@ -1,4 +1,4 @@
-# Product behavior — 1.0.7
+# Product behavior — 1.0.8
 
 Claude Config Manager edits one Claude Code global settings scope. The central
 workflow is provider → ordered keys → model → switching order → explicit activation.
@@ -7,7 +7,7 @@ backup provider, without creating a separate routing card for each key.
 
 Overview describes saved settings and recent helper observations. Providers &
 keys contains setup and optional direct Apply. Automatic switching owns provider
-priority, per-provider model/endpoint, key priority and helper activation.
+priority, ordered models per provider/endpoint, key priority and helper activation.
 Recovery & diagnostics contains environment checks and backups. Each section and
 field has contextual information; important failures remain visible inline.
 
@@ -24,5 +24,5 @@ The app does not promise additional account quota, successful inference on every
 model, no duplicate upstream charges, or full resolution of all CLI settings scopes.
 
 See [user guide](docs/USER_GUIDE.md), [current audit](docs/audits/2026-11-17-project-review.md)
-and [release evidence](docs/releases/1.0.7.md). Historical screenshots and phase
+and [release evidence](docs/releases/1.0.8.md). Historical screenshots and phase
 acceptance reports are not current-release verification.

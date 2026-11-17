@@ -28,6 +28,8 @@ pub enum FailureClass {
     Timeout,
     /// Connection refused / DNS / TLS failure.
     Network,
+    /// A structured provider error identifies an unavailable/unknown model.
+    Model,
     /// The request itself is wrong; never retried elsewhere.
     Request,
 }
@@ -47,6 +49,7 @@ impl FailureClass {
             FailureClass::Timeout => "timeout",
             FailureClass::Network => "network",
             FailureClass::Request => "request",
+            FailureClass::Model => "model_unavailable",
         }
     }
 }
@@ -83,6 +86,51 @@ pub fn classify(status: u16, body: &str) -> FailureClass {
     }
 }
 
+/// Inspect only a bounded structured error body; never store/echo it. A generic
+/// 400/404 (including a wrong endpoint) is not evidence that a model is missing.
+pub fn model_unavailable(status: u16, body: &[u8]) -> bool {
+    if !matches!(status, 400 | 403 | 404 | 422) {
+        return false;
+    }
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(body) else {
+        return false;
+    };
+    let error = v.get("error").unwrap_or(&v);
+    let code = error
+        .get("code")
+        .or_else(|| error.get("type"))
+        .and_then(|x| x.as_str())
+        .unwrap_or("");
+    if matches!(
+        code,
+        "model_not_found"
+            | "model_not_available"
+            | "model_unavailable"
+            | "model_not_supported"
+            | "unknown_model"
+            | "invalid_model"
+    ) {
+        return true;
+    }
+    let message = error
+        .get("message")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    matches!(code, "not_found_error" | "invalid_request_error")
+        && message.contains("model")
+        && [
+            "not found",
+            "does not exist",
+            "not available",
+            "unavailable",
+            "unknown model",
+            "invalid model",
+        ]
+        .iter()
+        .any(|s| message.contains(s))
+}
+
 /// Retry-After supports delay-seconds and HTTP-date (RFC 9110 §10.2.3).
 /// Clamp to ten minutes; expired dates permit an immediate next attempt.
 pub fn parse_retry_after(value: Option<&str>) -> Option<Duration> {
@@ -110,6 +158,7 @@ pub fn cooldown_for(class: FailureClass, retry_after: Option<Duration>) -> Durat
         FailureClass::Timeout | FailureClass::Network => Duration::from_secs(10),
         FailureClass::Quota => Duration::from_secs(6 * 60 * 60),
         FailureClass::Auth => Duration::from_secs(6 * 60 * 60),
+        FailureClass::Model => retry_after.unwrap_or(Duration::from_secs(300)),
         FailureClass::Request => Duration::from_secs(0),
     }
 }
@@ -282,5 +331,31 @@ mod tests {
             candidates(&ids, &mut c, now + Duration::from_secs(31)),
             ["a", "c"]
         );
+    }
+}
+
+#[cfg(test)]
+mod model_failure_tests {
+    use super::*;
+    #[test]
+    fn structured_model_errors_are_retryable_but_generic_bad_requests_are_not() {
+        for status in [400, 403, 404, 422] {
+            assert!(model_unavailable(
+                status,
+                br#"{"error":{"code":"model_not_found","message":"Hidden upstream content"}}"#
+            ));
+            assert!(!model_unavailable(status,br#"{"error":{"type":"invalid_request_error","message":"messages must be an array"}}"#));
+            assert!(!model_unavailable(status, b"model not found"));
+            assert!(!model_unavailable(
+                status,
+                br#"{"error":{"message":"model not found"}}"#
+            ));
+        }
+        assert!(model_unavailable(404,br#"{"error":{"type":"not_found_error","message":"model: unavailable-model not found"}}"#));
+        assert!(!model_unavailable(
+            500,
+            br#"{"error":{"code":"model_not_found"}}"#
+        ));
+        assert!(FailureClass::Model.retryable());
     }
 }

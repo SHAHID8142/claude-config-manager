@@ -291,6 +291,7 @@ fn nvidia_save_writes_local_helper_settings_and_keeps_fallbacks() {
                 provider_id: "openrouter".into(),
                 credential_id: None,
                 model: Some("backup-model".into()),
+                fallback_models: Vec::new(),
                 base_url: "https://openrouter.ai/api".into(),
                 enabled: true,
             }],
@@ -489,6 +490,7 @@ fn failed_switching_activation_restores_saved_policy_and_token() {
             provider_id: "openrouter".into(),
             credential_id: None,
             model: Some("fixture-model".into()),
+            fallback_models: Vec::new(),
             base_url: "https://openrouter.ai/api".into(),
             enabled: true,
         }],
@@ -506,4 +508,40 @@ fn failed_switching_activation_restores_saved_policy_and_token() {
             .exists()
     );
     assert!(transaction_journal::pending(&home.0).unwrap().is_none());
+}
+
+#[test]
+fn nvidia_setup_preserves_ordered_models_when_changing_the_primary() {
+    use claude_config_manager_lib::{nvidia_setup, routing_config};
+    let home = Fixture::new();
+    let svc = home.service();
+    nvidia_setup::apply(
+        &svc,
+        "model-one",
+        Some("nvidia-model-order-fixture"),
+        &RoleOverrides::default(),
+        None,
+        false,
+        || Ok(54321),
+    )
+    .unwrap();
+    let mut config = routing_config::load(&home.0).unwrap();
+    config.targets[0].fallback_models = vec!["model-two".into(), "model-three".into()];
+    routing_config::save(&home.0, &config).unwrap();
+    nvidia_setup::apply(
+        &svc,
+        "model-two",
+        None,
+        &RoleOverrides::default(),
+        None,
+        false,
+        || Ok(54321),
+    )
+    .unwrap();
+    let config = routing_config::load(&home.0).unwrap();
+    assert_eq!(config.targets[0].model.as_deref(), Some("model-two"));
+    assert_eq!(
+        config.targets[0].fallback_models,
+        vec!["model-one", "model-three"]
+    );
 }

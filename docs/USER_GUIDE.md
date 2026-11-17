@@ -1,6 +1,6 @@
 # Claude Config Manager — user guide
 
-Updated for 1.0.7, 2026-11-18. This app edits Claude Code's global user settings.
+Updated for 1.0.8, 2026-11-18. This app edits Claude Code's global user settings.
 Project settings, managed settings and terminal environment variables can take
 precedence. Restart Claude Code after changing authentication: helper output may
 be cached. [Official settings documentation](https://code.claude.com/docs/en/settings).
@@ -17,13 +17,19 @@ be cached. [Official settings documentation](https://code.claude.com/docs/en/set
 4. Press **Add provider to automatic switching**. Repeat for other providers.
 5. Open **Automatic switching**. Move providers up/down into your preferred
    order. Expand a provider's keys to change their priority or enabled state.
-   Each provider needs its own model and endpoint.
+   Each provider needs its own model and endpoint. Under **Model order**, use
+   **Load provider models** for suggestions or enter an exact model ID. Use
+   **Add model** to add up to4 fallback models. Arrows change priority; moving
+   a fallback to the top makes it primary. Remove deletes a choice from this
+   order, not from the provider catalog. Each field has an information button.
 6. Review the cards and press **Save & enable automatic switching**. This saves
    the visible policy, starts the local helper and updates Claude Code settings.
 
-Example: Anthropic work key → Anthropic personal key → OpenRouter work key.
-The next provider is used only after the preceding group's usable keys fail or
-are cooling down. Keys may share the same account quota; adding another key
+Example: Provider A model1 (work key → personal key) → Provider A model2
+(usable keys) → Provider B model1. Adding a second chosen model from Providers
+& keys appends it to the existing provider card. A healthy preferred choice stays
+in use. The next provider is used after usable model/key combinations fail or
+are paused, within the attempt/time limits below. Keys may share the same account quota; adding another key
 from that account does not create more credit or bypass provider limits.
 
 **Save order** only saves policy; it does not switch Claude Code from direct
@@ -40,24 +46,28 @@ endpoints, API keys or key labels are recorded.
 
 ### Failure behavior
 
-- 401/403: authentication/access failure; try the next key, cool down for six hours.
+- 401/403: authentication/access failure; try the next key, pause that key across models for six hours. A structured model-access error instead pauses that model.
 - 402 or quota wording in 429: credit/quota failure; six-hour cooldown.
 - Other 429: rate limit; Retry-After seconds or HTTP-date, capped at ten minutes, or 30 seconds.
 - 5xx: provider error; Retry-After seconds or HTTP-date or 20 seconds.
 - Network/timeout: ten seconds. An upstream may already have processed a timed
   out request, so switching cannot guarantee protection against duplicate charges.
-- Invalid caller requests/model/endpoint errors such as 400/404/422 stop the
-  chain. Correct the configuration or request; these are not exhausted keys.
+- A bounded structured error explicitly identifying a missing/unavailable model
+  (recognized model code, or a typed error saying the model is unavailable/not
+  found) pauses that model across its keys for five minutes and tries the next
+  model. A bare404 or unstructured body is insufficient evidence.
+- Other invalid caller requests/endpoint errors such as400/404/422 stop the chain.
+  Correct the configuration or request; these are not exhausted keys.
 
-A request tries at most 200 candidates, stopping new attempts after a 60-second
+A request makes at most200 upstream attempts; skipped paused combinations do not consume attempts, stopping new attempts after a 60-second
 retry-decision budget. Native/compatible providers retain their 30-second attempt
 limit. NVIDIA uses bounded connect/send/header waits and allows a response body
 to stream for up to 30 minutes, with a 120-second idle read limit; a phase already
 in progress can extend past the retry-decision budget. At most 32 client connections are handled
 concurrently. No replay occurs after an upstream response starts streaming.
 Cooldowns are in memory. Restart the helper to retry immediately after fixing
-an issue; this clears every cooldown. Restarting is explicit, not automatic.
-Error bodies for caller errors and supported protocol headers pass through.
+an issue; this clears every cooldown. Manual restarts clear pauses. When a newer app activates or saves a multi-model policy, it upgrades a verified older helper first, retaining the existing port/token.
+Native/compatible caller error bodies and supported protocol headers pass through. NVIDIA caller errors remain redacted.
 There is no reliable automatic inference of shared account limits.
 
 Existing policies with one explicitly selected key per target keep their order.
@@ -206,4 +216,17 @@ that output limit. Interrupted/malformed streams are not replayed.
 Save and tool execution were tested end to end with the installed CLI using
 loopback fixtures and fake keys. A minimal real NVIDIA request through the final
 1.0.7 packaged helper returned200 with inline system text and nonempty output.
-This does not certify all models, live tools, account quotas or live failover. See [1.0.7 release evidence](releases/1.0.7.md).
+This does not certify all models, live tools, account quotas or live failover. See [1.0.7 release evidence](releases/1.0.8.md).
+
+
+### Model-order compatibility and rollback
+
+The primary model stays in the existing `model` field; optional `fallbackModels`
+stores up to4 alternatives. Old single-model policies need no migration. Older
+app versions reject this new field: before downgrading, remove fallback choices
+and save using1.0.8, or restore a known compatible policy backup. Save & Apply in
+NVIDIA setup retains the other chosen models. Each choice still needs to accept
+this conversation's content and function tools; catalog presence is not a live
+compatibility check. Recent activity shows the last selected model, not an
+independent measurement of upstream alias resolution. Model fallback was tested
+with socket/CLI fixtures; no real multi-model inference/failover was performed.

@@ -10,6 +10,7 @@ const outcomeLabels: Record<SwitchEvent["outcome"], string> = {
   timeout: "Request timed out",
   network: "Network failure",
   request: "Request rejected",
+  model_unavailable: "Model unavailable — trying another model",
 };
 export function SwitchHistory({ ipc }: { ipc: IpcLike }) {
   const [events, setEvents] = useState<SwitchEvent[]>([]);

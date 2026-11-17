@@ -249,11 +249,23 @@ pub fn start(home: &Path) -> Result<HelperState, String> {
 /// Same, with an explicit binary. Integration tests pass the real binary so the
 /// spawned process takes the `--proxy-helper` branch in `main`.
 pub fn start_with_exe(home: &Path, exe: &Path) -> Result<HelperState, String> {
+    if !exe.is_file() {
+        return Err("cannot locate the app binary".into());
+    }
     if let Some(st) = read_state(home)
         && let Some(h) = health(st.port)
         && h.pid == st.pid
     {
-        return Ok(st);
+        if h.version.as_deref() == Some(env!("CARGO_PKG_VERSION")) {
+            return Ok(st);
+        }
+        if running_identity(home).is_none() {
+            return Err(
+                "Cannot verify the older helper executable; stop it manually before upgrading"
+                    .into(),
+            );
+        }
+        stop(home)?;
     }
     // Remember the port Claude Code is already pointed at; the helper prefers
     // it so a restart does not need a settings rewrite.
@@ -261,9 +273,6 @@ pub fn start_with_exe(home: &Path, exe: &Path) -> Result<HelperState, String> {
         .map(|s| s.port)
         .or_else(|| read_last_port(home));
     clear_state(home);
-    if !exe.exists() {
-        return Err("cannot locate the app binary".into());
-    }
     let mut cmd = std::process::Command::new(exe);
     cmd.arg(HELPER_ARG).env("HOME", home);
     if let Some(port) = preferred {

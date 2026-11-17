@@ -557,3 +557,23 @@ manual per-line/animation review. No blanket completion claim follows from count
 User acceptance2026-11-18: the original400 conversation was retried against active
 1.0.7; user confirmed Claude responds successfully. This closes that observed
 message-role failure. Other unverified/manual items and dependency advisory remain.
+
+
+## Ordered model fallback — 2026-11-18
+
+User-requested1.0.8 extension adds primary +4 ordered alternatives, per-provider
+catalog/manual editing, Add/Move/Remove, preview and info help. Backend validates
+bounds/duplicates/IDs and preserves legacy policies. Provider -> model -> keys;
+key rejection pauses that key across models, structured model rejection pauses
+that model across keys. Generic errors retain stop/no-replay behavior. Paused
+combinations no longer count as network attempts and cannot starve later providers
+by consuming the200-attempt budget. Actual retry budget remains bounded.
+
+Socket regressions cover NVIDIA translation, model/key/provider order, cooldowns
+across requests/reorder, preserved large400 error body, scoped key rejection,
+budget-skipped combinations and interrupted-stream no replay with alternatives.
+UI tests cover catalog/manual entry, limits, duplicates, add/reorder/remove/busy,
+and app-level provider add + saved order. Verified7->8 helper upgrade in fixture
+keeps port/token. Safari fixture add/reorder/save observed via native accessibility.
+No real multi-model inference, native minimum-window/VoiceOver/zoom or stable
+release acceptance claimed. Existing picomatch advisory remains open.

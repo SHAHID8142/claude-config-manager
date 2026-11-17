@@ -51,6 +51,17 @@ pub fn apply(
             .map_err(ApplyError::Io)?;
     let result = (|| {
         let before = routing_config::load(&svc.home).map_err(|e| ApplyError::Io(e.to_string()))?;
+        let mut fallback_models = Vec::new();
+        for choice in before
+            .targets
+            .iter()
+            .filter(|t| t.provider_id == "nvidia-nim")
+            .flat_map(|t| t.model.iter().chain(t.fallback_models.iter()))
+        {
+            if choice != model && !fallback_models.contains(choice) && fallback_models.len() < 4 {
+                fallback_models.push(choice.clone());
+            }
+        }
         let mut staged = before.clone();
         staged.enabled = true;
         staged.targets.retain(|t| t.provider_id != "nvidia-nim");
@@ -61,6 +72,7 @@ pub fn apply(
                 provider_id: "nvidia-nim".into(),
                 credential_id: None,
                 model: Some(model.into()),
+                fallback_models,
                 base_url: ENDPOINT.into(),
                 enabled: true,
             },

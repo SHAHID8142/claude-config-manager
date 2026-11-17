@@ -316,6 +316,7 @@ export interface RouteTarget {
   providerId: string;
   credentialId: string | null;
   model: string | null;
+  fallbackModels?: string[];
   baseUrl: string;
   enabled: boolean;
 }
@@ -358,6 +359,8 @@ export interface ProxyStatus {
   fallbacks: number;
   failures: number;
   lastTarget: string | null;
+  lastModel?: string | null;
+  version?: string | null;
   /** owning process id, so the app can prove a state file is not stale */
   pid?: number;
   lastError: string | null;
@@ -564,7 +567,8 @@ export interface SwitchEvent {
     | "server_error"
     | "timeout"
     | "network"
-    | "request";
+    | "request"
+    | "model_unavailable";
 }
 export async function switchHistory(ipc: IpcLike = defaultIpc): Promise<SwitchEvent[]> {
   return ipc.invoke("switch_history");

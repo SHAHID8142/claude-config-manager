@@ -46,6 +46,7 @@ fn proxy_with_dead_upstream(name: &str) -> (std::path::PathBuf, proxy::ProxyHand
             provider_id: "openrouter".into(),
             credential_id: Some("openrouter-1".into()),
             model: None,
+            fallback_models: Vec::new(),
             base_url: format!("http://{addr}"),
             enabled: true,
         }],

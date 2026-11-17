@@ -98,3 +98,10 @@ label or section help explains the same field unambiguously.
 recovery choices, saved custom drafts, review and bounded history. FieldRow now
 always supplies an info affordance. Source and unit coverage are distinct from
 native VoiceOver/small-window acceptance, which remains unverified.
+
+
+1.0.8: Model order explains provider/model/key nesting, scoped pauses and no
+midstream replay. Primary/fallback model fields explain IDs/catalog compatibility;
+Add fallback model explains adding/ordering/saving. Provider order explains repeated
+model selection appends to the current provider. Last selected model is runtime
+observation, not proof of upstream alias resolution.
