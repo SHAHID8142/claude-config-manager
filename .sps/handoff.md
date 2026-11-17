@@ -1,3 +1,31 @@
+# Published handoff — ordered model fallback1.0.8
+
+2026-11-18. Release https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.8
+Source5bce8f5de93a90258006403fbd7f137d56396894 pushed/tagged. Downloaded DMG/checksum/
+evidence match final local artifact;198 source fingerprints match source commit.
+DMG SHA25672df2df830c54904d57e19a828547937f8700507b76bc9c4c2d17136fb89325b.
+Source CI44169375305 result failure; jobs Frontend checks: success, Rust checks: success, Secrets & dependencies: failure.
+No weakened security gate. Known high picomatch advisory stays open; no patched
+upstream release available at last verification. See receipt for actual CI status.
+
+225 frontend/419 Rust pass, seven default ignored; fmt/clippy/lint/typecheck/format.
+Packaged real CLI default startup proves key rejection -> missing model -> next
+model -> actual Read -> tool result/final SSE with synthetic fixtures. Bare key
+fixture and old7->8 helper upgrade retaining port/token pass. Safari fixture
+add/reorder/save via AX observed, tab/server cleaned. Detailed screenshot layout
+and actual native WKWebView minimum/zoom/VoiceOver not certified. No real hosted
+multi-model inference. No private prompt/key logged or fabricated in real store.
+
+Current real7 helper and user window left running. No real settings/key/policy
+changed. User opens8 -> Switching -> provider -> Model order, adds/reorders models,
+then Save order or Save & enable. Owned older helper upgrades automatically on
+save/activation. No demonstration models silently put in their real configuration.
+Unsigned prerelease only, ad-hoc integrity pass, Gatekeeper rejects, no notarization.
+Original7 immutable. Existing native/manual audit gaps remain. Receipt uploaded;
+final docs-only commit does not change tagged source/binary.
+
+--- Historical records ---
+
 # Active handoff — model fallback1.0.8 verified, publishing
 
 User requested multiple models + automatic next-model fallback. Implemented primary

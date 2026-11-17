@@ -1,0 +1,44 @@
+{
+  "version": "1.0.8",
+  "releaseUrl": "https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.8",
+  "sourceCommit": "5bce8f5de93a90258006403fbd7f137d56396894",
+  "releaseIsDraft": false,
+  "releaseIsPrerelease": true,
+  "publishedAt": "2026-11-17T20:27:04Z",
+  "remoteDmgSha256": "72df2df830c54904d57e19a828547937f8700507b76bc9c4c2d17136fb89325b",
+  "matchesLocalDmg": true,
+  "matchesPublishedChecksum": true,
+  "matchesPublishedEvidence": true,
+  "assets": ["1.0.8-evidence.json", "Claude-Config-Manager_1.0.8_aarch64.dmg", "SHA256SUMS"],
+  "sourceCI": {
+    "runId": 44169375305,
+    "url": "https://github.com/SHAHID8142/claude-config-manager/actions/runs/44169375305",
+    "conclusion": "failure",
+    "headSha": "5bce8f5de93a90258006403fbd7f137d56396894",
+    "jobs": [
+      {
+        "name": "Frontend checks",
+        "conclusion": "success"
+      },
+      {
+        "name": "Rust checks",
+        "conclusion": "success"
+      },
+      {
+        "name": "Secrets & dependencies",
+        "conclusion": "failure"
+      }
+    ]
+  },
+  "sourceFingerprintsMatchReleaseCommit": true,
+  "sourceFingerprintCount": 198,
+  "localFrontendTests": 225,
+  "localRustTests": 419,
+  "defaultIgnoredTests": 7,
+  "packagedRealCLIMultiModelAndToolFixture": "passed; no real key or inference",
+  "olderHelperUpgradeFixture": "7->8 retains port/token; passed",
+  "safariFixture": "add/reorder/save passed via AX; preview tab closed and owned dev server stopped",
+  "actualUserState": "no settings/key/policy edits, current7 helper/window left running; reopen8/save/enabling upgrades owned helper",
+  "realHostedMultiModelAcceptance": "unverified",
+  "security": "full gate unchanged; known high picomatch development-tool advisory; inspect observed CI result, not all-pass"
+}

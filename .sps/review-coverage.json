@@ -40,9 +40,9 @@
     },
     {
       "path": ".sps/agent.md",
-      "bytes": 798,
-      "sha256": "8e759bb5600a2e7ba37924a84b794cfd3dd5b25858200518593f56eb23171869",
-      "lines": 11,
+      "bytes": 871,
+      "sha256": "be3dd71f0fadd75adbbdb4ba2aae6b1d69002414e641dc12ba4ea3a7adff1915",
+      "lines": 12,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -68,9 +68,9 @@
     },
     {
       "path": ".sps/handoff.md",
-      "bytes": 20797,
-      "sha256": "63c53c30ec993c84eb77fb207b73a650d639fafc4cce8e46a43d02068e560992",
-      "lines": 340,
+      "bytes": 22621,
+      "sha256": "26162392de15a8c497f7789e1a2c6d50595f832f8bd205cca91b97a745955386",
+      "lines": 368,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -201,8 +201,8 @@
     },
     {
       "path": "docs/USER_GUIDE.md",
-      "bytes": 14924,
-      "sha256": "23f40a781e20149204b26588f12bd97dd862a7fdedc04ae7a27b6f0771ffea7d",
+      "bytes": 14920,
+      "sha256": "afca7634ba410b41313be84e23f216811c20fbeceb611a32ac270ea5719d70c4",
       "lines": 232,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
@@ -1152,10 +1152,17 @@
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
+      "path": "docs/releases/1.0.8-publication.json",
+      "bytes": 1783,
+      "sha256": "e4b158455957e7d430b753a309ec283c529ce1d1ee72cf5d507fbacdfbbdb201",
+      "lines": 44,
+      "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
+    },
+    {
       "path": "docs/releases/1.0.8.md",
-      "bytes": 2928,
-      "sha256": "33c424a5dcc61a298d3fefb659a3791bf861cdd7a42207d1c216a7f2d7cee574",
-      "lines": 45,
+      "bytes": 3279,
+      "sha256": "0d748e1279c20a487bf936cb745e1453473e8ae52802f882c5e5016523f72a26",
+      "lines": 50,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {

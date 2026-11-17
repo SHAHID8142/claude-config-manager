@@ -7,5 +7,6 @@
 - Safari fixture add/reorder/save verified with native AX; screenshot detailed layout
   not certified. Native WKWebView/VoiceOver/zoom and real multi-model calls unverified.
 - Existing real7 helper intentionally kept running; reopen8/save/enabling upgrades it.
-- Build/DMG/signature/mount/copy verified, ad-hoc only. Publishing unsigned8 next.
+- Unsigned8 published at5bce8f5, remote hashes verified; CI44169375305 failure.
+- Build/DMG/signature/mount/copy verified; ad-hoc only, Gatekeeper rejects.
 - Picomatch development-tool high advisory remains; do not waive CI or claim green.

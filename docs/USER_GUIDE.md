@@ -14,7 +14,7 @@ be cached. [Official settings documentation](https://code.claude.com/docs/en/set
 3. Choose a model. Fetch a catalog where supported, or type the exact model ID
    from that provider's documentation. A catalog listing does not prove that
    the model supports every Claude Code feature.
-4. Press **Add provider to automatic switching**. Repeat for other providers.
+4. Press **Add provider to switching order**. Repeat for other providers.
 5. Open **Automatic switching**. Move providers up/down into your preferred
    order. Expand a provider's keys to change their priority or enabled state.
    Each provider needs its own model and endpoint. Under **Model order**, use
