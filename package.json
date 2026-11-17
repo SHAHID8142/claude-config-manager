@@ -1,7 +1,7 @@
 {
   "name": "claude-config-manager",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,7 +15,8 @@
     "test": "vitest run",
     "check:frontend": "npm run lint && npm run format:check && npm run typecheck && npm run test",
     "check:rust": "cd src-tauri && cargo fmt --check && cargo clippy -- -D warnings && cargo test",
-    "check:all": "npm run check:frontend && npm run check:rust"
+    "check:all": "npm run check:frontend && npm run check:rust",
+    "build:macos": "tauri build --bundles app && bash scripts/package-dmg.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { HelpPopover } from "./HelpPopover";
 import { SegmentedControl, type SegmentedOption } from "./SegmentedControl";
 import { applyTheme, loadTheme, saveTheme, type ThemeMode } from "../lib/theme";
 
@@ -29,7 +30,13 @@ export function ThemeSegmented({ themeStorage }: ThemeSegmentedProps) {
 
   return (
     <div className="mt-auto flex flex-col gap-1.5 px-3">
-      <span className="text-[11px] text-ink-subtle">Appearance</span>
+      <span className="flex items-center gap-1 text-[11px] text-ink-subtle">
+        Appearance
+        <HelpPopover title="Appearance">
+          Choose this app’s appearance. System follows macOS. This does not change Claude Code’s
+          terminal theme.
+        </HelpPopover>
+      </span>
       <SegmentedControl label="Appearance" options={MODES} value={mode} onChange={choose} />
     </div>
   );

@@ -69,7 +69,23 @@ pub fn create_backup(config_path: &Path, backup_dir: &Path) -> Result<PathBuf, B
         Err(e) => return Err(BackupError::Io(e.to_string())),
     }
 
-    let content = std::fs::read(config_path).map_err(|e| BackupError::Io(e.to_string()))?;
+    if locator
+        .config_dir_is_symlink(config_path)
+        .map_err(|e| BackupError::Io(e.to_string()))?
+    {
+        return Err(BackupError::SymlinkSource);
+    }
+    if locator
+        .config_dir_is_symlink(&backup_dir.join(".backup-path-check"))
+        .map_err(|e| BackupError::Io(e.to_string()))?
+    {
+        return Err(BackupError::Io(
+            "backup directory has a symlinked ancestor".into(),
+        ));
+    }
+    let limit = crate::config_reader::SETTINGS_MAX_BYTES;
+    let content = crate::config_locator::read_regular_file_capped(config_path, limit)
+        .map_err(|e| BackupError::Io(e.to_string()))?;
 
     std::fs::create_dir_all(backup_dir).map_err(|e| BackupError::Io(e.to_string()))?;
 
@@ -80,7 +96,8 @@ pub fn create_backup(config_path: &Path, backup_dir: &Path) -> Result<PathBuf, B
 
     // Verify the copy is byte-exact before declaring success (content, not
     // just size — a torn write with equal length would restore corrupted).
-    let written = std::fs::read(&backup_path).map_err(|e| BackupError::Io(e.to_string()))?;
+    let written = crate::config_locator::read_regular_file_capped(&backup_path, limit)
+        .map_err(|e| BackupError::Io(e.to_string()))?;
     if written != content {
         let _ = std::fs::remove_file(&backup_path);
         return Err(BackupError::Io(
@@ -107,10 +124,16 @@ fn write_private(path: &Path, bytes: &[u8]) -> Result<(), BackupError> {
         .mode(0o600)
         .open(path)
         .map_err(|e| BackupError::Io(e.to_string()))?;
-    f.write_all(bytes)
-        .map_err(|e| BackupError::Io(e.to_string()))?;
-    let _ = f.sync_all();
+    let result = (|| {
+        f.write_all(bytes)
+            .map_err(|e| BackupError::Io(e.to_string()))?;
+        f.sync_all().map_err(|e| BackupError::Io(e.to_string()))
+    })();
     drop(f);
+    if let Err(error) = result {
+        let _ = std::fs::remove_file(path);
+        return Err(error);
+    }
     Ok(())
 }
 

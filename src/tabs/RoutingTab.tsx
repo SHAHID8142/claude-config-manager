@@ -1,4 +1,7 @@
-import { RoutingPanel } from "../components/RoutingPanel";
+import { SwitchHistory } from "../components/SwitchHistory";
+import { ProviderGroups } from "../components/ProviderGroups";
+import { HelpPopover } from "../components/HelpPopover";
+import { defaultIpc, type IpcLike } from "../lib/ipc";
 import { Section } from "../components/Section";
 import type {
   CredentialView,
@@ -10,7 +13,11 @@ import type {
 } from "../lib/ipc";
 
 export interface RoutingTabProps {
+  ipc?: IpcLike;
+  onAddProvider?: () => void;
   config: RoutingConfig | null;
+  dirty?: boolean;
+  receipt?: string | null;
   error: string | null;
   providers: ProviderSummary[];
   credentials: CredentialView[];
@@ -95,7 +102,7 @@ export function RoutingTab(props: RoutingTabProps) {
                 disabled={props.busy}
                 className="btn btn-secondary"
               >
-                Restart
+                Restart &amp; clear pauses
               </button>
             </div>
             <label className="flex items-start gap-2 text-[12.5px] text-ink">
@@ -114,6 +121,13 @@ export function RoutingTab(props: RoutingTabProps) {
                 </span>
               </span>
             </label>
+            <div className="text-[12px] text-ink-muted">
+              About login start{" "}
+              <HelpPopover title="Start at login">
+                The optional user LaunchAgent starts the local helper after login. Turning it off
+                removes that registration; it does not delete stored keys.
+              </HelpPopover>
+            </div>
             {helper.stale && (
               <p className="text-[12px] text-warn">
                 The helper is not answering. Restart it before relying on routed mode.
@@ -123,41 +137,117 @@ export function RoutingTab(props: RoutingTabProps) {
         </Section>
       )}
       <Section
-        title="Chain"
-        description="Tried top to bottom; failed targets cool down and are skipped."
-        help={{
-          title: "About the chain",
-          children: (
-            <p>
-              Targets are tried in order. A target cools down after it fails, and cooling targets
-              are skipped without ever leaving the chain empty.
-            </p>
-          ),
-        }}
+        title="Switching order"
+        description="Keys within one provider first. Then the next provider."
       >
-        {props.config === null ? (
-          <p className="text-[12.5px] text-ink-muted">Reading routing configuration…</p>
-        ) : (
-          <RoutingPanel
+        <div className="mb-4 rounded-lg bg-surface-sunken p-3 text-[12px] leading-relaxed text-ink-muted">
+          Provider A: Key 1 → Key 2 → Key 3 <span className="mx-1">→</span> Provider B: Key 1 → Key
+          2.
+          <br />A working key keeps serving requests. A failure moves to the next usable key.
+        </div>
+        {props.error && (
+          <p role="alert" className="mb-3 text-[12px] text-danger">
+            {props.error}
+          </p>
+        )}
+        {props.config ? (
+          <ProviderGroups
             config={props.config}
             providers={props.providers}
-            credentials={props.credentials}
-            onNeedCredentials={props.onNeedCredentials}
-            status={props.status}
-            health={props.health}
-            checking={props.checking}
+            ipc={props.ipc ?? defaultIpc}
             busy={props.busy}
-            error={props.error}
             onChange={props.onChange}
-            onSave={props.onSave}
-            onStartProxy={props.onStartProxy}
-            onStopProxy={props.onStopProxy}
-            onApplyRouted={props.onApplyRouted}
-            onCheckHealth={props.onCheckHealth}
           />
+        ) : (
+          <p className="text-[12px]">
+            {props.error
+              ? "Switching settings are unavailable. Refresh to retry."
+              : "Reading switching settings…"}
+          </p>
         )}
+        <p role="status" className="mt-3 text-[12px] text-ink-muted">
+          {props.dirty
+            ? "Pending provider/model changes — save or enable to apply this policy."
+            : (props.receipt ?? "Showing saved provider policy.")}
+        </p>
+        <p className="mt-3 text-[12px] text-ink-muted">
+          Review the provider order, model and endpoint above. Enable saves this policy and points
+          global Claude Code settings at the local helper. Existing unrelated settings are
+          preserved.
+        </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={props.busy}
+            onClick={props.onAddProvider}
+          >
+            Add a provider
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={props.busy || !props.config?.targets.length}
+            onClick={props.onSave}
+          >
+            Save order
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={
+              props.busy || !props.config?.targets.some((t) => t.enabled && t.model?.trim())
+            }
+            onClick={props.onApplyRouted}
+          >
+            {props.busy ? "Saving…" : "Save & enable automatic switching"}
+          </button>
+        </div>
+        <p className="mt-2 text-[11px] text-ink-muted">
+          Provider/model edits are pending until saved. Stored-key changes apply to the next routed
+          request.
+        </p>
       </Section>
-
+      <Section
+        title="Recent activity"
+        description="Observed helper activity, not a billing statement."
+      >
+        <p className="text-[12px] text-ink-muted">
+          {props.status
+            ? `${props.status.requests} requests · ${props.status.fallbacks} fallback attempts · ${props.status.failures} failures`
+            : "No helper activity available."}
+        </p>
+        {props.status?.lastTarget && (
+          <p className="mt-1 break-all text-[12px]">
+            Last response key: {props.status.lastKeyLabel ?? props.status.lastTarget}
+          </p>
+        )}
+        {props.status?.lastSwitchReason && (
+          <p className="mt-1 text-[12px] text-ink-muted">
+            Last switch: {props.status.lastSwitchReason}
+          </p>
+        )}
+        {props.status?.cooldownSeconds && Object.keys(props.status.cooldownSeconds).length > 0 && (
+          <p className="mt-1 text-[12px] text-warn">
+            Next paused key eligible in {Math.min(...Object.values(props.status.cooldownSeconds))}{" "}
+            seconds. Restart the helper to explicitly clear pauses.
+          </p>
+        )}
+        <SwitchHistory ipc={props.ipc ?? defaultIpc} />
+        {props.status?.activityError && (
+          <p role="alert" className="text-[12px] text-danger">
+            {props.status.activityError}
+          </p>
+        )}
+        {props.status?.lastError && (
+          <p className="mt-1 text-[12px] text-danger">{props.status.lastError}</p>
+        )}
+        {props.status?.cooling.length ? (
+          <p className="mt-1 break-all text-[12px] text-warn">
+            Paused after failure: {props.status.cooling.join(", ")}
+          </p>
+        ) : null}
+      </Section>
       {/* V3-28: the long explanation is one disclosure, not a paragraph on the
           working screen. The facts that change behaviour stay in the rows above. */}
       <details className="rounded-[10px] border border-line bg-surface px-4 py-3">
@@ -168,7 +258,10 @@ export function RoutingTab(props: RoutingTabProps) {
           <li>Listens on 127.0.0.1 only, with a bearer token Claude Code sends.</li>
           <li>Fails over on 429, 5xx, timeouts and dead connections, honouring Retry-After.</li>
           <li>Never retries a caller error (400/422), never replays a begun stream.</li>
-          <li>Does not translate protocols: OpenAI-only providers still need a bridge.</li>
+          <li>
+            NVIDIA chat models use built-in translation. Other OpenAI-only providers need an
+            available translator.
+          </li>
           <li>The helper keeps running after this window closes; see Proxy helper above.</li>
         </ul>
       </details>

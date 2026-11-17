@@ -1,39 +1,51 @@
-# V3 — Release limitations
+# Current release limitations — 1.0.5
 
-Everything here is a limitation of the shipped build, stated so nothing is
-mistaken for a supported capability.
+Updated 2026-11-17; supersedes conflicting V2/V3 historical acceptance claims.
 
-## Not implemented
+- Apple Silicon macOS only. Windows/Linux builds are not produced or tested.
+- Ad-hoc signature only. Developer ID/notarization and clean-Mac Gatekeeper
+  acceptance are unavailable without the owner's signing identity. No automatic
+  security bypass is provided.
+- NVIDIA is supported through a built-in Chat Completions adapter. Other
+  OpenAI-only providers and the optional third-party bridge are unavailable. Bridge
+  install/start/apply commands refuse execution; dormant pinned dependencies
+  include three moderate advisory records in their separate lock audit.
+- Claude Code uses `/v1/messages`; NVIDIA targets translate to Chat Completions.
+  Token counting is optional
+  in the upstream gateway specification and is not implemented here.
+- Secret storage is private plaintext files, not Keychain/encryption. Same-user
+  processes can read them. Existing plaintext in settings may be in backups.
+- A private before-image journal supports explicit interrupted-save recovery.
+  Journal/recovery snapshots contain key copies protected by permissions, not encryption.
+  Individual settings writes are atomic; all managed files are not one
+  crash-atomic transaction. Rollback is attempted on handled failures and may
+  itself fail under disk/permission errors. A tiny final check/rename race with
+  non-cooperating external editors remains possible for existing settings files.
+- Legacy interleaved explicit-key routing targets retain their order. Conversion
+  to provider groups is explicit. Custom profiles persist when added to routing;
+  valid setup drafts persist separately in local WebKit storage; clearing that
+  storage removes drafts but does not delete stored keys.
+- Keys can share account quotas. The proxy classifies observed HTTP responses;
+  it cannot reliably determine key-level versus account-wide health. Caller/model
+  errors stop failover. Retry-After seconds and HTTP-date are supported and
+  bounded to ten minutes. Cooldowns reset on helper restart and are not persisted.
+- Retry decisions stop after 200 candidates/60 seconds. Native/compatible
+  attempts have a 30-second maximum. NVIDIA phase waits are bounded and may
+  finish after the decision budget; its stream can last up to 30 minutes with
+  120-second idle reads,
+  with 32 concurrent connections. No retry after response streaming starts.
+  A timeout may leave upstream processing uncertain; duplicate charges cannot
+  be ruled out. Saved history retains 100 redacted failure/fallback events, not complete request logs.
+- Catalog/key checks do not verify model inference. OpenRouter key check returned200. The prior NVIDIA credential was rejected; a retry awaits a user key update. No successful hosted inference is claimed. The installed CLI completed a
+  streamed response through the packaged helper using loopback fixtures only.
+- Overview reads one global scope. Project/managed settings and another
+  terminal's environment may override it; helper output can be cached by CLI.
+- Blank roles/context preserve saved values. Review model and role compatibility
+  when switching providers; saved role IDs are not automatically translated.
+- Native small-window/200% zoom, VoiceOver, contrast tooling, real logout/login,
+  reboot, clean-Mac installation and remote CI are not certified. See release
+  evidence for successful checks and concrete native automation limitations.
 
-| Limitation | Consequence |
-| --- | --- |
-| No protocol bridge for OpenAI-only providers | NVIDIA NIM and similar endpoints are refused with `501 compatibility_error`. Use an Anthropic-compatible provider (Anthropic, OpenRouter, DeepSeek, Z.ai) or an external bridge. |
-| Windows and Linux builds | Not produced or tested. The helper lifecycle is split into named Unix-specific functions (`launchctl`, `kill`, `ps`) so a port replaces those, not the design. |
-| Apple Developer ID signing / notarization | The app is ad-hoc signed. First launch on another Mac needs right-click → Open, or `xattr -dr com.apple.quarantine`. |
-| Ubuntu CI | Never executed — the GitHub account is billing-locked, so all three workflow jobs fail before starting. Local gates are the only evidence. |
-| VoiceOver / contrast tooling | Not run. Accessibility is enforced structurally in tests, not audited with a screen reader or a contrast checker. |
-
-## Behaviour worth knowing
-
-- **Routed mode needs the helper.** Closing the app is fine; if the helper is
-  stopped, the header says `mode: proxy stopped` and Claude Code cannot reach a
-  provider until it is started again.
-- **Login start is opt-in.** Without the LaunchAgent the helper lives for the
-  current login session only.
-- **Cooldowns are memory-only.** Restarting the helper forgets a 6-hour cooldown,
-  so one extra attempt is possible — never a retry loop.
-- **Only three headers are forwarded** besides the body (`anthropic-version`,
-  `anthropic-beta`, `accept`).
-- **`/v1/messages` only**, matched exactly; other paths return 404.
-- **Request bodies are capped at 16 MiB**, headers at 64 KiB.
-- **The health endpoint is on-demand**, not polled continuously.
-
-## Not verified in this phase
-
-- A live request against a real paid provider (needs the owner's key and money).
-- A real Claude Code session through the proxy in a VS Code terminal, including a
-  simulated upstream failure and recovery (V3-36) — the helper's survival and
-  health were verified, the end-to-end Claude Code conversation was not.
-- A reboot test. The login agent's plist is written and tested for content, but a
-  real logout/login cycle was not performed.
-- Clean-Mac install, Windows, Linux.
+The full outstanding register is in
+[the repair audit](../audits/2026-11-17-project-review.md). An unchecked item is
+not silently accepted as complete because automated tests pass.

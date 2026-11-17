@@ -16,7 +16,25 @@ import { providerSummaryFixtures } from "./lib/fixtures/providers";
 
 /** The sidebar is a macOS settings list: one screen at a time. */
 async function goTo(label: string) {
-  await userEvent.click(screen.getByRole("button", { name: label }));
+  await userEvent.click(
+    screen.getByRole("button", {
+      name:
+        (
+          {
+            Model: "Providers & keys",
+            Credentials: "Providers & keys",
+            Provider: "Providers & keys",
+            Dashboard: "Overview",
+            Failover: "Switching",
+            Maintenance: "Recovery",
+          } as Record<string, string>
+        )[label] ?? label,
+    }),
+  );
+  if (["Provider", "Model", "Credentials"].includes(label)) {
+    const disclosure = screen.queryByText("Single-key direct connection (optional)");
+    if (disclosure && !disclosure.closest("details")?.open) await userEvent.click(disclosure);
+  }
 }
 
 function renderApp() {
@@ -115,7 +133,11 @@ describe("document structure (T62)", () => {
 describe("announcements and decoration (T62)", () => {
   it("marks decorative disclosure glyphs as hidden from assistive tech", async () => {
     renderApp();
-    await goTo("Model");
+    await goTo("Provider");
+    await userEvent.selectOptions(
+      await screen.findByLabelText("Provider", { selector: "select" }),
+      "anthropic",
+    );
     const toggle = screen.getByRole("button", { name: /advanced settings/i });
     const glyph = Array.from(toggle.querySelectorAll("[aria-hidden='true']"));
     expect(glyph.length).toBeGreaterThan(0);

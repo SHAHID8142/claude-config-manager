@@ -27,6 +27,16 @@ pub fn redact_secrets(input: &str, secrets: &[&str]) -> String {
     out
 }
 
+/// Known credential prefixes, safe to use when validating a model identifier.
+/// General entropy/number heuristics are only for log redaction.
+pub fn has_credential_prefix(value: &str) -> bool {
+    let core = value.rsplit(['=', ':']).next().unwrap_or(value).trim();
+    core.len() >= 16
+        && ["sk-ant-", "sk-or-", "nvapi-", "sk-", "r8_", "ghp_"]
+            .iter()
+            .any(|prefix| core.starts_with(prefix))
+}
+
 /// Heuristic: does this string look like a provider credential?
 /// Used defensively to strip secret-shaped material from *untrusted* text
 /// (e.g. upstream error messages) where we don't hold the original secret.

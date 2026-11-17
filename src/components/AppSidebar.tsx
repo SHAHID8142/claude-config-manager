@@ -30,7 +30,8 @@ export function AppSidebar({ active, onSelect, badges = {} }: AppSidebarProps) {
     <nav aria-label="Sections" className="flex w-full shrink-0 flex-col gap-0.5 py-3 pr-3 pl-3">
       {TABS.map((tab) => {
         const Icon = ICONS[tab.id];
-        const current = tab.id === active;
+        const current =
+          tab.id === (active === "model" || active === "credentials" ? "provider" : active);
         const badge = badges[tab.id];
         return (
           <button

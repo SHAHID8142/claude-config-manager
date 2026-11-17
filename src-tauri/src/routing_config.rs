@@ -8,9 +8,10 @@
 //! chain would be indistinguishable from a working one at request time.
 
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use std::fs;
-use std::io::Write;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+#[cfg(test)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
 pub const ROUTING_VERSION: u32 = 1;
@@ -22,7 +23,7 @@ pub struct RouteTarget {
     /// Stable id, `[a-z0-9-]{1,64}` (also used in status/diagnostics).
     pub id: String,
     pub provider_id: String,
-    /// Which stored credential to use. `None` = the provider's legacy file.
+    /// Which stored credential to use. `None` = all enabled keys in provider priority order.
     pub credential_id: Option<String>,
     /// Model id to force for this target. `None` = pass the caller's model.
     pub model: Option<String>,
@@ -192,37 +193,38 @@ pub fn routing_path(home: &Path) -> PathBuf {
 }
 
 pub fn load(home: &Path) -> Result<RoutingConfig, RoutingError> {
-    match fs::read_to_string(routing_path(home)) {
-        Ok(raw) => RoutingConfig::parse(&raw),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(RoutingConfig::default()),
+    match crate::config_reader::read_settings(&routing_path(home)) {
+        Ok(value) => RoutingConfig::parse(&value.to_string()),
+        Err(crate::config_reader::ConfigError::Missing) => Ok(RoutingConfig::default()),
         Err(e) => Err(RoutingError::Io(e.to_string())),
     }
 }
 
 pub fn save(home: &Path, cfg: &RoutingConfig) -> Result<(), RoutingError> {
-    let json = cfg.to_json()?;
-    let path = routing_path(home);
-    let dir = path
-        .parent()
-        .ok_or_else(|| RoutingError::Io("no parent dir".into()))?;
-    fs::create_dir_all(dir).map_err(|e| RoutingError::Io(e.to_string()))?;
-    let tmp = path.with_extension("json.tmp");
-    {
-        let mut f = fs::OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
-            .mode(0o600)
-            .open(&tmp)
-            .map_err(|e| RoutingError::Io(e.to_string()))?;
-        f.write_all(json.as_bytes())
-            .map_err(|e| RoutingError::Io(e.to_string()))?;
-        f.sync_all().map_err(|e| RoutingError::Io(e.to_string()))?;
+    let transaction = crate::transaction_journal::ManagedTransaction::begin(home, None)
+        .map_err(RoutingError::Io)?;
+    let result = save_locked(home, cfg, transaction.lock());
+    match result {
+        Ok(()) => transaction.commit().map_err(RoutingError::Io),
+        Err(e) => {
+            transaction.rollback().map_err(RoutingError::Io)?;
+            Err(e)
+        }
     }
-    fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600))
-        .map_err(|e| RoutingError::Io(e.to_string()))?;
-    fs::rename(&tmp, &path).map_err(|e| RoutingError::Io(e.to_string()))?;
-    Ok(())
+}
+pub(crate) fn save_locked(
+    home: &Path,
+    cfg: &RoutingConfig,
+    lock: &crate::apply_lock::ApplyLock,
+) -> Result<(), RoutingError> {
+    cfg.validate()?;
+    let dir = crate::config_backup::default_backup_dir(home);
+    if lock.path() != dir.parent().unwrap().join("apply.lock") {
+        return Err(RoutingError::Io("wrong transaction scope".into()));
+    }
+    let doc = serde_json::to_value(cfg).map_err(|e| RoutingError::Io(e.to_string()))?;
+    crate::config_writer::write_settings_atomic(&routing_path(home), &doc, None)
+        .map_err(|e| RoutingError::Io(e.to_string()))
 }
 
 #[cfg(test)]

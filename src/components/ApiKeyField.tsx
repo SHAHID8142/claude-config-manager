@@ -55,14 +55,18 @@ export function ApiKeyField({
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div
+      className="flex items-center gap-2"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) hideOnBlur();
+      }}
+    >
       <input
         id={id}
         type={revealed ? "text" : "password"}
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        onBlur={hideOnBlur}
         autoComplete="off"
         spellCheck={false}
         placeholder="••••••••••••"

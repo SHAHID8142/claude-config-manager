@@ -1,31 +1,28 @@
-# PRODUCT.md — Claude Config Manager
+# Product behavior — 1.0.5
 
-*(Authored 2026-11-13 by the coding agent from `docs/internal/01-PRD.md` + owner messages; the owner delegated design decisions in brief: "cleaner, less text, more polished, professional, animated, perfect".)*
+Claude Config Manager edits one Claude Code global settings scope. The central
+workflow is provider → ordered keys → model → switching order → explicit activation.
+It serves users who want a preferred provider's available keys tried before a
+backup provider, without creating a separate routing card for each key.
 
-## What this is
+Overview describes saved settings and recent helper observations. Providers &
+keys contains setup and optional direct Apply. Automatic switching owns provider
+priority, per-provider model/endpoint, key priority and helper activation.
+Recovery & diagnostics contains environment checks and backups. Each section and
+field has contextual information; important failures remain visible inline.
 
-A macOS-first desktop utility (Tauri 2 · Rust · React · TypeScript · Tailwind) that configures the **Claude Code CLI's global settings** without shell commands. Windows-ready architecture; not a Claude Desktop replacement; no per-project config.
+Input is validated before writes; invalid settings require explicit recovery.
+Individual settings writes are atomic and backed up when an original exists.
+Handled failures compensate managed files; a private journal supports explicit recovery after interruption. Multi-file crash atomicity is not guaranteed. Provider drafts persist separately from activation; bounded redacted switching history survives restart.
+Secrets remain private plaintext files under the user's account, not Keychain.
 
-## Who uses it
+Supported protocol: Anthropic Messages over HTTP(S), including custom compatible
+gateways. NVIDIA Chat Completions is translated by the built-in helper; other OpenAI-only
+protocols and the optional third-party translator remain unavailable.
+No catalog or key check is presented as proof of paid inference compatibility.
+The app does not promise additional account quota, successful inference on every
+model, no duplicate upstream charges, or full resolution of all CLI settings scopes.
 
-Developers who run Claude Code inside VS Code's integrated terminal. They are technical, comfortable with concepts (API keys, endpoints, model ids), and impatient with hand-holding — but the *consequences* (a corrupted `~/.claude/settings.json`, a leaked key) are ones they care about deeply.
-
-## Jobs the product does (in order of importance)
-
-1. **Show the truth**: what is Claude Code using right now (model, endpoint, key mode) — read-only, live.
-2. **Change it safely**: provider → credential → model → Apply, as a transaction (backup → atomic write → verify → rollback). Never overwrites a broken file. Never leaks the key.
-3. **Store keys** as owner-only files (0600) handed to the CLI via an `apiKeyHelper` script; multiple keys per provider with priority.
-4. **Optional failover**: a loopback-only proxy that tries targets in order; survives GUI closure via a detached helper.
-5. **Maintain**: environment checks, backups list, restore, honest diagnostics.
-
-## Hard product rules (never violated by design)
-
-- Never auto-select a model; selection is always explicit.
-- Never fabricate status or capability ("unknown" is a first-class state).
-- Never display the API key in full after entry; masked + reveal only.
-- The key never appears in `settings.json`, logs, or errors.
-- Apply is explicit — it is a transaction, not a preference save.
-
-## Personality
-
-Precise, calm, trustworthy. A well-made instrument, not a marketing site. Copy is short, declarative, and speaks in the user's language. Zero cheerleading.
+See [user guide](docs/USER_GUIDE.md), [current audit](docs/audits/2026-11-17-project-review.md)
+and [release evidence](docs/releases/1.0.5.md). Historical screenshots and phase
+acceptance reports are not current-release verification.

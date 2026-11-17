@@ -262,10 +262,10 @@ fn disabled_credential_is_never_routed_to() {
 /// explicit compatibility error before any request is sent, and the message says
 /// what is missing. Nothing is silently translated or dropped.
 #[test]
-fn openai_only_target_is_refused_with_a_bridge_message() {
+fn nvidia_uses_builtin_translation_adapter() {
     use claude_config_manager_lib::proxy::{Adapter, adapter_for, bridge_requirement_message};
 
-    assert_eq!(adapter_for("nvidia-nim"), Some(Adapter::OpenAiUnbridged));
+    assert_eq!(adapter_for("nvidia-nim"), Some(Adapter::NvidiaChat));
     assert_eq!(
         adapter_for("openrouter"),
         Some(Adapter::AnthropicCompatible)
@@ -285,15 +285,14 @@ fn openai_only_target_is_refused_with_a_bridge_message() {
 /// V3-16 — over a real socket: an OpenAI-only chain answers 501 with a
 /// compatibility error, and the upstream is never contacted.
 #[test]
-fn openai_only_chain_returns_501_without_touching_the_upstream() {
+fn nvidia_connection_failure_reports_unavailability_not_missing_bridge() {
     use std::io::{Read, Write};
     use std::net::TcpStream;
 
     let home = temp_home("bridge-501");
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("upstream");
     let addr = listener.local_addr().expect("addr");
-    // If the proxy ever forwards, this accept() would succeed.
-    listener.set_nonblocking(true).expect("nonblocking");
+    drop(listener);
 
     let vault = CredentialVault::for_home(&home);
     vault
@@ -306,7 +305,7 @@ fn openai_only_chain_returns_501_without_touching_the_upstream() {
         targets: vec![RouteTarget {
             id: "nvidia-1".into(),
             provider_id: "nvidia-nim".into(),
-            credential_id: Some("nvidia-1".into()),
+            credential_id: None,
             model: Some("meta/llama-3.1-70b-instruct".into()),
             base_url: format!("http://{addr}"),
             enabled: true,
@@ -328,11 +327,6 @@ fn openai_only_chain_returns_501_without_touching_the_upstream() {
     let mut out = String::new();
     let _ = sock.read_to_string(&mut out);
 
-    assert!(out.contains("501"), "expected 501, got: {out}");
-    assert!(out.contains("compatibility_error"), "got: {out}");
-    assert!(out.contains("Chat Completions"), "got: {out}");
-    assert!(
-        listener.accept().is_err(),
-        "the OpenAI-only upstream must never be contacted"
-    );
+    assert!(out.contains("503"), "got {out}");
+    assert!(!out.contains("compatibility_error"));
 }

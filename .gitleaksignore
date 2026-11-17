@@ -1,0 +1,3 @@
+# Historical repeated-hexadecimal loopback fixture token; not a provider key.
+# New fixture occurrences use a local gitleaks:allow comment instead.
+3597a1960021248a31c1e211ac1199a3dd8edea2:src-tauri/src/save_apply.rs:generic-api-key:440

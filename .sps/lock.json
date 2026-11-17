@@ -1,0 +1,8 @@
+{
+  "workflow": "sps",
+  "skillVersion": "4.0.0",
+  "created": "2026-11-17",
+  "phase": "local-release-candidate",
+  "planApproved": true,
+  "batchApproved": true
+}

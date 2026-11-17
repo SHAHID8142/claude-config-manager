@@ -8,7 +8,25 @@ import type { EffectiveStatus, ModelEntry } from "./lib/ipc";
 
 /** Walk the sidebar to a screen (macOS settings shape: one panel at a time). */
 async function goTo(label: string) {
-  await userEvent.click(screen.getByRole("button", { name: label }));
+  await userEvent.click(
+    screen.getByRole("button", {
+      name:
+        (
+          {
+            Model: "Providers & keys",
+            Credentials: "Providers & keys",
+            Provider: "Providers & keys",
+            Dashboard: "Overview",
+            Failover: "Switching",
+            Maintenance: "Recovery",
+          } as Record<string, string>
+        )[label] ?? label,
+    }),
+  );
+  if (["Provider", "Model", "Credentials"].includes(label)) {
+    const disclosure = screen.queryByText("Single-key direct connection (optional)");
+    if (disclosure && !disclosure.closest("details")?.open) await userEvent.click(disclosure);
+  }
 }
 
 const statusFixture: EffectiveStatus = {
@@ -56,6 +74,10 @@ describe("App shell (T12/T14 regression)", () => {
     // …and each sidebar item owns exactly one screen.
     await goTo("Provider");
     expect(screen.getByRole("region", { name: "Provider" })).toBeInTheDocument();
+    await userEvent.selectOptions(
+      await screen.findByLabelText("Provider", { selector: "select" }),
+      "anthropic",
+    );
     await goTo("Model");
     expect(screen.getByRole("region", { name: "Model" })).toBeInTheDocument();
     await goTo("Maintenance");
@@ -69,8 +91,7 @@ describe("App shell (T12/T14 regression)", () => {
     expect(screen.getByRole("button", { name: "Test Connection" })).toBeDisabled();
     // Show/hide toggle follows the field's disabled state (T20)
     expect(screen.getByRole("button", { name: "Show" })).toBeDisabled();
-    await goTo("Model");
-    expect(screen.getByLabelText("Model", { selector: "input" })).toBeDisabled();
+    expect(screen.queryByLabelText("Model", { selector: "input" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save & Apply" })).toBeDisabled();
   });
 
@@ -121,7 +142,8 @@ describe("Provider selector (T18)", () => {
     // commands are deliberately absent: "__none__" is a UI sentinel, not a
     // provider id, and asking the backend for it produced a red
     // "invalid provider id" banner on first launch.
-    expect(ipc.calls.map((c) => c.cmd).sort()).toEqual([
+    expect([...new Set(ipc.calls.map((c) => c.cmd))].sort()).toEqual([
+      "backup_previews",
       "check_environment",
       "config_paths",
       "get_routing",
@@ -129,6 +151,7 @@ describe("Provider selector (T18)", () => {
       "list_backups",
       "list_credentials",
       "list_providers",
+      "pending_transaction",
       "proxy_status",
       "read_status",
     ]);
@@ -139,7 +162,19 @@ describe("Provider selector (T18)", () => {
     // An empty stored-key answer is the default; this provider has one.
     const withStored = {
       invoke: <T,>(cmd: string, args?: Record<string, unknown>) =>
-        cmd === "has_credential" ? Promise.resolve(true as T) : ipc.invoke<T>(cmd, args),
+        cmd === "list_credentials"
+          ? Promise.resolve([
+              {
+                id: "openrouter-1",
+                providerId: "openrouter",
+                label: "saved",
+                last4: "test",
+                priority: 0,
+                enabled: true,
+                legacy: false,
+              },
+            ] as T)
+          : ipc.invoke<T>(cmd, args),
       calls: ipc.calls,
     } as typeof ipc;
     render(<App ipc={withStored} />);
@@ -177,21 +212,21 @@ describe("Provider selector (T18)", () => {
       "href",
       "https://platform.claude.com/docs/en/api/models-list",
     );
-    expect(screen.getByText(/direct connection/)).toBeInTheDocument();
+    expect(screen.getByText(/^direct connection$/)).toBeInTheDocument();
     // Preset endpoint shown read-only and disabled.
     const endpoint = screen.getByLabelText("Endpoint URL", { selector: "input" });
     expect(endpoint).toBeDisabled();
     expect(endpoint).toHaveValue("https://api.anthropic.com");
   });
 
-  it("shows the bridge-required badge for OpenAI-only providers (T25)", async () => {
+  it("shows the built-in connection for NVIDIA (T25)", async () => {
     const ipc = mockWithProviders();
     render(<App ipc={ipc} />);
     await goTo("Provider");
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "nvidia-nim");
-    expect(screen.getByText(/bridge required/)).toBeInTheDocument();
-    expect(screen.queryByText(/direct connection/)).not.toBeInTheDocument();
+    expect(screen.getByText(/built-in NVIDIA connection/)).toBeInTheDocument();
+    expect(screen.queryByText(/^direct connection$/)).not.toBeInTheDocument();
     // No Anthropic base URL to display for OpenAI-only providers.
     expect(screen.queryByLabelText("Endpoint URL", { selector: "input" })).not.toBeInTheDocument();
   });
@@ -246,7 +281,7 @@ describe("Provider selector (T18)", () => {
     });
     render(<App ipc={ipc} />);
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toBeInTheDocument();
+      expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
     });
     expect(screen.getByText("backend offline")).toBeInTheDocument();
   });
@@ -309,10 +344,10 @@ describe("Save & Apply (T33)", () => {
       screen.getByLabelText("Model", { selector: "input" }),
       "nvidia/nemotron-x",
     );
-    expect(screen.getByText(/will assume a 200k window/i)).toBeInTheDocument();
+    expect(screen.getByText(/may need a declared context window/i)).toBeInTheDocument();
     // The tip is a real affordance: it opens the panel that can fix it.
     await userEvent.click(screen.getByRole("button", { name: /declare its real window/i }));
-    expect(screen.getByLabelText(/context window/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/context window/i, { selector: "input" })).toBeInTheDocument();
   });
 
   it("sends the declared context window for an unrecognized model id (V2-12b)", async () => {
@@ -327,7 +362,7 @@ describe("Save & Apply (T33)", () => {
     );
     await goTo("Model");
     await userEvent.click(screen.getByRole("button", { name: /advanced settings/i }));
-    const windowInput = screen.getByLabelText(/context window/i);
+    const windowInput = screen.getByLabelText(/context window/i, { selector: "input" });
     // Digits only: a typed "1M" must never reach settings.json as a no-op value.
     await userEvent.type(windowInput, "1M000000");
     expect(windowInput).toHaveValue("1000000");
@@ -389,14 +424,14 @@ describe("Save & Apply (T33)", () => {
     await userEvent.selectOptions(select, "__custom__");
     const customKey = screen.getByLabelText("API key", { selector: "input" });
     expect(customKey).toHaveValue("");
-    await userEvent.type(customKey, "sk-custom");
     await userEvent.type(
       screen.getByLabelText("Custom endpoint URL", { selector: "input" }),
       "https://gw.example.com",
     );
+    await userEvent.type(customKey, "sk-custom");
     await userEvent.click(screen.getByRole("button", { name: "Save & Apply" }));
     await waitFor(() => expect(calls).toHaveLength(2));
-    expect(calls[1].providerId).toBe("custom");
+    expect(calls[1].providerId).toMatch(/^custom-[a-f0-9]+$/);
     expect(calls[1].baseUrl).toBe("https://gw.example.com");
   });
 });
@@ -487,6 +522,18 @@ describe("Restore last backup (T35)", () => {
       handlers: {
         list_providers: () => Promise.resolve(providerSummaryFixtures),
         read_status: () => Promise.resolve(statusFixture),
+        backup_previews: async () => [
+          {
+            fileName: "settings-backup-1700000000000000000.json",
+            sizeBytes: 40,
+            createdEpoch: 1700000000,
+            valid: true,
+            detail: "Valid settings",
+            model: "saved",
+            baseUrl: null,
+            helperPresent: false,
+          },
+        ],
         restore_last_backup: () =>
           Promise.resolve({
             restoredFrom: "settings-backup-1700000000000000000.json",
@@ -496,10 +543,12 @@ describe("Restore last backup (T35)", () => {
     });
     render(<App ipc={ipc} />);
     await goTo("Maintenance");
-    const btn = await screen.findByRole("button", { name: "Restore last backup" });
+    const btn = await screen.findByRole("button", { name: "Restore selected backup" });
     await userEvent.click(btn);
+    expect(ipc.calls.some((c) => c.cmd === "restore_last_backup")).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Confirm restore" }));
     await waitFor(() => {
-      expect(screen.getByText("Settings restored from the latest backup.")).toBeInTheDocument();
+      expect(screen.getByText("Settings restored from the selected backup.")).toBeInTheDocument();
     });
     expect(screen.getByText(/Restored: settings-backup-1700000000000000000/)).toBeInTheDocument();
     expect(
@@ -512,14 +561,28 @@ describe("Restore last backup (T35)", () => {
       handlers: {
         list_providers: () => Promise.resolve(providerSummaryFixtures),
         read_status: () => Promise.resolve(statusFixture),
+        backup_previews: async () => [
+          {
+            fileName: "settings-backup-1700000000000000000.json",
+            sizeBytes: 40,
+            createdEpoch: 1700000000,
+            valid: true,
+            detail: "Valid settings",
+            model: "saved",
+            baseUrl: null,
+            helperPresent: false,
+          },
+        ],
         restore_last_backup: () =>
           Promise.reject({ kind: "io", message: "no backups available to restore" }),
       },
     });
     render(<App ipc={ipc} />);
     await goTo("Maintenance");
-    const btn = await screen.findByRole("button", { name: "Restore last backup" });
+    const btn = await screen.findByRole("button", { name: "Restore selected backup" });
     await userEvent.click(btn);
+    expect(ipc.calls.some((c) => c.cmd === "restore_last_backup")).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Confirm restore" }));
     await waitFor(() => {
       expect(screen.getByText("Restore failed.")).toBeInTheDocument();
     });
@@ -565,9 +628,7 @@ describe("Environment diagnostics (T36)", () => {
       },
     });
     render(<App ipc={ipc} />);
-    expect(
-      await screen.findByText(/settings file has a problem this app will not overwrite/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/your settings file needs recovery/i)).toBeInTheDocument();
     expect(screen.getByText("settings file contains invalid JSON")).toBeInTheDocument();
   });
 
@@ -623,8 +684,7 @@ describe("Model discovery states (T39)", () => {
     ]);
     render(<App ipc={ipc} />);
     await goTo("Model");
-    const fetchBtn = await screen.findByRole("button", { name: "Fetch models" });
-    expect(fetchBtn).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Fetch models" })).not.toBeInTheDocument();
     await goTo("Provider");
     await userEvent.selectOptions(
       screen.getByLabelText("Provider", { selector: "select" }),
@@ -719,7 +779,7 @@ describe("Model selection (T40)", () => {
     expect(await screen.findByLabelText("Model", { selector: "input" })).toHaveValue("model-a");
   });
 
-  it("re-fetch resets any previous selection (no cross-provider inheritance)", async () => {
+  it("re-fetch preserves the explicit selection for the same provider", async () => {
     const ipc = mockWithModels(catalog);
     render(<App ipc={ipc} />);
     await goTo("Provider");
@@ -732,7 +792,7 @@ describe("Model selection (T40)", () => {
     expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("model-a");
     await userEvent.click(screen.getByRole("button", { name: "Fetch models" }));
     await waitFor(() => {
-      expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("");
+      expect(screen.getByLabelText("Model", { selector: "input" })).toHaveValue("model-a");
     });
   });
 });
@@ -814,9 +874,8 @@ describe("Manual Model ID entry (T41)", () => {
     await userEvent.selectOptions(select, "zai");
     await goTo("Model");
 
-    // The provider publishes no catalog: fetching surfaces a typed error…
-    await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
-    expect(await screen.findByText("Model discovery failed.")).toBeInTheDocument();
+    // An unsupported catalog is explained before a network request.
+    expect(await screen.findByRole("button", { name: "Fetch models" })).toBeDisabled();
     await goTo("Model");
 
     // …and the manual fallback still works (the point of T41).
@@ -827,7 +886,7 @@ describe("Manual Model ID entry (T41)", () => {
     expect(modelInput).toHaveValue("glm-4.6");
   });
 
-  it("stays read-only while a populated catalog is displayed (T40 path)", async () => {
+  it("allows manual entry even while a populated catalog is displayed", async () => {
     const ipc = baseMock([
       {
         id: "m-1",
@@ -845,7 +904,7 @@ describe("Manual Model ID entry (T41)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
     await screen.findByLabelText("Discovered models");
     await goTo("Model");
-    expect(screen.getByLabelText("Model", { selector: "input" })).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Model", { selector: "input" })).not.toHaveAttribute("readonly");
   });
 });
 
@@ -1309,9 +1368,12 @@ describe("Credentials panel (V2-21)", () => {
     );
     await goTo("Credentials");
     expect(await screen.findByText("•••• 9z9z")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText(/label for the new key/i), "second");
-    await userEvent.type(screen.getByLabelText(/new api key/i), "sk-test-fixture-2");
-    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await userEvent.type(screen.getByLabelText(/key label/i, { selector: "input" }), "second");
+    await userEvent.type(
+      screen.getByLabelText(/new api key/i, { selector: "input" }),
+      "sk-test-fixture-2",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add key" }));
     await waitFor(() => {
       expect(ipc.calls.find((c) => c.cmd === "add_credential")?.args).toMatchObject({
         providerId: "openrouter",
@@ -1372,10 +1434,10 @@ describe("Context-window adoption (catalog-sourced)", () => {
   it("offers the catalog-declared window and adopts it on click", async () => {
     const ipc = mockWithWindows(catalog);
     render(<App ipc={ipc} />);
-    await userEvent.click(await screen.findByRole("button", { name: "Provider" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Providers & keys" }));
     const select = await screen.findByLabelText("Provider", { selector: "select" });
     await userEvent.selectOptions(select, "openrouter");
-    await userEvent.click(await screen.findByRole("button", { name: "Model" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Providers & keys" }));
     await userEvent.click(await screen.findByRole("button", { name: "Fetch models" }));
     await userEvent.click(await screen.findByRole("option", { name: /m-1m/ }));
     expect(await screen.findByText(/Catalog declares/)).toBeInTheDocument();

@@ -6,15 +6,15 @@ import { TABS } from "../lib/tab";
 
 describe("AppSidebar", () => {
   it("lists every screen and marks only the current one", () => {
-    render(<AppSidebar active="credentials" onSelect={() => undefined} />);
+    render(<AppSidebar active="provider" onSelect={() => undefined} />);
     for (const tab of TABS) {
       expect(screen.getByRole("button", { name: tab.label })).toBeInTheDocument();
     }
-    expect(screen.getByRole("button", { name: "Credentials" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Providers & keys" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("button", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("button", { name: "Overview" })).not.toHaveAttribute("aria-current");
   });
 
   it("switches screens on click and from the keyboard", async () => {
@@ -22,13 +22,13 @@ describe("AppSidebar", () => {
     const onSelect = vi.fn();
     render(<AppSidebar active="dashboard" onSelect={onSelect} />);
 
-    await user.click(screen.getByRole("button", { name: "Failover" }));
+    await user.click(screen.getByRole("button", { name: "Switching" }));
     expect(onSelect).toHaveBeenCalledWith("routing");
 
     // Buttons respond to Enter/Space natively — no custom key handling needed.
-    screen.getByRole("button", { name: "Model" }).focus();
+    screen.getByRole("button", { name: "Providers & keys" }).focus();
     await user.keyboard("{Enter}");
-    expect(onSelect).toHaveBeenCalledWith("model");
+    expect(onSelect).toHaveBeenCalledWith("provider");
   });
 
   it("keeps badge counts out of the accessible name", () => {
@@ -36,12 +36,12 @@ describe("AppSidebar", () => {
       <AppSidebar
         active="dashboard"
         onSelect={() => undefined}
-        badges={{ credentials: "3", routing: "on" }}
+        badges={{ provider: "3", routing: "on" }}
       />,
     );
     // The count is decoration; a screen reader hears "Credentials", not "Credentials 3".
-    expect(screen.getByRole("button", { name: "Credentials" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Credentials 3/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Providers & keys" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Provider 3/ })).not.toBeInTheDocument();
     expect(screen.getByText("3")).toHaveAttribute("aria-hidden", "true");
   });
 });

@@ -1,0 +1,27 @@
+{
+  "version": "1.0.3",
+  "scope": "clarify unsupported-provider Save; NVIDIA integration remains unimplemented",
+  "frontendPassed": 205,
+  "currentUserWindowRestarted": false,
+  "settingsValidObject": true,
+  "settingsWritable": true,
+  "signature": {
+    "exit": 0,
+    "passed": true
+  },
+  "image": {
+    "exit": 0,
+    "passed": true
+  },
+  "dmgSha256": "60aea11c8aca45ca691d967b9ddbc3cf06b555f81da59cb9e6ab86584ba70e05",
+  "dmgBytes": 4769280,
+  "changedUiSources": {
+    "src/App.tsx": "b268e55c113dc4b58deef8b9165ff4920bfa1183dddb833e218801fa257fff41",
+    "src/tabs/ProviderTab.tsx": "0f6485ba23a47cbf84ee1ecc6187535549e4f2a16f5a8cabfb1b6ef1d23adb3f",
+    "src/tabs/ModelTab.tsx": "eadfa292ccf2ff87820f344ea3bb0abc1f83bfb47c394fc3eed59669be6be361",
+    "src/components/AdvancedSettings.tsx": "232a62c75c8c49c37668ea9c0ecdabf553b7531b6741a6b3021447fb453a8f9c",
+    "src/components/CapabilityBadge.tsx": "72836c41fafee5af5373c67860e88be9c409445a68b6eaf3ccb52a149add6dbe",
+    "src/components/LoadingButton.tsx": "e6eefcdb67789d7812b34e4b19f099aec77ccc9ef5651199a71de70edf68a244",
+    "src/repair-workflow.test.tsx": "e67f61f7a2222d8844f1890bb3a277fac7fd162c860e4a99ccb0eb4a695cac8e"
+  }
+}

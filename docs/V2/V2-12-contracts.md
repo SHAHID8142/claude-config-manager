@@ -1,3 +1,6 @@
+> Historical phase snapshot. For current 1.0.2 behavior and remaining work, see
+> [the dated repair audit](../audits/2026-11-17-project-review.md) and [user guide](../USER_GUIDE.md).
+
 # V2-12a / V2-12b — model switching and the real context window
 
 ## V2-12a: changing the model on an already-configured provider

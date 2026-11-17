@@ -35,7 +35,7 @@ describe("AdvancedSettings (T45)", () => {
       const input = screen.getByLabelText(label);
       expect(input).toHaveValue("");
       // Default-no-override is visible, not implied.
-      expect(input).toHaveAttribute("placeholder", expect.stringMatching(/no override/i));
+      expect(input).toHaveAttribute("placeholder", expect.stringMatching(/keep saved/i));
     }
   });
 

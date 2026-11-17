@@ -49,9 +49,12 @@ export function CapabilityBadge({ status, sourceUrl }: CapabilityBadgeProps) {
 
 export interface BridgeBadgeProps {
   required: boolean;
+  builtin?: boolean;
 }
 
-export function BridgeBadge({ required }: BridgeBadgeProps) {
+export function BridgeBadge({ required, builtin = false }: BridgeBadgeProps) {
+  if (builtin)
+    return <span className={`${chip} bg-accent-soft text-accent`}>built-in NVIDIA connection</span>;
   if (!required) {
     return (
       <span
@@ -63,9 +66,12 @@ export function BridgeBadge({ required }: BridgeBadgeProps) {
     );
   }
   return (
-    <span className={`${chip} bg-warn-soft text-warn`} title="Set it up on the Failover screen">
+    <span
+      className={`${chip} bg-warn-soft text-warn`}
+      title="This app does not implement the required connection"
+    >
       <Plug size={11} strokeWidth={2} aria-hidden="true" />
-      bridge required — set up on Failover
+      unavailable in this version
     </span>
   );
 }

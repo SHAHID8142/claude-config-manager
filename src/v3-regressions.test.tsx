@@ -68,7 +68,25 @@ function mockWith(status: EffectiveStatus, extra: Record<string, unknown> = {}) 
 }
 
 async function goTo(label: string) {
-  await userEvent.click(screen.getByRole("button", { name: label }));
+  await userEvent.click(
+    screen.getByRole("button", {
+      name:
+        (
+          {
+            Model: "Providers & keys",
+            Credentials: "Providers & keys",
+            Provider: "Providers & keys",
+            Dashboard: "Overview",
+            Failover: "Switching",
+            Maintenance: "Recovery",
+          } as Record<string, string>
+        )[label] ?? label,
+    }),
+  );
+  if (["Provider", "Model", "Credentials"].includes(label)) {
+    const disclosure = screen.queryByText("Single-key direct connection (optional)");
+    if (disclosure && !disclosure.closest("details")?.open) await userEvent.click(disclosure);
+  }
 }
 
 /** D5: credentials are provider-scoped; pick one before visiting the screen. */
@@ -169,24 +187,35 @@ describe("V3-25 — routed mode is never replaced by a single click", () => {
   });
 });
 
-describe("V3-27 — the routing screen keeps its own credential list", () => {
-  it("asks for the routing provider's credentials without touching the credentials screen", async () => {
+describe("Provider groups keep their own credential list", () => {
+  it("loads each routing provider's keys without changing the setup provider", async () => {
     const requested: string[] = [];
     const ipc = mockWith(helperOnly, {
+      get_routing: () =>
+        Promise.resolve({
+          version: 1,
+          enabled: false,
+          targets: [
+            {
+              id: "deepseek-group",
+              providerId: "deepseek",
+              credentialId: null,
+              model: "deepseek-model",
+              baseUrl: "https://api.deepseek.com/anthropic",
+              enabled: true,
+            },
+          ],
+        }),
       list_credentials: (args: { providerId?: string }) => {
-        const id = args?.providerId ?? "";
-        requested.push(id);
+        requested.push(args?.providerId ?? "");
         return Promise.resolve([]);
       },
     });
     render(<App ipc={ipc} />);
-    await goTo("Provider");
-    const select = await screen.findByLabelText("Provider", { selector: "select" });
-    await userEvent.selectOptions(select, "anthropic");
+    await selectProvider("anthropic");
     await goTo("Failover");
-
-    const routingProvider = await screen.findByLabelText("Provider", { selector: "select" });
-    await userEvent.selectOptions(routingProvider, "deepseek");
-    expect(requested).toContain("deepseek");
+    await waitFor(() => expect(requested).toContain("deepseek"));
+    await goTo("Provider");
+    expect(screen.getByLabelText("Provider", { selector: "select" })).toHaveValue("anthropic");
   });
 });

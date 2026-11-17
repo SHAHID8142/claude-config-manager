@@ -124,20 +124,120 @@ impl ConfigLocator {
         Ok(None)
     }
 
-    /// T31 hardening: refuse when the settings file's parent directory (the
-    /// config dir, e.g. `~/.claude`) is itself a symlink — reads and writes
-    /// would be redirected outside the expected location. Deeper ancestors
-    /// (home dirs on automounts, sandbox temp dirs) are legitimately
-    /// symlinked on many systems and are deliberately NOT checked.
+    /// Refuse symlinks in every user-controlled ancestor. HOME is a trusted
+    /// boundary (home mounts themselves can legitimately be aliases). For
+    /// external fixture/override paths we walk to root and only exempt Apple's
+    /// root-owned /tmp, /var and /etc aliases to their exact /private targets.
+    /// Missing first-run ancestors are allowed, but existing outer ancestors
+    /// are still inspected before any directory creation.
     pub fn config_dir_is_symlink(&self, settings_path: &Path) -> Result<bool, std::io::Error> {
-        match settings_path.parent() {
-            Some(dir) => {
-                let meta = std::fs::symlink_metadata(dir)?;
-                Ok(meta.file_type().is_symlink())
-            }
-            None => Ok(false),
-        }
+        let absolute = if settings_path.is_absolute() {
+            settings_path.to_path_buf()
+        } else {
+            std::env::current_dir()?.join(settings_path)
+        };
+        let home = std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .filter(|p| p.is_absolute());
+        let trusted_home = home.as_deref().filter(|home| absolute.starts_with(home));
+        untrusted_symlinked_ancestor(&absolute, trusted_home)
     }
+}
+
+fn untrusted_symlinked_ancestor(
+    path: &Path,
+    trusted_home: Option<&Path>,
+) -> Result<bool, std::io::Error> {
+    let mut current = path.parent();
+    while let Some(dir) = current {
+        if Some(dir) == trusted_home || dir.parent().is_none() {
+            break;
+        }
+        match std::fs::symlink_metadata(dir) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                if !is_system_alias(dir, &meta) {
+                    return Ok(true);
+                }
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error),
+        }
+        current = dir.parent();
+    }
+    Ok(false)
+}
+
+#[cfg(target_os = "macos")]
+fn is_system_alias(path: &Path, meta: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    if meta.uid() != 0 {
+        return false;
+    }
+    let target = match path.to_str() {
+        Some("/tmp") => Path::new("/private/tmp"),
+        Some("/var") => Path::new("/private/var"),
+        Some("/etc") => Path::new("/private/etc"),
+        _ => return false,
+    };
+    std::fs::read_link(path).ok().is_some_and(|actual| {
+        actual == target
+            || path
+                .parent()
+                .is_some_and(|parent| parent.join(actual) == target)
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_system_alias(_path: &Path, _meta: &std::fs::Metadata) -> bool {
+    false
+}
+
+/// Open only a regular final file and cap the actual read, not just its initial
+/// metadata. O_NONBLOCK prevents a raced replacement with a FIFO from hanging
+/// before metadata can be checked; it has no effect on normal regular files.
+pub(crate) fn read_regular_file_capped(path: &Path, limit: u64) -> std::io::Result<Vec<u8>> {
+    use std::io::{Error, ErrorKind, Read};
+    if ConfigLocator::new().config_dir_is_symlink(path)? {
+        return Err(Error::new(
+            ErrorKind::PermissionDenied,
+            "source has a symlinked ancestor",
+        ));
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        #[cfg(target_os = "macos")]
+        const SAFETY_FLAGS: i32 = 0x100 | 0x4; // O_NOFOLLOW | O_NONBLOCK
+        #[cfg(target_os = "linux")]
+        const SAFETY_FLAGS: i32 = 0x20000 | 0x800;
+        options.custom_flags(SAFETY_FLAGS);
+    }
+    let file = options.open(path)?;
+    let meta = file.metadata()?;
+    if !meta.is_file() {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "source is not a regular file",
+        ));
+    }
+    if meta.len() > limit {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "source exceeds the settings size limit",
+        ));
+    }
+    let mut bytes = Vec::new();
+    file.take(limit.saturating_add(1)).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            "source exceeds the settings size limit",
+        ));
+    }
+    Ok(bytes)
 }
 
 #[cfg(test)]
@@ -157,6 +257,25 @@ mod tests {
         ));
         fs::create_dir_all(&dir).expect("create temp home");
         dir
+    }
+
+    #[test]
+    fn trusted_home_alias_is_allowed_but_nested_alias_is_refused() {
+        let root = temp_home("trusted-home");
+        let real_home = root.join("real-home");
+        let alias = root.join("home-alias");
+        fs::create_dir_all(real_home.join("nested")).unwrap();
+        symlink(&real_home, &alias).unwrap();
+        assert!(
+            !untrusted_symlinked_ancestor(&alias.join("nested/settings.json"), Some(&alias))
+                .unwrap()
+        );
+        symlink(&root, real_home.join("nested/link")).unwrap();
+        assert!(
+            untrusted_symlinked_ancestor(&alias.join("nested/link/settings.json"), Some(&alias))
+                .unwrap()
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

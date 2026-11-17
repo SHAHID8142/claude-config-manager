@@ -10,8 +10,8 @@
 use crate::config_backup::{create_backup, default_backup_dir};
 use crate::config_locator::{ConfigLocator, LocatedStatus};
 use crate::config_merge::{DesiredSettings, apply_desired};
-use crate::config_reader::ConfigError;
-use crate::config_writer::{snapshot_mtime, write_settings_atomic};
+use crate::config_reader::{self, ConfigError};
+use crate::config_writer::{snapshot_mtime, write_settings_atomic_checked};
 use crate::credential_handoff::{
     default_helpers_dir, generate_helper_script_for, install_helper_script,
 };
@@ -42,6 +42,7 @@ pub enum ApplyError {
     Backup(String),
     /// Anything at the filesystem/OS layer; message pre-redacted.
     Io(String),
+    RollbackFailed(String),
 }
 
 impl std::fmt::Display for ApplyError {
@@ -51,10 +52,126 @@ impl std::fmt::Display for ApplyError {
             ApplyError::NoCredential => write!(f, "no credential stored for this provider"),
             ApplyError::Config(e) => write!(f, "{e}"),
             ApplyError::Backup(m) => write!(f, "backup failed ({m})"),
-            ApplyError::Io(m) => write!(f, "{m}"),
+            ApplyError::Io(m) | ApplyError::RollbackFailed(m) => write!(f, "{m}"),
         }
     }
 }
+
+/// Restore credential/helper side effects if any later step fails. Settings
+/// themselves are restored by ConfigWriter; this guard covers the other files.
+struct SideEffectRollback<'a> {
+    store: &'a dyn SecretStore,
+    account: String,
+    secret: Option<String>,
+    helper: PathBuf,
+    helper_bytes: Option<Vec<u8>>,
+    index: PathBuf,
+    index_bytes: Option<Vec<u8>>,
+}
+impl<'a> SideEffectRollback<'a> {
+    fn capture(
+        store: &'a dyn SecretStore,
+        account: &str,
+        helper: &Path,
+        home: &Path,
+    ) -> Result<Self, ApplyError> {
+        let secret = CredentialService::new(store)
+            .get_credential(account)
+            .map_err(|e| ApplyError::Io(e.to_string()))?;
+        let helper_bytes = match std::fs::symlink_metadata(helper) {
+            Ok(meta) if meta.is_file() && !meta.file_type().is_symlink() => {
+                Some(std::fs::read(helper).map_err(|e| ApplyError::Io(e.to_string()))?)
+            }
+            Ok(_) => return Err(ApplyError::Io("helper path is not a regular file".into())),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(ApplyError::Io(e.to_string())),
+        };
+        let index = crate::credential_index::index_path(home);
+        let index_bytes = match std::fs::symlink_metadata(&index) {
+            Ok(meta) if meta.is_file() && !meta.file_type().is_symlink() => {
+                Some(std::fs::read(&index).map_err(|e| ApplyError::Io(e.to_string()))?)
+            }
+            Ok(_) => {
+                return Err(ApplyError::Io(
+                    "credential index is not a regular file".into(),
+                ));
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+            Err(e) => return Err(ApplyError::Io(e.to_string())),
+        };
+        Ok(Self {
+            store,
+            account: account.into(),
+            secret,
+            helper: helper.into(),
+            helper_bytes,
+            index,
+            index_bytes,
+        })
+    }
+    fn complete(
+        self,
+        result: Result<ApplyOutcome, ApplyError>,
+    ) -> Result<ApplyOutcome, ApplyError> {
+        if result.is_ok() {
+            return result;
+        }
+        let mut errors = Vec::new();
+        match &self.index_bytes {
+            Some(bytes) => {
+                if crate::config_writer::rollback_to_bytes(&self.index, bytes).is_err() {
+                    errors.push("credential metadata");
+                }
+            }
+            None => {
+                if let Err(e) = std::fs::remove_file(&self.index)
+                    && e.kind() != std::io::ErrorKind::NotFound
+                {
+                    errors.push("credential metadata");
+                }
+            }
+        }
+        let creds = CredentialService::new(self.store);
+        let secret_result = match &self.secret {
+            Some(secret) => creds.set_credential(&self.account, secret),
+            None => creds.delete_credential(&self.account),
+        };
+        if secret_result.is_err() {
+            errors.push("credential");
+        }
+        match &self.helper_bytes {
+            Some(bytes) => {
+                use std::os::unix::fs::PermissionsExt;
+                if crate::config_writer::rollback_to_bytes(&self.helper, bytes).is_err()
+                    || std::fs::set_permissions(
+                        &self.helper,
+                        std::fs::Permissions::from_mode(0o700),
+                    )
+                    .is_err()
+                {
+                    errors.push("helper");
+                }
+            }
+            None => {
+                if let Err(e) = std::fs::remove_file(&self.helper)
+                    && e.kind() != std::io::ErrorKind::NotFound
+                {
+                    errors.push("helper");
+                }
+            }
+        }
+        if errors.is_empty() {
+            result
+        } else {
+            Err(ApplyError::RollbackFailed(format!(
+                "Apply failed; rollback could not restore {}. Recovery journal retained; open Recovery & diagnostics.",
+                errors.join(", ")
+            )))
+        }
+    }
+}
+// A process abort leaves the durable before-image journal for explicit recovery.
+// Fallible rollback is handled explicitly, never silently inside Drop.
 
 /// Injectable orchestration service (production wiring reads $HOME and the
 /// Optional Claude Code model-role overrides (T45, PRD F05).
@@ -68,6 +185,7 @@ pub struct RoleOverrides {
     pub haiku: Option<String>,
     pub sonnet: Option<String>,
     pub opus: Option<String>,
+    pub reset: [bool; 3],
 }
 
 /// Trim, treat blank as "no override", and validate the exact value written.
@@ -170,12 +288,62 @@ impl SaveApplyService {
         reset_window: bool,
         credential_account: Option<&str>,
     ) -> Result<ApplyOutcome, ApplyError> {
-        // --- Mutual exclusion (G4): one apply at a time, process-wide ---
-        // Acquired before anything is read so two windows cannot interleave a
-        // read-merge-write cycle. Released automatically when this returns.
-        let _lock = crate::apply_lock::ApplyLock::acquire(&self.lock_dir())
-            .map_err(|e| ApplyError::Io(e.to_string()))?;
-
+        let settings = ConfigLocator::new().locate(&self.home, self.config_dir_override.as_deref());
+        let mut transaction =
+            crate::transaction_journal::ManagedTransaction::begin(&self.home, Some(&settings))
+                .map_err(ApplyError::Io)?;
+        let result = self.apply_with_window_locked(
+            provider_id,
+            model,
+            base_url,
+            api_key,
+            roles,
+            context_window,
+            reset_window,
+            credential_account,
+            &mut transaction,
+        );
+        Self::finish_transaction(transaction, result)
+    }
+    pub(crate) fn finish_transaction(
+        transaction: crate::transaction_journal::ManagedTransaction,
+        result: Result<ApplyOutcome, ApplyError>,
+    ) -> Result<ApplyOutcome, ApplyError> {
+        match result {
+            Ok(outcome) => {
+                transaction.commit().map_err(ApplyError::Io)?;
+                Ok(outcome)
+            }
+            Err(error) => {
+                let retain = matches!(
+                    error,
+                    ApplyError::RollbackFailed(_)
+                        | ApplyError::Config(ConfigError::RollbackFailed(_))
+                );
+                match transaction.rollback_preserving_settings(retain) {
+                    Ok(()) => Err(error),
+                    Err(recovery) => Err(ApplyError::Io(format!("{error}; {recovery}"))),
+                }
+            }
+        }
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn apply_with_window_locked(
+        &self,
+        provider_id: &str,
+        model: Option<&str>,
+        base_url: Option<&str>,
+        api_key: Option<&str>,
+        roles: &RoleOverrides,
+        context_window: Option<u32>,
+        reset_window: bool,
+        credential_account: Option<&str>,
+        transaction: &mut crate::transaction_journal::ManagedTransaction,
+    ) -> Result<ApplyOutcome, ApplyError> {
+        let backups = default_backup_dir(&self.home);
+        if transaction.lock().path() != backups.parent().unwrap().join("apply.lock") {
+            return Err(ApplyError::Io("wrong transaction scope".into()));
+        }
         // --- Input validation (nothing touched yet) ---
         crate::credential_handoff::validate_provider_id(provider_id)
             .map_err(|_| ApplyError::InvalidInput("invalid provider id".into()))?;
@@ -193,6 +361,7 @@ impl SaveApplyService {
             haiku: normalize_role_model(roles.haiku.as_deref())?,
             sonnet: normalize_role_model(roles.sonnet.as_deref())?,
             opus: normalize_role_model(roles.opus.as_deref())?,
+            reset: roles.reset,
         };
         if let Some(url) = base_url {
             let bad = matches!(
@@ -200,7 +369,18 @@ impl SaveApplyService {
                 crate::provider_catalog::EndpointCheck::Invalid(_)
                     | crate::provider_catalog::EndpointCheck::Insecure
             );
-            if bad {
+            let internal_proxy = provider_id == "proxy"
+                && url::Url::parse(url).ok().is_some_and(|u| {
+                    u.scheme() == "http"
+                        && u.host_str() == Some("127.0.0.1")
+                        && u.port().is_some_and(|p| p > 0)
+                        && u.username().is_empty()
+                        && u.password().is_none()
+                        && u.path() == "/"
+                        && u.query().is_none()
+                        && u.fragment().is_none()
+                });
+            if bad && !internal_proxy {
                 return Err(ApplyError::InvalidInput(
                     "base URL must be a valid https endpoint".into(),
                 ));
@@ -225,57 +405,115 @@ impl SaveApplyService {
                 account
             };
 
-        // --- Credential storage (Keychain via the store) ---
-        // A freshly typed key replaces the credential the helper will serve —
-        // the selected account, not a provider-wide default. Storing it in the
-        // provider file while the helper reads the account file would leave the
-        // typed key silently unused and duplicated in plaintext.
-        let creds = CredentialService::new(self.store.as_ref());
-        match api_key {
-            Some(key) if !key.trim().is_empty() => {
-                creds
-                    .set_credential(store_account, key)
-                    .map_err(|e| ApplyError::Io(e.to_string()))?;
-                applied_keys.push(format!("credential:{store_account}"));
-            }
-            _ => {}
-        }
-        let stored = creds
-            .has_credential(account)
-            .map_err(|e| ApplyError::Io(e.to_string()))?;
-        if !stored {
-            return Err(ApplyError::NoCredential);
-        }
-        let script = generate_helper_script_for(provider_id, account)
-            .map_err(|e| ApplyError::Io(e.to_string()))?;
-        let helper_path = install_helper_script(&self.helpers_dir, provider_id, &script)
-            .map_err(|e| ApplyError::Backup(e.to_string()))?;
-        applied_keys.push("apiKeyHelper".to_string());
-
-        // --- Merge (T28) ---
-        let desired = DesiredSettings {
-            model: model.map(|m| m.to_string()),
-            env_base_url: base_url.map(|b| b.to_string()),
-            // M1: a previously applied provider endpoint must not survive a
-            // switch to one that has none (native Anthropic) — the key would
-            // otherwise be sent to the previous provider.
+        // Validate the existing settings and complete desired merge before any
+        // helper or credential is replaced.
+        let settings_path =
+            ConfigLocator::new().locate(&self.home, self.config_dir_override.as_deref());
+        let current = match crate::config_reader::read_settings(&settings_path) {
+            Ok(doc) => doc,
+            Err(ConfigError::Missing) => serde_json::json!({}),
+            Err(e) => return Err(ApplyError::Config(e)),
+        };
+        let helper_target = self.helpers_dir.join(format!("{provider_id}.sh"));
+        let preview = DesiredSettings {
+            model: model.map(str::to_string),
+            env_base_url: base_url.map(str::to_string),
             clear_env_base_url: base_url.is_none(),
-            api_key_helper: Some(helper_path.to_string_lossy().to_string()),
-            // The credential now lives in the helper only; plaintext env keys
-            // would outrank it and silently make the stored key dead weight.
+            api_key_helper: Some(crate::credential_handoff::helper_command(&helper_target)),
             clear_env_credentials: true,
-            // Same reasoning for the model: ANTHROPIC_MODEL wins over
-            // settings.model, so a stale `auto` would silently override the pick.
             clear_env_model: model.is_some(),
-            env_default_haiku: roles.haiku,
-            env_default_sonnet: roles.sonnet,
-            env_default_opus: roles.opus,
+            env_default_haiku: roles.haiku.clone(),
+            env_default_sonnet: roles.sonnet.clone(),
+            env_default_opus: roles.opus.clone(),
+            clear_env_roles: roles.reset,
             env_max_context_tokens: context_window.map(|n| n.to_string()),
             clear_env_max_context_tokens: reset_window,
             ..Default::default()
         };
+        apply_desired(&current, &preview).map_err(ApplyError::Config)?;
+        transaction.track(&helper_target).map_err(ApplyError::Io)?;
+        transaction
+            .track(
+                &self
+                    .home
+                    .join(".claude-config-manager/secrets")
+                    .join(format!("{store_account}.secret")),
+            )
+            .map_err(ApplyError::Io)?;
+        let rollback = SideEffectRollback::capture(
+            self.store.as_ref(),
+            store_account,
+            &helper_target,
+            &self.home,
+        )?;
+        let result = (|| {
+            // --- Credential storage ---
+            // A freshly typed key replaces the credential the helper will serve —
+            // the selected account, not a provider-wide default. Storing it in the
+            // provider file while the helper reads the account file would leave the
+            // typed key silently unused and duplicated in plaintext.
+            let creds = CredentialService::new(self.store.as_ref());
+            match api_key {
+                Some(key) if !key.trim().is_empty() => {
+                    creds
+                        .set_credential(store_account, key)
+                        .map_err(|e| ApplyError::Io(e.to_string()))?;
+                    let vault = crate::credential_vault::CredentialVault::for_home(&self.home);
+                    let mut index = vault.load().map_err(|e| ApplyError::Io(e.to_string()))?;
+                    if let Some(record) = index
+                        .credentials
+                        .iter_mut()
+                        .find(|record| record.id == account)
+                    {
+                        record.last4 = crate::credential_index::last4_of(key);
+                        vault
+                            .save(&index)
+                            .map_err(|e| ApplyError::Io(e.to_string()))?;
+                    }
+                    applied_keys.push(format!("credential:{store_account}"));
+                }
+                _ => {}
+            }
+            let stored = creds
+                .has_credential(store_account)
+                .map_err(|e| ApplyError::Io(e.to_string()))?;
+            if !stored {
+                return Err(ApplyError::NoCredential);
+            }
+            let script = generate_helper_script_for(provider_id, store_account)
+                .map_err(|e| ApplyError::Io(e.to_string()))?;
+            let helper_path = install_helper_script(&self.helpers_dir, provider_id, &script)
+                .map_err(|e| ApplyError::Backup(e.to_string()))?;
+            applied_keys.push("apiKeyHelper".to_string());
 
-        self.write_desired(desired, applied_keys, &secret_refs)
+            // --- Merge (T28) ---
+            let desired = DesiredSettings {
+                model: model.map(|m| m.to_string()),
+                env_base_url: base_url.map(|b| b.to_string()),
+                // M1: a previously applied provider endpoint must not survive a
+                // switch to one that has none (native Anthropic) — the key would
+                // otherwise be sent to the previous provider.
+                clear_env_base_url: base_url.is_none(),
+                api_key_helper: Some(crate::credential_handoff::helper_command(&helper_path)),
+                // The credential now lives in the helper only; plaintext env keys
+                // would outrank it and silently make the stored key dead weight.
+                clear_env_credentials: true,
+                // Same reasoning for the model: ANTHROPIC_MODEL wins over
+                // settings.model, so a stale `auto` would silently override the pick.
+                clear_env_model: model.is_some(),
+                env_default_haiku: roles.haiku,
+                env_default_sonnet: roles.sonnet,
+                env_default_opus: roles.opus,
+                clear_env_roles: roles.reset,
+                env_max_context_tokens: context_window.map(|n| n.to_string()),
+                clear_env_max_context_tokens: reset_window,
+                ..Default::default()
+            };
+
+            let outcome = self.write_desired(desired, applied_keys, &secret_refs)?;
+            Ok(outcome)
+        })();
+        rollback.complete(result)
     }
 
     /// V2-31: point Claude Code at the loopback failover proxy.
@@ -289,9 +527,66 @@ impl SaveApplyService {
         token: &str,
         model: Option<&str>,
     ) -> Result<ApplyOutcome, ApplyError> {
-        // Same one-apply-at-a-time guarantee as every other entry point.
-        let _lock = crate::apply_lock::ApplyLock::acquire(&self.lock_dir())
-            .map_err(|e| ApplyError::Io(e.to_string()))?;
+        let settings = ConfigLocator::new().locate(&self.home, self.config_dir_override.as_deref());
+        let mut transaction =
+            crate::transaction_journal::ManagedTransaction::begin(&self.home, Some(&settings))
+                .map_err(ApplyError::Io)?;
+        let result = self.apply_routed_locked(port, token, model, &mut transaction);
+        Self::finish_transaction(transaction, result)
+    }
+    /// Save the visible policy and activate settings under the same journal.
+    pub fn apply_routing_policy(
+        &self,
+        config: &crate::routing_config::RoutingConfig,
+        model: Option<&str>,
+        ready: impl FnOnce() -> Result<u16, String>,
+    ) -> Result<ApplyOutcome, ApplyError> {
+        config
+            .validate()
+            .map_err(|e| ApplyError::InvalidInput(e.to_string()))?;
+        if !config.enabled
+            || crate::proxy::expand_provider_keys(&self.home, config)
+                .ordered()
+                .is_empty()
+        {
+            return Err(ApplyError::InvalidInput(
+                "Enable a provider with at least one usable key before activation".into(),
+            ));
+        }
+        if config.targets.iter().any(|target| {
+            target.enabled
+                && target.credential_id.is_none()
+                && target.model.as_deref().is_none_or(|m| m.trim().is_empty())
+        }) {
+            return Err(ApplyError::InvalidInput(
+                "Choose a model for every enabled provider".into(),
+            ));
+        }
+        let settings = ConfigLocator::new().locate(&self.home, self.config_dir_override.as_deref());
+        match config_reader::read_settings(&settings) {
+            Ok(_) | Err(ConfigError::Missing) => {}
+            Err(e) => return Err(ApplyError::Config(e)),
+        }
+        let mut transaction =
+            crate::transaction_journal::ManagedTransaction::begin(&self.home, Some(&settings))
+                .map_err(ApplyError::Io)?;
+        let result = (|| {
+            let token = crate::helper::ensure_token_locked(&self.home, &mut transaction)
+                .map_err(ApplyError::Io)?;
+            crate::routing_config::save_locked(&self.home, config, transaction.lock())
+                .map_err(|e| ApplyError::Io(e.to_string()))?;
+            let port = ready().map_err(ApplyError::Io)?;
+            self.apply_routed_locked(port, &token, model, &mut transaction)
+        })();
+        Self::finish_transaction(transaction, result)
+    }
+    fn apply_routed_locked(
+        &self,
+        port: u16,
+        token: &str,
+        model: Option<&str>,
+        transaction: &mut crate::transaction_journal::ManagedTransaction,
+    ) -> Result<ApplyOutcome, ApplyError> {
         let model: Option<&str> = model.map(str::trim).filter(|m| !m.is_empty());
         if let Some(m) = model {
             crate::config_merge::validate_model_id(m)
@@ -300,43 +595,63 @@ impl SaveApplyService {
         if token.len() < 16 {
             return Err(ApplyError::InvalidInput("proxy token is too short".into()));
         }
-        // Store the token under the ONE account the helper process itself
-        // authenticates with (`ensure_token` → proxy-helper). The routed
-        // helper script then reads the same file, so a regenerated helper
-        // token can never drift away from what settings point at.
-        self.store
-            .set_secret(
-                crate::helper::TOKEN_SERVICE,
-                crate::helper::TOKEN_ACCOUNT,
-                token,
-            )
-            .map_err(|e| ApplyError::Io(e.to_string()))?;
-        // Best-effort cleanup of the pre-unification account so no second
-        // token file lingers on disk.
-        let _ = self.store.delete_secret(
-            "com.claude-config-manager.proxy",
-            crate::secret_store::PROXY_ACCOUNT,
-        );
-        let script = generate_helper_script_for("proxy", crate::helper::TOKEN_ACCOUNT)
-            .map_err(|e| ApplyError::Io(e.to_string()))?;
-        let helper_path = install_helper_script(&self.helpers_dir, "proxy", &script)
-            .map_err(|e| ApplyError::Backup(e.to_string()))?;
-
+        let helper_target = self.helpers_dir.join("proxy.sh");
+        let settings_path =
+            ConfigLocator::new().locate(&self.home, self.config_dir_override.as_deref());
+        let current = match crate::config_reader::read_settings(&settings_path) {
+            Ok(doc) => doc,
+            Err(ConfigError::Missing) => serde_json::json!({}),
+            Err(e) => return Err(ApplyError::Config(e)),
+        };
         let desired = DesiredSettings {
             model: model.map(|m| m.to_string()),
             env_base_url: Some(format!("http://127.0.0.1:{port}")),
             clear_env_base_url: false,
-            api_key_helper: Some(helper_path.to_string_lossy().to_string()),
+            api_key_helper: Some(crate::credential_handoff::helper_command(&helper_target)),
             clear_env_credentials: true,
             clear_env_model: model.is_some(),
             ..Default::default()
         };
-        let mut applied = vec!["apiKeyHelper".to_string(), "ANTHROPIC_BASE_URL".to_string()];
-        if model.is_some() {
-            applied.push("model".to_string());
-        }
-        let outcome = self.write_desired(desired, applied, &[token])?;
-        Ok(outcome)
+        apply_desired(&current, &desired).map_err(ApplyError::Config)?;
+        transaction.track(&helper_target).map_err(ApplyError::Io)?;
+        transaction
+            .track(
+                &self
+                    .home
+                    .join(".claude-config-manager/secrets/proxy-helper.secret"),
+            )
+            .map_err(ApplyError::Io)?;
+        let rollback = SideEffectRollback::capture(
+            self.store.as_ref(),
+            crate::helper::TOKEN_ACCOUNT,
+            &helper_target,
+            &self.home,
+        )?;
+        let result = (|| {
+            // Store the token under the ONE account the helper process itself
+            // authenticates with (`ensure_token` → proxy-helper). The routed
+            // helper script then reads the same file, so a regenerated helper
+            // token can never drift away from what settings point at.
+            self.store
+                .set_secret(
+                    crate::helper::TOKEN_SERVICE,
+                    crate::helper::TOKEN_ACCOUNT,
+                    token,
+                )
+                .map_err(|e| ApplyError::Io(e.to_string()))?;
+            let script = generate_helper_script_for("proxy", crate::helper::TOKEN_ACCOUNT)
+                .map_err(|e| ApplyError::Io(e.to_string()))?;
+            let _installed = install_helper_script(&self.helpers_dir, "proxy", &script)
+                .map_err(|e| ApplyError::Backup(e.to_string()))?;
+
+            let mut applied = vec!["apiKeyHelper".to_string(), "ANTHROPIC_BASE_URL".to_string()];
+            if model.is_some() {
+                applied.push("model".to_string());
+            }
+            let outcome = self.write_desired(desired, applied, &[token])?;
+            Ok(outcome)
+        })();
+        rollback.complete(result)
     }
 
     /// Shared commit stage: read, merge, back up, write atomically, verify.
@@ -395,32 +710,32 @@ impl SaveApplyService {
             }
         });
 
-        // --- Backup (T29) — only when the file exists to back up ---
-        if matches!(
+        // Capture this transaction's backup name before commit. No fallible
+        // metadata read after commit may turn a successful write into failure.
+        let backup_name = if matches!(
             locator.inspect(&settings_path),
             Ok(LocatedStatus::RegularFile)
         ) {
             create_backup(&settings_path, &self.backups_dir)
-                .map_err(|e| redact(ApplyError::Backup(e.to_string())))?;
-        }
-
-        // --- Atomic write with conflict detection (T30) ---
-        write_settings_atomic(&settings_path, &next, mtime)
-            .map_err(|e| redact(ApplyError::Config(e)))?;
-
-        let backup_name = {
-            let infos = crate::config_backup::list_backups(&self.backups_dir)
-                .map_err(|e| redact(ApplyError::Backup(e.to_string())))?;
-            infos
-                .first()
-                .map(|i| i.file_name.clone())
+                .map_err(|e| redact(ApplyError::Backup(e.to_string())))?
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default()
+        } else {
+            String::new()
         };
+        write_settings_atomic_checked(&settings_path, &next, mtime)
+            .map_err(|e| redact(ApplyError::Config(e)))?;
 
         Ok(ApplyOutcome {
             settings_path: settings_path.to_string_lossy().to_string(),
             backup_file_name: backup_name,
-            helper_path: desired.api_key_helper.clone().unwrap_or_default(),
+            helper_path: desired
+                .api_key_helper
+                .as_deref()
+                .and_then(crate::credential_handoff::helper_command_path)
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_default(),
             applied_keys,
         })
     }
@@ -458,7 +773,7 @@ mod tests {
         SaveApplyService {
             home: home.to_path_buf(),
             store,
-            helpers_dir: home.join("helpers"),
+            helpers_dir: default_helpers_dir(home),
             backups_dir: home.join("backups"),
             config_dir_override: None,
         }
@@ -470,7 +785,7 @@ mod tests {
     fn routed_mode_points_claude_code_at_the_loopback_proxy() {
         let (home, store) = fixture("routed");
         let svc = service(&home, store.clone());
-        let token = "0123456789abcdef0123456789abcdef";
+        let token = "0123456789abcdef0123456789abcdef"; // gitleaks:allow -- fake loopback token
         let out = svc
             .apply_routed(51234, token, Some("nvidia/nemotron-3-ultra"))
             .expect("routed apply");
@@ -654,6 +969,7 @@ mod tests {
             haiku: Some("  fast-model  ".into()),
             sonnet: Some("main-model".into()),
             opus: None,
+            ..Default::default()
         };
         svc.apply_with_roles("deepseek", None, None, Some(FAKE_KEY), &roles)
             .expect("apply with roles");
@@ -685,6 +1001,7 @@ mod tests {
             haiku: Some("   ".into()),
             sonnet: None,
             opus: Some("".into()),
+            ..Default::default()
         };
         svc.apply_with_roles("deepseek", None, None, Some(FAKE_KEY), &blank)
             .expect("apply");
@@ -882,6 +1199,7 @@ mod tests {
             haiku: None,
             sonnet: Some("bad model with spaces".into()),
             opus: None,
+            ..Default::default()
         };
         let err = svc
             .apply_with_roles("deepseek", None, None, Some(FAKE_KEY), &roles)
@@ -971,7 +1289,7 @@ mod tests {
         let svc = SaveApplyService {
             home: home.clone(),
             store: store.clone(),
-            helpers_dir: home.join("helpers"),
+            helpers_dir: default_helpers_dir(&home),
             backups_dir: home.join("backups"),
             config_dir_override: None,
         };

@@ -31,8 +31,8 @@ describe("BridgeBadge (T25)", () => {
     expect(screen.getByText(/direct connection/)).toBeInTheDocument();
   });
 
-  it("renders bridge-required with a truthful pointer to setup", () => {
+  it("explains that the required integration is unavailable", () => {
     render(<BridgeBadge required />);
-    expect(screen.getByText(/bridge required — set up on Failover/)).toBeInTheDocument();
+    expect(screen.getByText(/unavailable in this version/)).toBeInTheDocument();
   });
 });

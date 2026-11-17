@@ -1,84 +1,54 @@
-# Module Boundaries (T06)
+# Current module boundaries — 1.0.5
 
-**Date:** 2026-11-08 · **Binding for all implementation tasks** · Matches `02-ARCHITECTURE-SECURITY.md`: UI → typed Tauri commands → Rust application service → five domain modules. A small `CLIAdapter` interface; **only `ClaudeCodeAdapter` implemented** — no speculative plugin framework.
+Reviewed 2026-11-17. This is an implementation map, superseding the original v1
+CLIAdapter/Keychain design sketch. No CLIAdapter abstraction or KeychainStore is
+implemented in this repository.
 
-## Data flow (one direction only)
+| Boundary | Implementation and responsibility |
+| --- | --- |
+| Interface | React App/tabs/components; input, draft state, masked credentials and help |
+| IPC | `src/lib/ipc.ts` ↔ async-dispatched blocking Tauri commands in `lib.rs` |
+| Settings | `config_locator`, `config_reader`, `config_merge`, `config_writer`, `config_status` |
+| Backup/recovery | `config_backup`, `config_restore`; bounded selected-backup previews and confirmed restoration |
+| Managed operations | `transaction_journal`, `apply_lock`, `save_apply`, `nvidia_setup` |
+| Credentials | `credential_index`, `credential_migration`, `credential_vault`, `credential_service`, `file_secret_store` |
+| CLI handoff | `credential_handoff`; generated private shell scripts and quoted executable commands |
+| Provider metadata | `provider_catalog`, `presets`; embedded protocol/auth/catalog declarations |
+| Network checks | `model_discovery`, `model_discovery_service`, `connection_test`; bounded HTTPS, redirects disabled |
+| Routing | `routing_config`, `failover`, `proxy`; ordered provider groups expanded to enabled keys |
+| NVIDIA | `nvidia_adapter`; Messages ↔ hosted Chat Completions translation, bounded JSON/SSE/tools |
+| Detached lifecycle | `helper`; same executable in `--proxy-helper` mode, PID/health identity and opt-in LaunchAgent |
+| Activity | `switch_history`; 100 private redacted events; UI displays newest 20 |
+| Dormant bridge | `bridge/*`; historical pinned third-party integration; execution commands refuse unavailable feature |
 
-```
-React UI (TS)
-  └─ typed invoke() per contract in T11 ──►  Tauri commands (thin: validate, delegate, map errors)
-        └─►  application service (AppService: orchestration only, no I/O policy of its own)
-              ├─ ClaudeCodeAdapter   (implements CLIAdapter)
-              ├─ ProviderCatalog     (versioned templates)
-              ├─ SecretStore         (Keychain-backed)
-              ├─ ConfigWriter        (backup/merge/atomic write)
-              └─ BridgeManager       (download/install/run/stop/uninstall)
-```
+The UI does not read private files or make provider inference requests directly.
+Rust validates IPC inputs independently. Blocking command bodies are dispatched
+away from the main thread. Most domain modules can be tested without the GUI.
 
-Rules: UI never touches fs/network/Keychain directly; Tauri command handlers never embed domain logic; domain modules never import Tauri types (testable with plain Rust tests).
+A managed Apply writes a private before-image journal under a shared cross-process
+lock. Planned new key/helper files are tracked before creation. Success removes
+the marker; handled failure compensates owned files and reports rollback failures.
+Settings writes have independent backup, atomic installation, conflict checks and
+read-back compensation. An external settings edit is preserved on failed Apply.
+After interruption, new managed operations refuse until explicit restore/keep
+recovery. This is recoverability, not a crash-atomic filesystem transaction.
 
-## CLIAdapter (trait) — the only CLI abstraction
+Credentials are private plaintext files, not encrypted or in Keychain. Journals
+and recovery snapshots can contain key copies. No private journal bytes cross IPC.
+Backup previews expose only selected metadata, never source JSON or key values.
 
-```rust
-pub trait CLIAdapter: Send + Sync {
-    /// Locate the global config file for this CLI (honors CLAUDE_CONFIG_DIR).
-    fn locate_global_config(&self, home: &Path) -> Result<PathBuf, ConfigError>;
-    /// Read global config as raw JSON (no mutation, no schema assumptions).
-    fn read_global_config(&self, path: &Path) -> Result<serde_json::Value, ConfigError>;
-    /// Targeted merge: returns new document; caller owns backup/atomic write via ConfigWriter.
-    fn apply_settings(&self, current: &serde_json::Value, desired: &DesiredSettings) -> Result<serde_json::Value, ConfigError>;
-    /// Keys this adapter claims as its own; everything else is "unrelated, preserve".
-    fn supported_keys(&self) -> &'static [SupportedKey];
-    /// Effective-config read-back with override warnings (T34).
-    fn effective_status(&self, path: &Path, desired: &DesiredSettings) -> Result<EffectiveStatus, ConfigError>;
-}
-pub struct ClaudeCodeAdapter; // sole implementation (v1). Codex/Gemini/OpenCode: future, not scaffolded.
-```
+Provider drafts use bounded, validated local WebKit storage independently of
+`routing.json` and global CLI settings. Secret input is omitted. Custom endpoints
+with userinfo/query/fragment are not saved as drafts. Draft restoration never
+activates configuration. Switching activation saves the visible policy and
+settings under one journal rather than two independent IPC writes.
 
-Error taxonomy `ConfigError`: `Missing`, `MalformedJson{source}`, `PermissionDenied`, `SymlinkRefused`, `ConcurrentModification{expected_mtime}`, `UnsupportedKey`, `ValidationFailed{field, reason}`, `Io{source}` — all user-mappable, all redaction-safe.
+The helper authenticates loopback traffic, replaces upstream credentials and
+forwards supported protocol headers. Provider groups preserve key priority;
+explicit legacy targets keep their order. Failure history excludes prompts,
+response bodies, endpoint URLs, key values and user-supplied key labels. Cooldown
+state is temporary; account-wide quota sharing cannot be inferred reliably.
 
-## ProviderCatalog
-
-```rust
-pub struct ProviderTemplate { // schema v1, versioned field (T16)
-    id: ProviderId, schema_version: u32,
-    name: String,
-    auth: AuthStyle,                    // ApiKey | BearerToken (maps to env var choice, T02 matrix)
-    anthropic_base_url: Option<Url>,    // direct mode endpoint (None = native Anthropic)
-    protocol: Protocol,                 // AnthropicNative | AnthropicCompat | OpenAiOnly
-    bridge: BridgeRequirement,          // NotRequired | RequiredForOpenAiOnly
-    discovery: DiscoverySpec,           // None | Endpoint{url, auth, selector}
-    capability_status: CapabilityStatus,// Verified{source_url} | Unknown — never fabricated
-}
-```
-Owns: preset loading, template validation, capability labels (T25). Forbidden: network calls (discovery execution lives in ModelDiscovery service, T37), credential access.
-
-## SecretStore (trait)
-
-```rust
-pub trait SecretStore: Send + Sync {
-    fn set_secret(&self, service: &str, account: &str, secret: &str) -> Result<(), SecretError>;
-    fn get_secret(&self, service: &str, account: &str) -> Result<Option<String>, SecretError>;
-    fn delete_secret(&self, service: &str, account: &str) -> Result<(), SecretError>;
-}
-```
-Impls: `KeychainStore` (macOS, T22), `MockSecretStore` (tests). Contract: no secret ever returned into log/error paths; errors carry no secret fragments (T23 tests). Service name: `com.claude-config-manager.<provider>`.
-
-## ConfigWriter
-
-Sole owner of `~/.claude/settings.json` writes. Pipeline (each step a testable unit):
-`locate → read (refuse symlink) → validate (strict JSON) → merge (adapter.apply_settings) → backup (0600, app dir) → conflict check (mtime) → temp file in same dir → fsync → atomic rename → read-back verify → rollback on mismatch`.
-Forbidden: writing outside the located config path; writing `~/.claude.json`; emitting non-strict JSON; touching project-level settings (T02 matrix).
-
-## BridgeManager
-
-Owns bridge lifecycle exclusively: consent state, pinned download + checksum verify (T49), app-owned install dir `~/Library/Application Support/ClaudeConfigManager/bridge/` (T50), loopback-only config generation (T51), start/stop/status with failure recovery (T52), standalone-run lifecycle for GUI closure (T53), uninstall + direct-mode switch (T58).
-Forbidden: executing unverified binaries; binding non-loopback; spawning shells with user input; managing anything outside its install dir.
-
-## Cross-cutting policies (enforced, not advisory)
-
-1. **No shell interpolation with user input** anywhere (threat T6).
-2. **No capability fabrication**: capability data only from verified sources; UI labels verified/unknown/bridge-required (T25).
-3. **Never auto-select** a model (F04) — enforced in Rust layer, not just UI.
-4. **No secrets across boundaries**: IPC responses, errors, logs, backups pass through redaction (T23).
-5. **Version-sensitive facts** (settings keys, provider protocols) cite `docs/research/*` matrices; re-verify before implementing each consuming task (rule 9).
+See [the guide](../USER_GUIDE.md), [security model](../security/THREAT-MODEL.md),
+and [audit evidence](../audits/2026-11-17-project-review.md). Test evidence is
+bounded to the cases actually executed, not certification of every provider.

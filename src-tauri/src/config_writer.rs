@@ -51,33 +51,106 @@ fn temp_path_for(target: &Path) -> PathBuf {
 
 /// Write bytes via temp-file + fsync + atomic rename with 0600 perms.
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), ConfigError> {
-    use std::io::Write;
-    use std::os::unix::fs::PermissionsExt;
+    atomic_write_mode(path, bytes, true)
+}
 
-    let tmp = temp_path_for(path);
+fn atomic_write_mode(path: &Path, bytes: &[u8], replace: bool) -> Result<(), ConfigError> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+    let locator = ConfigLocator::new();
+    if locator
+        .config_dir_is_symlink(path)
+        .map_err(|e| ConfigError::Io(e.to_string()))?
     {
-        let mut f = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&tmp)
-            .map_err(|e| ConfigError::Io(format!("temp file: {}", e)))?;
-        f.write_all(bytes)
-            .map_err(|e| ConfigError::Io(format!("temp write: {}", e)))?;
-        f.sync_all()
-            .map_err(|e| ConfigError::Io(format!("temp fsync: {}", e)))?;
+        return Err(ConfigError::SymlinkRefused);
     }
+    match locator
+        .inspect(path)
+        .map_err(|e| ConfigError::Io(e.to_string()))?
+    {
+        LocatedStatus::Symlink => return Err(ConfigError::SymlinkRefused),
+        LocatedStatus::OtherFile => return Err(ConfigError::Io("not a regular file".into())),
+        _ => {}
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| ConfigError::Io(e.to_string()))?;
+    }
+    let tmp = temp_path_for(path);
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&tmp)
+        .map_err(|e| ConfigError::Io(format!("temp file: {e}")))?;
+    // Install the guard only after O_EXCL creation succeeds. A collision must
+    // never delete another writer's already existing temporary file.
+    let mut cleanup = TempCleanup {
+        path: tmp.clone(),
+        armed: true,
+    };
+    f.write_all(bytes)
+        .map_err(|e| ConfigError::Io(format!("temp write: {e}")))?;
+    f.sync_all()
+        .map_err(|e| ConfigError::Io(format!("temp fsync: {e}")))?;
+    drop(f);
     std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))
-        .map_err(|e| ConfigError::Io(format!("temp chmod: {}", e)))?;
-    std::fs::rename(&tmp, path).map_err(|e| {
-        // Best-effort temp cleanup on rename failure.
-        let _ = std::fs::remove_file(&tmp);
-        ConfigError::Io(format!("atomic rename: {}", e))
+        .map_err(|e| ConfigError::Io(format!("temp chmod: {e}")))?;
+    let install = if replace {
+        std::fs::rename(&tmp, path)
+    } else {
+        // Exclusive first-run install cannot replace a concurrently created file.
+        std::fs::hard_link(&tmp, path)
+    };
+    install.map_err(|e| {
+        if e.kind() == std::io::ErrorKind::AlreadyExists {
+            ConfigError::ConcurrentModification
+        } else {
+            ConfigError::Io(format!("atomic install: {e}"))
+        }
+    })?;
+    if replace || std::fs::remove_file(&tmp).is_ok() {
+        cleanup.armed = false;
+    }
+
+    if let Some(parent) = path.parent()
+        && let Ok(directory) = std::fs::File::open(parent)
+    {
+        let _ = directory.sync_all();
+    }
+    Ok(())
+}
+
+struct TempCleanup {
+    path: PathBuf,
+    armed: bool,
+}
+impl Drop for TempCleanup {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
+fn read_value_capped(path: &Path) -> Result<Value, ConfigError> {
+    let bytes = crate::config_locator::read_regular_file_capped(
+        path,
+        crate::config_reader::SETTINGS_MAX_BYTES,
+    )
+    .map_err(|e| ConfigError::Io(format!("read-back: {e}")))?;
+    serde_json::from_slice(&bytes).map_err(|e| {
+        ConfigError::Io(format!(
+            "read-back parse: line {} column {}",
+            e.line(),
+            e.column()
+        ))
     })
 }
 
 /// Rollback: restore the original bytes (kept in memory from step 0).
 pub fn rollback_to_bytes(path: &Path, original: &[u8]) -> Result<(), ConfigError> {
-    atomic_write(path, original).map_err(|e| ConfigError::Io(format!("rollback failed: {}", e)))
+    atomic_write(path, original).map_err(|e| ConfigError::RollbackFailed(e.to_string()))
 }
 
 /// Atomically write `doc` to `path`.
@@ -95,12 +168,7 @@ pub fn write_settings_atomic(
 ) -> Result<(), ConfigError> {
     write_settings_atomic_verified(path, doc, expected_mtime, |p, d| {
         // Default verification: re-read, parse, compare values (PRD F07).
-        let written = std::fs::read_to_string(p)
-            .map_err(|e| ConfigError::Io(format!("read-back: {}", e)))
-            .and_then(|s| {
-                serde_json::from_str::<Value>(&s)
-                    .map_err(|e| ConfigError::Io(format!("read-back parse: {}", e)))
-            })?;
+        let written = read_value_capped(p)?;
         if &written != d {
             return Err(ConfigError::Io(
                 "write verification failed — original content restored".to_string(),
@@ -110,15 +178,44 @@ pub fn write_settings_atomic(
     })
 }
 
+/// Production writer: None means the source was missing, rather than an
+/// instruction to skip concurrent-creation detection.
+pub fn write_settings_atomic_checked(
+    path: &Path,
+    doc: &Value,
+    expected: Option<SystemTime>,
+) -> Result<(), ConfigError> {
+    write_settings_atomic_inner(path, doc, expected, expected.is_none(), |path, wanted| {
+        let actual = read_value_capped(path)?;
+        if &actual != wanted {
+            return Err(ConfigError::Io("write verification failed".into()));
+        }
+        Ok(())
+    })
+}
+
+pub(crate) fn write_settings_atomic_verified<F>(
+    path: &Path,
+    doc: &Value,
+    expected: Option<SystemTime>,
+    verify: F,
+) -> Result<(), ConfigError>
+where
+    F: Fn(&Path, &Value) -> Result<(), ConfigError>,
+{
+    write_settings_atomic_inner(path, doc, expected, false, verify)
+}
+
 /// Same write path, with an injectable verification step.
 ///
 /// The rollback logic is *not* duplicated here: it is the same code the shipped
 /// path runs. Taking the verifier as a parameter is what makes the failure
 /// branch testable without inventing a fake writer.
-pub(crate) fn write_settings_atomic_verified<F>(
+fn write_settings_atomic_inner<F>(
     path: &Path,
     doc: &Value,
     expected_mtime: Option<SystemTime>,
+    expect_missing: bool,
     verify: F,
 ) -> Result<(), ConfigError>
 where
@@ -129,6 +226,9 @@ where
         .inspect(path)
         .map_err(|e| ConfigError::Io(e.to_string()))?;
     let was_missing = status == LocatedStatus::Missing;
+    if expect_missing && !was_missing {
+        return Err(ConfigError::ConcurrentModification);
+    }
     match status {
         LocatedStatus::RegularFile | LocatedStatus::Missing => {}
         // First-run creation is allowed (T33 pipeline); Missing handled above.
@@ -169,11 +269,25 @@ where
                 limit: crate::config_reader::SETTINGS_MAX_BYTES,
             });
         }
-        std::fs::read(path).map_err(|e| ConfigError::Io(e.to_string()))?
+        crate::config_locator::read_regular_file_capped(
+            path,
+            crate::config_reader::SETTINGS_MAX_BYTES,
+        )
+        .map_err(|e| ConfigError::Io(e.to_string()))?
     };
     let new_bytes = serialize(doc)?.into_bytes();
+    if new_bytes.len() as u64 > crate::config_reader::SETTINGS_MAX_BYTES {
+        return Err(ConfigError::TooLarge {
+            size: new_bytes.len() as u64,
+            limit: crate::config_reader::SETTINGS_MAX_BYTES,
+        });
+    }
 
-    atomic_write(path, &new_bytes)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| ConfigError::Io(e.to_string()))?;
+    }
+
+    atomic_write_mode(path, &new_bytes, !was_missing)?;
 
     // Verification step: on any failure restore the pre-write state, then
     // surface the error. Fail-closed — a half-trusted file is never left behind.
@@ -182,7 +296,11 @@ where
         Err(e) => {
             if was_missing {
                 // First run: the file did not exist, so "restore" means remove it.
-                let _ = std::fs::remove_file(path);
+                if let Err(error) = std::fs::remove_file(path)
+                    && error.kind() != std::io::ErrorKind::NotFound
+                {
+                    return Err(ConfigError::RollbackFailed(error.to_string()));
+                }
             } else {
                 rollback_to_bytes(path, &original)?;
             }
@@ -200,6 +318,21 @@ mod tests {
     use std::path::PathBuf;
     use std::thread::sleep;
     use std::time::Duration;
+
+    #[test]
+    fn failed_first_run_compensation_is_reported_explicitly() {
+        let dir = temp_dir("first-run-compensation");
+        let path = dir.join("settings.json");
+        let err =
+            write_settings_atomic_inner(&path, &serde_json::json!({}), None, true, |path, _| {
+                fs::remove_file(path).unwrap();
+                fs::create_dir(path).unwrap();
+                Err(ConfigError::Io("fixture verifier failed".into()))
+            })
+            .unwrap_err();
+        assert!(matches!(err, ConfigError::RollbackFailed(_)));
+        fs::remove_dir_all(dir).unwrap();
+    }
 
     fn temp_dir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(

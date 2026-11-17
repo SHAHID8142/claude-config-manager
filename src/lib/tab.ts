@@ -4,15 +4,13 @@
  * top-to-bottom instead of scrolled past.
  */
 export const TABS = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "provider", label: "Provider" },
-  { id: "credentials", label: "Credentials" },
-  { id: "model", label: "Model" },
-  { id: "routing", label: "Failover" },
-  { id: "maintenance", label: "Maintenance" },
+  { id: "dashboard", label: "Overview" },
+  { id: "provider", label: "Providers & keys" },
+  { id: "routing", label: "Switching" },
+  { id: "maintenance", label: "Recovery" },
 ] as const;
 
-export type TabId = (typeof TABS)[number]["id"];
+export type TabId = (typeof TABS)[number]["id"] | "credentials" | "model";
 
 export function isTabId(value: string): value is TabId {
   return TABS.some((t) => t.id === value);
@@ -21,27 +19,27 @@ export function isTabId(value: string): value is TabId {
 /** Heading shown at the top of each screen: the name, then one line of purpose. */
 export const TAB_META: Record<TabId, { title: string; purpose: string }> = {
   dashboard: {
-    title: "Dashboard",
-    purpose: "What Claude Code is using right now, and what needs attention.",
+    title: "Overview",
+    purpose: "Saved global settings and any problems that need attention.",
   },
   provider: {
-    title: "Provider",
-    purpose: "Which service Claude Code talks to, and the key it authenticates with.",
+    title: "Providers & keys",
+    purpose: "Choose a service, add its keys, choose a model, then add it to your switching order.",
   },
   credentials: {
     title: "Credentials",
-    purpose: "Every key stored for this provider. The first enabled one is used.",
+    purpose: "Stored keys in priority order. Activation determines which key Claude Code uses.",
   },
   model: {
     title: "Model",
     purpose: "The model Claude Code requests, its context window, and role overrides.",
   },
   routing: {
-    title: "Failover",
-    purpose: "An optional local proxy that tries your targets in order when one fails.",
+    title: "Automatic switching",
+    purpose: "Try keys within the preferred provider first, then move to the next provider.",
   },
   maintenance: {
-    title: "Maintenance",
+    title: "Recovery & diagnostics",
     purpose: "Backups, restores and the checks behind the status on the Dashboard.",
   },
 };

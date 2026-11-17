@@ -32,6 +32,8 @@ pub mod file_secret_store;
 pub mod helper;
 pub mod model_discovery;
 pub mod model_discovery_service;
+pub mod nvidia_adapter;
+pub mod nvidia_setup;
 pub mod presets;
 pub mod provider_catalog;
 pub mod proxy;
@@ -39,6 +41,8 @@ pub mod redact;
 pub mod routing_config;
 pub mod save_apply;
 pub mod secret_store;
+pub mod switch_history;
+pub mod transaction_journal;
 
 /// Structured error payload crossing the UI boundary (T11 contract).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -67,7 +71,7 @@ impl CommandError {
 }
 
 /// T18 contract: list bundled provider templates for the selector.
-#[tauri::command]
+#[tauri::command(async)]
 fn list_providers() -> Result<Vec<provider_catalog::ProviderSummary>, CommandError> {
     Ok(presets::load_builtin_presets()
         .iter()
@@ -76,7 +80,7 @@ fn list_providers() -> Result<Vec<provider_catalog::ProviderSummary>, CommandErr
 }
 
 /// T33 contract: full Save & Apply pipeline for one verified direct provider.
-#[tauri::command]
+#[tauri::command(async)]
 // The command surface is intentionally flat: Tauri deserializes each named
 // argument from the webview, so grouping them would only move the field list.
 #[allow(clippy::too_many_arguments)]
@@ -88,6 +92,7 @@ fn save_and_apply(
     role_haiku: Option<String>,
     role_sonnet: Option<String>,
     role_opus: Option<String>,
+    reset_roles: Option<Vec<String>>,
     // V2-12b: OPTIONAL declared window for models Claude Code doesn't
     // recognize (it assumes 200k otherwise). `reset_context_window` removes
     // the managed key instead of writing a value.
@@ -101,7 +106,7 @@ fn save_and_apply(
         .map(std::path::PathBuf::from)
         .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
     // Credentials live in an owner-only file (0600) under ~/.claude-config-manager
-    // (a space-free path, because Claude Code does not quote apiKeyHelper).
+    // (the generated command safely quotes paths for Claude Code's shell).
     // The Keychain path was dropped: macOS refused it for the shipped bundle and
     // there was no way to sign around it (docs/audits/G13-file-credentials.md).
     let store: Arc<dyn secret_store::SecretStore> =
@@ -113,30 +118,83 @@ fn save_and_apply(
         haiku: role_haiku,
         sonnet: role_sonnet,
         opus: role_opus,
+        reset: ["haiku", "sonnet", "opus"].map(|role| {
+            reset_roles
+                .as_ref()
+                .is_some_and(|roles| roles.iter().any(|r| r == role))
+        }),
     };
     // The account must be a credential this install actually knows: either the
     // provider's legacy file or a record in the index. Anything else is refused
     // before a helper is written (a helper pointing at a missing file fails
     // closed at request time, which would look like "connection failed").
+    if let Some(template) = presets::load_builtin_presets()
+        .iter()
+        .find(|p| p.id == provider_id)
+    {
+        if template.protocol == provider_catalog::Protocol::OpenAiOnly
+            && provider_id != "nvidia-nim"
+        {
+            return Err(CommandError::not_available(
+                "This provider requires a protocol bridge, which is not available in this release.",
+            ));
+        }
+    } else if provider_id != "custom" && !provider_id.starts_with("custom-") {
+        return Err(CommandError::invalid_input("unknown provider"));
+    }
+    let records = credential_vault::CredentialVault::for_home(&home)
+        .list(&provider_id)
+        .map_err(vault_error)?;
     let account = match credential_id {
         Some(id) => {
-            credential_index::validate_credential_id(&id)
-                .map_err(|_| CommandError::invalid_input("invalid credential id"))?;
-            let vault = credential_vault::CredentialVault::for_home(&home);
-            let known = vault
-                .load()
-                .map_err(|e| CommandError::io(e.to_string()))?
-                .get(&id)
-                .is_some();
-            if !known {
+            if !records
+                .iter()
+                .any(|c| c.id == id && c.provider_id == provider_id && c.enabled)
+            {
                 return Err(CommandError::invalid_input(
-                    "no stored credential with that id — add it first",
+                    "choose an enabled key belonging to this provider",
                 ));
             }
             Some(id)
         }
-        None => None,
+        None => records.iter().find(|c| c.enabled).map(|c| c.id.clone()),
     };
+    if api_key.as_deref().is_none_or(|s| s.trim().is_empty()) && account.is_none() {
+        return Err(CommandError::invalid_input(
+            "add or enable a key for this provider",
+        ));
+    }
+    if provider_id == "nvidia-nim" {
+        let model = model
+            .as_deref()
+            .filter(|m| !m.trim().is_empty())
+            .ok_or_else(|| {
+                CommandError::invalid_input("Choose a NVIDIA model before Save & Apply")
+            })?;
+        let previous = helper::running_identity(&home);
+        let result = nvidia_setup::apply(
+            &svc,
+            model,
+            api_key.as_deref(),
+            &roles,
+            max_context_tokens,
+            reset_context_window.unwrap_or(false),
+            || {
+                helper::stop(&home)?;
+                helper::start(&home).map(|state| state.port)
+            },
+        );
+        if result.is_err()
+            && matches!(transaction_journal::pending(&home), Ok(None))
+            && let Some(previous) = previous
+            && let Err(error) = helper::restore_running(&home, &previous)
+        {
+            return Err(CommandError::io(format!(
+                "NVIDIA activation failed; previous helper could not be restarted ({error}). Open Recovery & diagnostics."
+            )));
+        }
+        return result.map_err(|e| CommandError::io(e.to_string()));
+    }
     svc.apply_with_window(
         &provider_id,
         model.as_deref(),
@@ -168,7 +226,7 @@ fn home_dir() -> Result<std::path::PathBuf, CommandError> {
 }
 
 /// V2-23: read the ordered routing chain (metadata only, no secrets).
-#[tauri::command]
+#[tauri::command(async)]
 fn get_routing() -> Result<routing_config::RoutingConfig, CommandError> {
     let home = home_dir()?;
     routing_config::load(&home).map_err(|e| CommandError::io(e.to_string()))
@@ -176,7 +234,7 @@ fn get_routing() -> Result<routing_config::RoutingConfig, CommandError> {
 
 /// V2-23: replace the routing chain. Validation fails closed: nothing is
 /// written unless the whole chain is accepted.
-#[tauri::command]
+#[tauri::command(async)]
 fn save_routing(config: routing_config::RoutingConfig) -> Result<(), CommandError> {
     let home = home_dir()?;
     config
@@ -187,7 +245,7 @@ fn save_routing(config: routing_config::RoutingConfig) -> Result<(), CommandErro
 
 /// V3-05: start the detached proxy helper. Idempotent: a verified helper that
 /// is already running is returned unchanged.
-#[tauri::command]
+#[tauri::command(async)]
 fn proxy_start() -> Result<ProxyInfo, CommandError> {
     let home = home_dir()?;
     let st = helper::start(&home).map_err(CommandError::io)?;
@@ -201,7 +259,7 @@ fn proxy_start() -> Result<ProxyInfo, CommandError> {
 }
 
 /// Stop the helper. Only a pid that answers on its own port is signalled.
-#[tauri::command]
+#[tauri::command(async)]
 fn proxy_stop() -> Result<bool, CommandError> {
     let home = home_dir()?;
     helper::stop(&home).map_err(CommandError::io)
@@ -214,7 +272,7 @@ struct ConfigPaths {
     home: String,
     /// `~/.claude-config-manager/secrets` (0600 files, 0700 dir).
     secrets_dir: String,
-    /// `~/.claude-config-manager/helpers` (space-free, passes the CLI's own checks).
+    /// `~/.claude-config-manager/helpers`; command paths are shell-quoted safely.
     helpers_dir: String,
     /// `~/.claude-config-manager/routing.json`
     routing_file: String,
@@ -224,7 +282,7 @@ struct ConfigPaths {
     helper_state: String,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn config_paths() -> Result<ConfigPaths, CommandError> {
     let home = home_dir()?;
     let settings = config_locator::ConfigLocator::new()
@@ -248,7 +306,7 @@ fn config_paths() -> Result<ConfigPaths, CommandError> {
 }
 
 /// V3-07: restart (used when the helper is stale or the app was updated).
-#[tauri::command]
+#[tauri::command(async)]
 fn proxy_restart() -> Result<ProxyInfo, CommandError> {
     let home = home_dir()?;
     let st = helper::restart(&home).map_err(CommandError::io)?;
@@ -262,7 +320,7 @@ fn proxy_restart() -> Result<ProxyInfo, CommandError> {
 }
 
 /// V2-30 counters, now read from the helper's `/healthz` instead of memory.
-#[tauri::command]
+#[tauri::command(async)]
 fn proxy_status() -> Result<Option<proxy::ProxyStatus>, CommandError> {
     let home = home_dir()?;
     let st = helper::status(&home);
@@ -276,7 +334,7 @@ fn proxy_status() -> Result<Option<proxy::ProxyStatus>, CommandError> {
 }
 
 /// V3-09: whether routed mode survives a login (explicit opt-in only).
-#[tauri::command]
+#[tauri::command(async)]
 fn helper_status() -> Result<helper::HelperStatus, CommandError> {
     Ok(helper::status(&home_dir()?))
 }
@@ -286,7 +344,7 @@ fn helper_status() -> Result<helper::HelperStatus, CommandError> {
 /// This is the only persistent-artifact action in the app, it is never called
 /// implicitly, and it writes only under `~/Library/LaunchAgents` plus the
 /// owner's own `~/.claude-config-manager` directory.
-#[tauri::command]
+#[tauri::command(async)]
 fn helper_login_start(enabled: bool) -> Result<helper::HelperStatus, CommandError> {
     let home = home_dir()?;
     if enabled {
@@ -314,13 +372,14 @@ struct TargetHealth {
 /// completion request, so checking the chain costs nothing and cannot consume
 /// quota. Targets without a stored key, or providers without a documented
 /// key-check endpoint, report `ok: false` with an honest reason.
-#[tauri::command]
+#[tauri::command(async)]
 fn check_routing_health() -> Result<Vec<TargetHealth>, CommandError> {
     let home = home_dir()?;
     let cfg = routing_config::load(&home).map_err(|e| CommandError::io(e.to_string()))?;
     let templates = presets::load_builtin_presets();
     let mut out = Vec::new();
-    for target in cfg.ordered() {
+    let expanded = proxy::expand_provider_keys(&home, &cfg);
+    for target in expanded.ordered() {
         if !target.enabled {
             continue;
         }
@@ -357,32 +416,31 @@ fn check_routing_health() -> Result<Vec<TargetHealth>, CommandError> {
 }
 
 /// V2-31: point Claude Code at the proxy (base URL + token helper).
-#[tauri::command]
-fn apply_routed_mode(model: Option<String>) -> Result<save_apply::ApplyOutcome, CommandError> {
+#[tauri::command(async)]
+fn apply_routed_mode(
+    model: Option<String>,
+    config: Option<routing_config::RoutingConfig>,
+) -> Result<save_apply::ApplyOutcome, CommandError> {
     let home = home_dir()?;
-    let cfg = routing_config::load(&home).map_err(|e| CommandError::io(e.to_string()))?;
-    if !cfg.enabled {
-        return Err(CommandError::invalid_input(
-            "failover routing is disabled — enable it before applying routed mode",
-        ));
-    }
-    if cfg.targets.is_empty() {
-        return Err(CommandError::invalid_input(
-            "add at least one routing target first",
-        ));
-    }
-    // V3-08: the helper must be reachable when the owner comes back to Claude
-    // Code, so applying routed mode also makes sure it is up.
-    let st = helper::start(&home).map_err(CommandError::io)?;
-    let token = helper::ensure_token(&home).map_err(CommandError::io)?;
+    let cfg = match config {
+        Some(cfg) => cfg,
+        None => routing_config::load(&home).map_err(|e| CommandError::io(e.to_string()))?,
+    };
     let store = std::sync::Arc::new(file_secret_store::FileSecretStore::for_home(&home));
     let svc = save_apply::SaveApplyService::for_production(&home, store);
-    svc.apply_routed(st.port, &token, model.as_deref())
-        .map_err(|e| CommandError::io(e.to_string()))
+    svc.apply_routing_policy(&cfg, model.as_deref(), || {
+        helper::start(&home).map(|state| state.port)
+    })
+    .map_err(|e| CommandError::io(e.to_string()))
+}
+
+#[tauri::command(async)]
+fn switch_history() -> Result<Vec<switch_history::Event>, CommandError> {
+    switch_history::read(&home_dir()?).map_err(CommandError::io)
 }
 
 /// T34 contract: read-back effective status with override warnings.
-#[tauri::command]
+#[tauri::command(async)]
 fn read_status() -> Result<config_status::EffectiveStatus, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
@@ -393,21 +451,55 @@ fn read_status() -> Result<config_status::EffectiveStatus, CommandError> {
 }
 
 /// T35 contract: restore the newest settings backup (with pre-restore copy).
-#[tauri::command]
-fn restore_last_backup() -> Result<config_restore::RestoreOutcome, CommandError> {
+#[tauri::command(async)]
+fn restore_last_backup(
+    file_name: Option<String>,
+) -> Result<config_restore::RestoreOutcome, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
         .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
     let settings = config_locator::ConfigLocator::new()
         .locate(&home, config_locator::production_config_dir().as_deref());
     let backups = config_backup::default_backup_dir(&home);
-    config_restore::restore_last_backup(&settings, &backups)
+    config_restore::restore_backup(&settings, &backups, file_name.as_deref())
         .map_err(|e| CommandError::io(e.to_string()))
+}
+
+/// Explicit recovery: invalid settings are archived before any replacement.
+#[tauri::command(async)]
+fn recover_settings(
+    use_backup: bool,
+    file_name: Option<String>,
+) -> Result<config_restore::RestoreOutcome, CommandError> {
+    let home = home_dir()?;
+    let settings = config_locator::ConfigLocator::new()
+        .locate(&home, config_locator::production_config_dir().as_deref());
+    config_restore::recover_settings_selected(
+        &settings,
+        &config_backup::default_backup_dir(&home),
+        use_backup,
+        file_name.as_deref(),
+    )
+    .map_err(|e| CommandError::io(e.to_string()))
+}
+
+#[tauri::command(async)]
+fn pending_transaction() -> Result<Option<transaction_journal::PendingSummary>, CommandError> {
+    transaction_journal::pending(&home_dir()?).map_err(CommandError::io)
+}
+#[tauri::command(async)]
+fn recover_transaction(
+    restore_previous: bool,
+) -> Result<transaction_journal::RecoveryOutcome, CommandError> {
+    let home = home_dir()?;
+    let settings = config_locator::ConfigLocator::new()
+        .locate(&home, config_locator::production_config_dir().as_deref());
+    transaction_journal::recover(&home, Some(&settings), restore_previous).map_err(CommandError::io)
 }
 
 /// D9 (Maintenance): list available settings backups, newest first —
 /// metadata only, never content.
-#[tauri::command]
+#[tauri::command(async)]
 fn list_backups() -> Result<Vec<config_backup::BackupInfo>, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
@@ -416,8 +508,15 @@ fn list_backups() -> Result<Vec<config_backup::BackupInfo>, CommandError> {
     config_backup::list_backups(&backups).map_err(|e| CommandError::io(e.to_string()))
 }
 
+#[tauri::command(async)]
+fn backup_previews() -> Result<Vec<config_restore::BackupPreview>, CommandError> {
+    let home = home_dir()?;
+    config_restore::list_backup_previews(&config_backup::default_backup_dir(&home))
+        .map_err(|e| CommandError::io(e.to_string()))
+}
+
 /// T36 contract: environment diagnostics (CLI presence/version, settings state).
-#[tauri::command]
+#[tauri::command(async)]
 fn check_environment() -> Result<environment_check::EnvironmentReport, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
@@ -429,7 +528,7 @@ fn check_environment() -> Result<environment_check::EnvironmentReport, CommandEr
 ///
 /// Save & Apply only proves the file was written; this performs one authenticated
 /// request to a documented key-check endpoint and classifies the answer.
-#[tauri::command]
+#[tauri::command(async)]
 fn test_connection(
     provider_id: String,
     credential: Option<String>,
@@ -451,20 +550,12 @@ fn test_connection(
             t
         });
 
-    let store = file_secret_store::FileSecretStore::for_home(&home);
     let secret = match credential {
         Some(c) if !c.trim().is_empty() => c,
-        _ => secret_store::SecretStore::get_secret(
-            &store,
-            &format!("com.claude-config-manager.{provider_id}"),
-            &provider_id,
-        )
-        .map_err(|e| CommandError::io(e.to_string()))?
-        .ok_or_else(|| {
-            CommandError::not_available(
-                "no credential stored for this provider — enter a key and save it first",
-            )
-        })?,
+        _ => credential_vault::CredentialVault::for_home(&home)
+            .resolve(&provider_id, None)
+            .map_err(vault_error)?
+            .ok_or_else(|| CommandError::not_available("add or enable a key for this provider"))?,
     };
     connection_test::test_connection(&template, secret.trim()).map_err(|e| match e {
         connection_test::TestError::Unsupported(_) => CommandError::not_available(e.to_string()),
@@ -473,30 +564,42 @@ fn test_connection(
 }
 
 /// T38 contract: model discovery for one verified provider template.
-#[tauri::command]
+#[tauri::command(async)]
 fn discover_models(
     provider_id: String,
     credential: Option<String>,
 ) -> Result<Vec<model_discovery::ModelEntry>, CommandError> {
-    let store: Option<&dyn secret_store::SecretStore> = if credential.is_none() {
-        // Same file-backed store the apply path writes to.
-        Some(&file_secret_store::FileSecretStore::for_home(
-            &std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default()),
-        ))
-    } else {
+    let requires_auth = presets::load_builtin_presets()
+        .iter()
+        .find(|p| p.id == provider_id)
+        .is_some_and(|p| {
+            matches!(
+                p.discovery,
+                provider_catalog::DiscoverySpec::Endpoint {
+                    requires_auth: true,
+                    ..
+                }
+            )
+        });
+    let resolved = if !requires_auth {
         None
+    } else if credential.as_deref().is_none_or(|s| s.trim().is_empty()) {
+        vault()?.resolve(&provider_id, None).map_err(vault_error)?
+    } else {
+        credential
     };
-    model_discovery_service::discover_for_provider(&provider_id, credential.as_deref(), store)
-        .map_err(|e| match e {
+    model_discovery_service::discover_for_provider(&provider_id, resolved.as_deref(), None).map_err(
+        |e| match e {
             model_discovery::DiscoveryError::InvalidEndpoint(m) => CommandError::invalid_input(m),
             other => CommandError::io(other.to_string()),
-        })
+        },
+    )
 }
 
 /// V2-12a: does a credential already exist for this provider? The UI gates
 /// "Save & Apply" on this so changing only the model (or roles) never forces
 /// the owner to retype a key that is already stored at 0600.
-#[tauri::command]
+#[tauri::command(async)]
 fn has_credential(provider_id: String) -> Result<bool, CommandError> {
     credential_handoff::validate_provider_id(&provider_id)
         .map_err(|_| CommandError::invalid_input("invalid provider id"))?;
@@ -507,17 +610,7 @@ fn has_credential(provider_id: String) -> Result<bool, CommandError> {
     // (secrets/<provider>-N.secret) must answer true, otherwise the UI shows
     // the "add a key to enable Save & Apply" hint next to a listed key.
     let vault = credential_vault::CredentialVault::for_home(&home);
-    match vault.has_any(&provider_id) {
-        Ok(true) => Ok(true),
-        Ok(false) => {
-            let store = file_secret_store::FileSecretStore::for_home(&home);
-            let creds = credential_service::CredentialService::new(&store);
-            creds
-                .has_credential(&provider_id)
-                .map_err(|e| CommandError::io(e.to_string()))
-        }
-        Err(e) => Err(CommandError::io(e.to_string())),
-    }
+    vault.has_any(&provider_id).map_err(vault_error)
 }
 
 /// V2-21: masked credential metadata for the UI. Never includes the key.
@@ -567,7 +660,7 @@ fn vault_error(e: credential_vault::VaultError) -> CommandError {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn list_credentials(provider_id: String) -> Result<Vec<CredentialView>, CommandError> {
     credential_handoff::validate_provider_id(&provider_id)
         .map_err(|_| CommandError::invalid_input("invalid provider id"))?;
@@ -575,7 +668,7 @@ fn list_credentials(provider_id: String) -> Result<Vec<CredentialView>, CommandE
     Ok(list.iter().map(CredentialView::from_record).collect())
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn add_credential(
     provider_id: String,
     label: String,
@@ -587,19 +680,52 @@ fn add_credential(
     Ok(CredentialView::from_record(&record))
 }
 
-#[tauri::command]
+fn protect_active_direct_key(credential_id: &str) -> Result<(), CommandError> {
+    let home = home_dir()?;
+    let vault = credential_vault::CredentialVault::for_home(&home);
+    let index = vault.load().map_err(vault_error)?;
+    let Some(record) = index.get(credential_id) else {
+        return Ok(());
+    };
+    let account =
+        if credential_id == credential_migration::legacy_credential_id(&record.provider_id) {
+            &record.provider_id
+        } else {
+            credential_id
+        };
+    let path = config_locator::ConfigLocator::new()
+        .locate(&home, config_locator::production_config_dir().as_deref());
+    if let Ok(status) = config_status::read_effective_status(&path)
+        && let Some(helper) = status.api_key_helper
+        && let Some(helper_path) = credential_handoff::helper_command_path(&helper)
+        && helper_path.parent() == Some(credential_handoff::default_helpers_dir(&home).as_path())
+        && let Ok(script) = std::fs::read_to_string(&helper_path)
+        && script.contains(&format!("secrets/{account}.secret"))
+    {
+        return Err(CommandError::invalid_input(
+            "This key is used by the saved direct configuration. Apply another key or enable automatic switching before disabling or deleting it.",
+        ));
+    }
+    Ok(())
+}
+
+#[tauri::command(async)]
 fn remove_credential(credential_id: String) -> Result<bool, CommandError> {
+    protect_active_direct_key(&credential_id)?;
     vault()?.remove(&credential_id).map_err(vault_error)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn set_credential_enabled(credential_id: String, enabled: bool) -> Result<bool, CommandError> {
+    if !enabled {
+        protect_active_direct_key(&credential_id)?;
+    }
     vault()?
         .set_enabled(&credential_id, enabled)
         .map_err(vault_error)
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn promote_credential(credential_id: String) -> Result<bool, CommandError> {
     vault()?.promote(&credential_id).map_err(vault_error)
 }
@@ -619,7 +745,7 @@ fn bridge_install_root(home: &Path) -> std::path::PathBuf {
 
 /// T48: the consent payload the UI displays before asking. Facts only —
 /// everything here is from the committed pin, nothing is fetched.
-#[tauri::command]
+#[tauri::command(async)]
 fn bridge_consent_info() -> bridge::manifest::BridgePin {
     // Return an owned copy — Tauri commands serialize owned values.
     bridge::manifest::PINNED.clone()
@@ -628,7 +754,7 @@ fn bridge_consent_info() -> bridge::manifest::BridgePin {
 /// T48: record explicit consent (version-stamped). The installer and the
 /// runtime both refuse without this marker — enforced server-side, not in
 /// the UI.
-#[tauri::command]
+#[tauri::command(async)]
 fn bridge_consent_record() -> Result<(), CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
@@ -639,7 +765,7 @@ fn bridge_consent_record() -> Result<(), CommandError> {
 }
 
 /// T48: withdraw consent (also stops a running bridge first).
-#[tauri::command]
+#[tauri::command(async)]
 fn bridge_consent_withdraw() -> Result<(), CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
@@ -669,7 +795,7 @@ struct BridgeOverview {
     provider_config_ready: bool,
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 fn bridge_overview() -> Result<BridgeOverview, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
@@ -698,44 +824,23 @@ fn bridge_overview() -> Result<BridgeOverview, CommandError> {
 }
 
 /// T49/T50: install (download → integrity → extract). Requires consent.
-#[tauri::command]
+#[tauri::command(async)]
 fn bridge_install() -> Result<bridge::installer::InstallReport, CommandError> {
-    let home = std::env::var("HOME")
-        .map(std::path::PathBuf::from)
-        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
-    let state = bridge_state_dir(&home);
-    let consented = bridge::runtime::consented_marker(&state);
-    bridge::installer::install(
-        &bridge_install_root(&home),
-        &state.join("downloads"),
-        consented,
-    )
-    .map_err(|e| match e {
-        bridge::installer::BridgeError::NotConsented => CommandError::not_available(e.to_string()),
-        other => CommandError::io(other.to_string()),
-    })
+    Err(CommandError::not_available(
+        "The protocol bridge is disabled in this release. Use an Anthropic-compatible provider; no bridge download or process was started.",
+    ))
 }
 
 /// T52: start the detached bridge (requires consent + install).
-#[tauri::command]
+#[tauri::command(async)]
 fn bridge_start() -> Result<u32, CommandError> {
-    let home = std::env::var("HOME")
-        .map(std::path::PathBuf::from)
-        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
-    let node =
-        bridge::installer::check_node_with_home(&std::env::var("PATH").unwrap_or_default(), &home)
-            .map_err(|e| CommandError::not_available(e.to_string()))?
-            .0;
-    bridge::runtime::start(
-        &node,
-        &bridge_install_root(&home).join(bridge::manifest::PINNED.version),
-        &bridge_state_dir(&home),
-    )
-    .map_err(|e| CommandError::io(e.to_string()))
+    Err(CommandError::not_available(
+        "The protocol bridge is disabled in this release. Use an Anthropic-compatible provider; no bridge download or process was started.",
+    ))
 }
 
 /// T52: stop the bridge.
-#[tauri::command]
+#[tauri::command(async)]
 fn bridge_stop() -> Result<bool, CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
@@ -745,7 +850,7 @@ fn bridge_stop() -> Result<bool, CommandError> {
 
 /// T58: uninstall — refuses while running; consent marker is kept unless
 /// withdrawn separately.
-#[tauri::command]
+#[tauri::command(async)]
 fn bridge_uninstall() -> Result<(), CommandError> {
     let home = std::env::var("HOME")
         .map(std::path::PathBuf::from)
@@ -764,46 +869,15 @@ fn bridge_uninstall() -> Result<(), CommandError> {
 /// Writes settings.json via the same transactional pipeline as Save & Apply:
 /// the base URL becomes the loopback gateway and the credential stays in the
 /// owner-only file the bridge reads.
-#[tauri::command]
+#[tauri::command(async)]
 fn bridge_apply_mode(
     provider_id: String,
     model: Option<String>,
 ) -> Result<save_apply::ApplyOutcome, CommandError> {
-    let home = std::env::var("HOME")
-        .map(std::path::PathBuf::from)
-        .map_err(|_| CommandError::not_available("HOME directory not determinable"))?;
-    let state = bridge_state_dir(&home);
-    if !bridge::runtime::consented_marker(&state) {
-        return Err(CommandError::not_available(
-            "bridge needs your explicit consent first",
-        ));
-    }
-    let st = bridge::runtime::status(&state);
-    if !st.running {
-        return Err(CommandError::invalid_input(
-            "start the bridge before routing Claude Code through it",
-        ));
-    }
-    // Credential must exist for the provider (the gateway reads the file).
-    let store: std::sync::Arc<dyn secret_store::SecretStore> =
-        std::sync::Arc::new(file_secret_store::FileSecretStore::for_home(&home));
-    let has = credential_service::CredentialService::new(store.as_ref())
-        .has_credential(&provider_id)
-        .map_err(|e| CommandError::io(e.to_string()))?;
-    if !has {
-        return Err(CommandError::invalid_input(
-            "no stored credential for this provider",
-        ));
-    }
-
-    let svc = save_apply::SaveApplyService::for_production(&home, store);
-    let base_url = format!("http://127.0.0.1:{}", st.gateway_port);
-    svc.apply(&provider_id, model.as_deref(), Some(&base_url), None)
-        .map_err(|e| match e {
-            save_apply::ApplyError::InvalidInput(m) => CommandError::invalid_input(m),
-            save_apply::ApplyError::NoCredential => CommandError::invalid_input(e.to_string()),
-            other => CommandError::io(other.to_string()),
-        })
+    let _ = (provider_id, model);
+    Err(CommandError::not_available(
+        "The protocol bridge is unavailable; no settings were changed.",
+    ))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -814,6 +888,11 @@ pub fn run() {
             save_and_apply,
             read_status,
             restore_last_backup,
+            recover_settings,
+            backup_previews,
+            pending_transaction,
+            switch_history,
+            recover_transaction,
             check_environment,
             discover_models,
             test_connection,

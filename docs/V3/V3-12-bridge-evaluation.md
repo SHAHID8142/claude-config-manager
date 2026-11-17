@@ -1,3 +1,6 @@
+> Historical phase snapshot. For current 1.0.2 behavior and remaining work, see
+> [the dated repair audit](../audits/2026-11-17-project-review.md) and [user guide](../USER_GUIDE.md).
+
 # V3-12 — Evaluating an existing open-source bridge
 
 **Outcome: no bridge was installed. This task is blocked on an owner decision and

@@ -1,3 +1,6 @@
+> Historical phase snapshot. For current 1.0.2 behavior and remaining work, see
+> [the dated repair audit](../audits/2026-11-17-project-review.md) and [user guide](../USER_GUIDE.md).
+
 # V3-11 — Provider compatibility matrix
 
 Source of truth: `src-tauri/presets/*.json` and `src-tauri/src/provider_catalog.rs`.

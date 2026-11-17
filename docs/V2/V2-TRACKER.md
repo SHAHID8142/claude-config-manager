@@ -1,3 +1,6 @@
+> Historical phase snapshot. For current 1.0.2 behavior and remaining work, see
+> [the dated repair audit](../audits/2026-11-17-project-review.md) and [user guide](../USER_GUIDE.md).
+
 # Claude Config Manager — V2 Tracker
 
 Recoverable state for the V2 phase. One row per atomic task. **A task is only `done` when its

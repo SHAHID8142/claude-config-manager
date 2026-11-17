@@ -11,6 +11,7 @@ import type { ConnectionTestResult, ProviderSummary } from "../lib/ipc";
 const inputClass = `h-9 w-full rounded-[6px] border border-control bg-surface px-2.5 text-[13px] text-ink placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`;
 
 export interface ProviderTabProps {
+  hideKey?: boolean;
   providers: ProviderSummary[] | null;
   selectedId: string;
   onSelectProvider: (id: string) => void;
@@ -117,18 +118,38 @@ export function ProviderTab(props: ProviderTabProps) {
 
         {selected !== null && (
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <CapabilityBadge
-              status={selected.capabilityStatus.status}
-              sourceUrl={
-                selected.capabilityStatus.status === "verified"
-                  ? selected.capabilityStatus.source_url
-                  : null
-              }
+            {selected.protocol !== "open_ai_only" && (
+              <CapabilityBadge
+                status={selected.capabilityStatus.status}
+                sourceUrl={
+                  selected.capabilityStatus.status === "verified"
+                    ? selected.capabilityStatus.source_url
+                    : null
+                }
+              />
+            )}
+            <BridgeBadge
+              required={selected.bridge === "required_for_open_ai_only"}
+              builtin={selected.id === "nvidia-nim"}
             />
-            <BridgeBadge required={selected.bridge === "required_for_open_ai_only"} />
           </div>
         )}
 
+        {selected?.protocol === "open_ai_only" && selected.id !== "nvidia-nim" && (
+          <StatusBanner
+            severity="warning"
+            message={`${selected.name} cannot be applied in this version.`}
+            detail="You can store keys and browse models, but this app has not implemented the connection needed to use this provider with Claude Code. Choose a supported provider to use Save & Apply. Your stored keys will be kept."
+          />
+        )}
+
+        {selected?.id === "nvidia-nim" && (
+          <StatusBanner
+            severity="info"
+            message="NVIDIA uses the built-in local connection."
+            detail="Add a key, choose a chat model, then Save & Apply. The app starts its helper and places NVIDIA first in switching order, keeping other providers as fallbacks. No separate bridge installation is needed. The key check is unavailable; listing models does not verify your key. Function tools are supported; Anthropic server tools and documents are not."
+          />
+        )}
         {isCustom && (
           <>
             <FieldRow
@@ -193,51 +214,61 @@ export function ProviderTab(props: ProviderTabProps) {
         )}
       </Section>
 
-      <Section
-        title="Key"
-        description="Stored owner-only (0600) — never written into settings.json."
-        help={{
-          title: "About your key",
-          children: (
-            <p>
-              The key is stored as an owner-only file and handed to Claude Code by an apiKeyHelper
-              script at launch. It never appears in settings.json, logs, or errors.
-            </p>
-          ),
-        }}
-      >
-        <FieldRow
-          label="API key"
-          htmlFor="api-key-input"
-          hint={
-            selected === null && !isCustom
-              ? "Enabled once a provider is selected."
-              : props.storedCredential
-                ? "A key is already stored for this provider — leave this blank to keep it and change only the model."
-                : "Stored as an owner-only file (0600) in Application Support when saving. Never written to logs or backups in plaintext."
-          }
-        >
-          <ApiKeyField
-            id="api-key-input"
-            value={props.apiKey}
-            onChange={props.onApiKey}
-            disabled={selected === null && !isCustom}
-          />
-        </FieldRow>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <LoadingButton
-            label="Test Connection"
-            pendingLabel="Testing…"
-            pending={props.testing}
-            disabled={props.testDisabled}
-            variant="secondary"
-            onClick={props.onTestConnection}
-          />
-          <p className="text-[12px] text-ink-muted">
-            Sends one authenticated read to the provider. Nothing is written.
-          </p>
-        </div>
-      </Section>
+      {!props.hideKey && (
+        <details className="rounded-lg border border-line p-3">
+          <summary className="cursor-pointer text-[12px] font-medium text-ink-muted">
+            Single-key direct connection (optional)
+          </summary>
+          <div className="mt-3">
+            <Section
+              title="Key"
+              description="Stored owner-only (0600) — never written into settings.json."
+              help={{
+                title: "About your key",
+                children: (
+                  <p>
+                    The key is stored as an owner-only file and handed to Claude Code by an
+                    apiKeyHelper script at launch. It never appears in settings.json, logs, or
+                    errors.
+                  </p>
+                ),
+              }}
+            >
+              <FieldRow
+                label="API key"
+                htmlFor="api-key-input"
+                hint={
+                  selected === null && !isCustom
+                    ? "Enabled once a provider is selected."
+                    : props.storedCredential
+                      ? "A key is already stored for this provider — leave this blank to keep it and change only the model."
+                      : "Stored as an owner-only file (0600) in Application Support when saving. Never written to logs or backups in plaintext."
+                }
+              >
+                <ApiKeyField
+                  id="api-key-input"
+                  value={props.apiKey}
+                  onChange={props.onApiKey}
+                  disabled={selected === null && !isCustom}
+                />
+              </FieldRow>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <LoadingButton
+                  label="Test Connection"
+                  pendingLabel="Testing…"
+                  pending={props.testing}
+                  disabled={props.testDisabled}
+                  variant="secondary"
+                  onClick={props.onTestConnection}
+                />
+                <p className="text-[12px] text-ink-muted">
+                  Sends one authenticated read to the provider. Nothing is written.
+                </p>
+              </div>
+            </Section>
+          </div>
+        </details>
+      )}
     </section>
   );
 }

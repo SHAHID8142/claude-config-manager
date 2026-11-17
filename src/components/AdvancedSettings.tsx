@@ -3,6 +3,7 @@ import { FieldRow } from "./FieldRow";
 import { roleChecks, ROLE_FIELDS, type RoleKey, type RoleState } from "../lib/roles";
 
 export interface AdvancedSettingsProps {
+  resetRoles?: string[];
   open: boolean;
   onToggle: () => void;
   roles: RoleState;
@@ -23,6 +24,7 @@ export interface AdvancedSettingsProps {
  * panel can never imply "not set" when an override exists.
  */
 export function AdvancedSettings({
+  resetRoles = [],
   open,
   onToggle,
   roles,
@@ -57,16 +59,16 @@ export function AdvancedSettings({
           className="mt-2 flex flex-col gap-2"
         >
           <p className="text-xs text-ink-subtle">
-            Leave a field blank to keep Claude Code&apos;s default for that role. Overrides are
-            written to <code>settings.json</code> env only for the roles you fill in.
+            Leave a role field blank to keep its saved value. Overrides are written to{" "}
+            <code>settings.json</code> env only for the roles you fill in.
           </p>
           <FieldRow
             label="Context window (tokens)"
             htmlFor="context-window-input"
             hint={
               currentContextWindow !== null
-                ? `Effective now: ${currentContextWindow} tokens · blank + Save removes the override`
-                : "Only needed for model IDs Claude Code doesn't recognize — it assumes 200k otherwise."
+                ? `Effective now: ${currentContextWindow} tokens · leave untouched to keep this value`
+                : "Optional; support depends on Claude Code version and model ID."
             }
           >
             <input
@@ -79,10 +81,19 @@ export function AdvancedSettings({
               aria-describedby="context-window-help"
             />
           </FieldRow>
+          {currentContextWindow !== null && (
+            <button
+              type="button"
+              className="btn btn-secondary self-start"
+              onClick={() => onContextWindowChange("__reset__")}
+            >
+              Reset saved context window
+            </button>
+          )}
           <p id="context-window-help" className="text-xs text-ink-subtle">
-            Writes <code>CLAUDE_CODE_MAX_CONTEXT_TOKENS</code>. Claude Code sizes every model it
-            cannot match to a Claude ID at 200k and auto-compacts there, so a 1M model behind
-            OpenRouter or a gateway is cut off early without this value.
+            Writes <code>CLAUDE_CODE_MAX_CONTEXT_TOKENS</code> only when edited. Its effect depends
+            on Claude Code version and model recognition; a [1m] suffix and recognized Claude IDs
+            follow different rules. It does not expand the provider's actual capacity.
           </p>
           {ROLE_FIELDS.map(({ key, label, env }) => {
             const check = checks.find((c) => c.key === key);
@@ -100,7 +111,7 @@ export function AdvancedSettings({
                     type="text"
                     value={roles[key]}
                     onChange={(e) => onChange(key, e.target.value)}
-                    placeholder="No override (Claude Code default)"
+                    placeholder="Keep saved value"
                     aria-invalid={invalid}
                     aria-describedby={invalid ? `role-${key}-error` : undefined}
                     className="w-full rounded-[6px] border border-control bg-surface px-2.5 h-9 text-[13px] text-ink-muted placeholder:text-ink-subtle"
@@ -114,6 +125,16 @@ export function AdvancedSettings({
                     <code className="break-all">{effective}</code>
                   )}
                 </p>
+                {effective !== null && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary !h-7 mt-1"
+                    disabled={resetRoles.includes(key)}
+                    onClick={() => onChange(key, "__reset__")}
+                  >
+                    {resetRoles.includes(key) ? "Reset pending" : `Reset ${label.toLowerCase()}`}
+                  </button>
+                )}
                 {invalid && check !== undefined && (
                   <p
                     id={`role-${key}-error`}

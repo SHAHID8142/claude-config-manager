@@ -33,7 +33,15 @@ export interface ConnectionDescription {
 
 export function isLoopback(url: string | null | undefined): boolean {
   if (url === null || url === undefined) return false;
-  return url.startsWith("http://127.0.0.1") || url.startsWith("http://localhost");
+  try {
+    const parsed = new URL(url);
+    return (
+      (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      ["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function describeConnection(

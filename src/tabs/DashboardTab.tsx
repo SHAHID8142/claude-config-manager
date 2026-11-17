@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isLoopback } from "../lib/connectionLabel";
 import { AlertTriangle, KeyRound, Layers, Route, Sparkles, Terminal } from "lucide-react";
+import { HelpPopover } from "../components/HelpPopover";
 import { CapabilityBadge, BridgeBadge } from "../components/CapabilityBadge";
 import { StatusBanner } from "../components/StatusBanner";
 import { contextWindowLabel, modeLabel, needsAttention, warningText } from "../lib/statusText";
@@ -20,6 +21,7 @@ export interface DashboardTabProps {
    * has no explicit selection (App computes it — single source of truth). */
   configuredProvider: ProviderSummary | null;
   status: EffectiveStatus | null;
+  statusError?: string | null;
   providers: ProviderSummary[] | null;
   selected: ProviderSummary | null;
   credentials: CredentialView[];
@@ -72,7 +74,13 @@ function Card({
         >
           {icon}
         </span>
-        <h2 className="text-[12px] font-medium text-ink-muted">{title}</h2>
+        <h2 className="flex items-center gap-1 text-[12px] font-medium text-ink-muted">
+          {title}
+          <HelpPopover title={title}>
+            Saved {title.toLowerCase()} information. The settings file is one source; project,
+            organization and terminal overrides may change what a running Claude Code session uses.
+          </HelpPopover>
+        </h2>
         {action !== undefined && (
           <button
             type="button"
@@ -105,7 +113,7 @@ function Note({ children }: { children: ReactNode }) {
 }
 
 /**
- * The screen's answer: what Claude Code is using, what is stored, and what is
+ * The screen's answer: what Saved global configuration, what is stored, and what is
  * wrong — each card carries the way to fix it.
  */
 export function DashboardTab(props: DashboardTabProps) {
@@ -178,20 +186,22 @@ export function DashboardTab(props: DashboardTabProps) {
           )}
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[12px] text-ink-muted">Claude Code is using</p>
+              <p className="text-[12px] text-ink-muted">Saved global configuration</p>
               <p className="mt-1.5 flex items-center gap-2 text-[19px] font-semibold tracking-[-0.01em] text-ink">
                 <span
                   aria-hidden="true"
                   className={`size-2 shrink-0 rounded-full ${warned ? "bg-warn" : configured ? "bg-ok" : "bg-ink-subtle"}`}
                 />
                 {status === null
-                  ? "Reading the current configuration…"
+                  ? props.statusError
+                    ? "Settings could not be read"
+                    : "Reading the current configuration…"
                   : configured
                     ? modeLabel(status)
                     : "not configured yet"}
               </p>
             </div>
-            <span className="shrink-0 text-[11px] text-ink-subtle">live from settings.json</span>
+            <span className="shrink-0 text-[11px] text-ink-subtle">from settings.json</span>
           </div>
 
           {configured ? (
@@ -234,7 +244,9 @@ export function DashboardTab(props: DashboardTabProps) {
           ) : (
             <p className="mt-4 border-t border-line pt-4 text-[13px] text-ink-muted">
               {status === null
-                ? "Reading settings.json…"
+                ? props.statusError
+                  ? "Refresh or use Recovery & diagnostics."
+                  : "Reading settings.json…"
                 : "No settings file yet — the first Save & Apply creates it."}
             </p>
           )}
@@ -340,7 +352,7 @@ export function DashboardTab(props: DashboardTabProps) {
                     ? "All stored keys are disabled — enable one to use it."
                     : activeCredential === null
                       ? "Save & Apply needs a key."
-                      : `Using ${activeCredential.label}${activeCredential.last4 !== "" ? ` · …${activeCredential.last4}` : ""}`}
+                      : `First eligible: ${activeCredential.label}${activeCredential.last4 !== "" ? ` · …${activeCredential.last4}` : ""}`}
               </Note>
             </Card>
           );

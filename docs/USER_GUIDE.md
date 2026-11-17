@@ -1,260 +1,188 @@
-# Claude Config Manager — User Guide
+# Claude Config Manager — user guide
 
-A macOS desktop app that configures the **Claude Code CLI** globally: pick a provider, store its key safely,
-choose a model, and write `settings.json` safely (with backups and rollback) — without hand-editing JSON.
+Updated for 1.0.5, 2026-11-17. This app edits Claude Code's global user settings.
+Project settings, managed settings and terminal environment variables can take
+precedence. Restart Claude Code after changing authentication: helper output may
+be cached. [Official settings documentation](https://code.claude.com/docs/en/settings).
 
-> Status: the app builds and its logic is heavily tested, but **the packaged build is unsigned and not
-> notarized**, so it cannot be installed on a clean Mac yet. See [Limitations](#limitations) and
-> `docs/audits/T64-package.md`.
+## Set up automatic switching
 
----
+1. Open **Providers & keys** and choose a provider. For a custom gateway, enter
+   its name and documented Anthropic-compatible endpoint first.
+2. Under **Stored keys**, give each key a label and add it. The app displays only
+   its last four characters after saving. Add all keys for that provider.
+3. Choose a model. Fetch a catalog where supported, or type the exact model ID
+   from that provider's documentation. A catalog listing does not prove that
+   the model supports every Claude Code feature.
+4. Press **Add provider to automatic switching**. Repeat for other providers.
+5. Open **Automatic switching**. Move providers up/down into your preferred
+   order. Expand a provider's keys to change their priority or enabled state.
+   Each provider needs its own model and endpoint.
+6. Review the cards and press **Save & enable automatic switching**. This saves
+   the visible policy, starts the local helper and updates Claude Code settings.
 
-## 1. What it changes (and what it never touches)
+Example: Anthropic work key → Anthropic personal key → OpenRouter work key.
+The next provider is used only after the preceding group's usable keys fail or
+are cooling down. Keys may share the same account quota; adding another key
+from that account does not create more credit or bypass provider limits.
 
-The app manages exactly these keys in your Claude Code settings file
-(`~/.claude/settings.json`, or `$CLAUDE_CONFIG_DIR/settings.json`):
+**Save order** only saves policy; it does not switch Claude Code from direct
+mode. Once routed mode is active, saved policy changes affect subsequent
+requests. **Check keys** uses provider-supported authentication/catalog checks,
+not paid model inference. Unsupported checks are explained rather than guessed.
 
-| Key | Meaning |
-|---|---|
-| `model` | The model Claude Code uses |
-| `apiKeyHelper` | Path to a small script that prints your key from an owner-only file |
-| `env.ANTHROPIC_BASE_URL` | Provider endpoint |
-| `env.ANTHROPIC_DEFAULT_HAIKU_MODEL` / `..._SONNET_MODEL` / `..._OPUS_MODEL` | Optional per-role model overrides |
+A provider's first enabled key is preferred, not necessarily the key serving a
+request. Recent helper activity shows the last response key, failures and
+remaining cooldowns. Saved switching history retains the last 100 failure and fallback
+events across helper restarts; the screen shows the newest 20. It contains only
+timestamps, provider IDs and fixed outcome categories. No prompt/response bodies,
+endpoints, API keys or key labels are recorded.
 
-Everything else in the file — permissions, hooks, status line, your own env vars — is preserved byte-for-byte
-by the merge and verified by read-back. It **never** deletes a key it did not write, and it **never**
-overwrites a file it cannot parse.
+### Failure behavior
 
----
+- 401/403: authentication/access failure; try the next key, cool down for six hours.
+- 402 or quota wording in 429: credit/quota failure; six-hour cooldown.
+- Other 429: rate limit; Retry-After seconds or HTTP-date, capped at ten minutes, or 30 seconds.
+- 5xx: provider error; Retry-After seconds or HTTP-date or 20 seconds.
+- Network/timeout: ten seconds. An upstream may already have processed a timed
+  out request, so switching cannot guarantee protection against duplicate charges.
+- Invalid caller requests/model/endpoint errors such as 400/404/422 stop the
+  chain. Correct the configuration or request; these are not exhausted keys.
 
-## 2. First run
+A request tries at most 200 candidates, stopping new attempts after a 60-second
+retry-decision budget. Native/compatible providers retain their 30-second attempt
+limit. NVIDIA uses bounded connect/send/header waits and allows a response body
+to stream for up to 30 minutes, with a 120-second idle read limit; a phase already
+in progress can extend past the retry-decision budget. At most 32 client connections are handled
+concurrently. No replay occurs after an upstream response starts streaming.
+Cooldowns are in memory. Restart the helper to retry immediately after fixing
+an issue; this clears every cooldown. Restarting is explicit, not automatic.
+Error bodies for caller errors and supported protocol headers pass through.
+There is no reliable automatic inference of shared account limits.
 
-1. Launch the app. The **Active configuration** panel shows what Claude Code currently uses
-   (`not configured` on a fresh machine).
-2. Choose a **Provider**.
-   - Anthropic (native), OpenRouter, DeepSeek, Z.AI and NVIDIA NIM ship as verified presets.
-   - **Custom** lets you type your own endpoint (https only).
-3. Paste your **API key**. It is stored as an **owner-only file, mode 0600**, in
-   `~/.claude-config-manager/secrets/<provider>.secret`
-   (replacing the earlier Keychain storage — see "Where the key lives" below). It is never written to
-   `settings.json`, never logged, and never placed in the helper script. The field is masked and can be
-   revealed only deliberately.
-4. Optionally press **Test Connection**. This makes one real authenticated request to the provider's
-   documented key-check endpoint and tells you what the provider thinks of your key (accepted, 401 wrong,
-   402 no credit, 403 forbidden, 429 rate-limited-but-valid). "Save & Apply" only proves the *file* was
-   written — it cannot know whether the key works.
-5. Optionally press **Fetch models** to load the provider's catalog. Providers without a documented catalog
-   (currently Z.AI) ask you to type a model id instead.
-6. Pick or type a **Model**.
-7. Press **Save & Apply**. This also **removes any plaintext `ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_API_KEY`
-   left in `settings.json`**, because those outrank `apiKeyHelper` and would make the stored credential dead
-   weight.
+Existing policies with one explicitly selected key per target keep their order.
+The **Use all enabled keys** action converts a card explicitly. Deliberately
+interleaved legacy cards are never silently regrouped.
 
-Apply is fail-closed and transactional: validate → store credential → install helper script → snapshot →
-merge → backup → atomic write → read-back → report. If any step fails, your previous configuration is intact.
+## Use a single direct connection
 
----
+Choose a provider and model, add a stored key, then use **Save & Apply**. The
+collapsed **Single-key direct connection (optional)** area also accepts a key
+for direct Apply. This selects one static credential; automatic switching needs
+the separate switching activation above. Promoting a key does not rewrite a
+previously applied direct helper. Apply the new selection first. The app refuses
+to disable/delete the credential referenced by an active owned direct helper.
 
-## 3. Reading the result
+Blank context and role fields preserve saved values. Use their explicit Reset
+buttons to remove overrides. Review old model/role settings when moving between
+providers: names are not portable. Manual model entry stays editable after a
+catalog fetch. Context overrides depend on model support and CLI version; see
+[official model configuration](https://code.claude.com/docs/en/model-config).
 
-- **Success banner** shows the backup file name and the helper path.
-- **Active configuration** re-reads the file afterwards, so what you see is what is on disk.
-- **Warnings** (never hidden):
-  - *Helper shadowed by env* — you have plaintext `ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_API_KEY` in `env`, which
-    outranks the helper.
-  - *Plaintext key in env* — the app discloses that a key sits in the file in clear text.
-  - *Model conflict* — `model` and `env.ANTHROPIC_MODEL` disagree; the env value wins in Claude Code.
+NVIDIA NIM now uses a built-in connection inside the local helper. Choose NVIDIA,
+add its keys, select a chat model (for example the model ID published by NVIDIA),
+and press Save & Apply. NVIDIA becomes the first provider group; other providers
+remain as fallbacks. No separate bridge installation is needed. The helper must
+run while Claude Code uses NVIDIA, including when only one NVIDIA key is stored.
+The key-check button is unavailable because model listing is public and does not
+prove your key works. Other OpenAI-only endpoints and the optional third-party
+bridge remain unavailable; its install/start/apply commands stay disabled.
+A custom endpoint must speak Anthropic Messages, not just OpenAI Chat Completions.
 
----
+## Recover an invalid settings file
 
-## 4. Model roles (Advanced settings)
+The message “settings file contains invalid JSON — not overwritten” means the
+app could not parse the file safely. Common causes include an empty/truncated
+file, comments, trailing commas or a top-level array. It does not establish
+which program wrote the invalid file.
 
-Collapsed by default. Each field is **optional** and blank means *no override* — Claude Code's own default
-applies. The panel always shows the value that is currently configured, so it can never imply "not set" for
-something that is set.
+The recovery banner offers **Restore valid backup** or **Start clean**. Choose a
+validated backup from the selector, inspect its timestamp/model/destination/helper
+availability, then confirm preserve/recover. Invalid backups remain visible with
+reasons and cannot be selected. Clean recovery uses `{}`. The original invalid bytes are archived
+as `invalid-settings-*.json` and excluded from ordinary backup history. Recovery
+does not validate a provider's API connection. Valid settings are not replaced
+through this action; use ordinary backup restore instead.
 
-- The app never invents a mapping and never falls back to a different model
-  (`docs/decisions/ADR-002-no-model-failover.md`).
-- An invalid id (spaces, control characters, > 256 chars, or anything that looks like an API key) blocks
-  Save & Apply with an explanation.
-- **Clearing an override back to "no override" is not possible from the panel** — the merge contract only
-  sets keys. Edit the file or restore a backup.
+Under **Recovery & diagnostics**, **Restore selected backup** uses the chosen
+validated snapshot after a second confirmation. It first preserves the current file; invalid
+current bytes are kept in the separate invalid namespace. Backups are in
+`~/Library/Application Support/ClaudeConfigManager/backups/`, not beside
+`settings.json`. Existing valid files are backed up before Apply. First-run
+creation has no previous file to back up.
 
----
+## Where data lives
 
-## 5. Backup and restore
+| Data | Default path |
+| --- | --- |
+| Claude Code settings | `~/.claude/settings.json` (or configured CLI directory) |
+| Runtime/config data | `~/.claude-config-manager/` |
+| Secrets | Runtime data `secrets/*.secret`, private mode 0600 |
+| Credential labels/order/masks | Runtime data `credentials.json` |
+| Helpers | Runtime data `helpers/*.sh`, executable mode 0700 |
+| Provider policy | Runtime data `routing.json` |
+| Switching history | Runtime data `activity/history.json` (last 100 events) |
+| Interrupted-save journal | Runtime data `apply-journal.json` (private key copies) |
+| Backups | `~/Library/Application Support/ClaudeConfigManager/backups/` |
 
-Every apply that finds an existing settings file first writes a timestamped backup next to it
-(`~/Library/Application Support/ClaudeConfigManager/backups/`). **Restore last backup** replaces the current
-file with the newest *valid* backup, and first saves the current state as a pre-restore copy, so a restore is
-itself reversible.
+Secret files are plaintext protected by filesystem permissions, **not encrypted
+or stored in Keychain**. Other processes running as your user may read them.
+Settings contain a helper path, not the API key. Settings backups can contain
+secrets that were already present in the original settings. Treat backups as
+private. JSON is parsed and pretty-printed: unrelated values are preserved
+semantically, but whitespace and key formatting are not byte-preserved.
 
-A corrupted newest backup is refused before anything is written — you are told the line/column of the
-problem instead of silently getting broken settings.
+Valid model/role/context drafts are retained per provider on this device and
+restored when switching providers or reopening the app. Completed custom endpoint
+and model drafts can be reopened from **Saved custom provider drafts**. API key
+inputs are never persisted in draft storage; invalid/incomplete values remain
+session-only. Clearing app WebKit data removes these drafts. Drafts do not activate
+settings. The **Review changes** panel distinguishes pending and saved values.
 
----
+Apply validates inputs/settings before managed side effects, takes backups,
+checks concurrent changes, installs atomically and reads back. Handled failures
+attempt rollback; this is not a multi-file crash-atomic transaction. Disk or
+permission failures can also prevent rollback. An interrupted operation leaves
+`~/.claude-config-manager/apply-journal.json`; further writes are blocked. The
+recovery banner lets you explicitly restore previous managed files or keep current
+files. Restore first archives current bytes privately. The journal and
+`recovery-before-*.json` snapshots contain private key copies (base64 is not
+encryption); never share them. Settings recovery is separate from provider testing.
+Preserve backups before manual repair. Never paste secrets into bug reports.
 
-## 6. Uninstall
+## Helper and desktop use
 
-There is no uninstall button yet. To remove the app cleanly:
+The local authenticated helper listens on loopback only and serves
+`POST /v1/messages`. Closing the GUI does not intentionally stop it. Stopping
+it while settings point to it makes Claude Code unavailable until restarted or
+reconfigured. Login start is opt-in; logout/reboot acceptance remains unverified
+for this release candidate. The optional `/v1/messages/count_tokens` endpoint
+is not implemented. See [gateway requirements](https://code.claude.com/docs/en/llm-gateway-protocol).
 
-1. In `~/.claude/settings.json`, delete `model`, `apiKeyHelper`, and the `ANTHROPIC_*` keys inside `env` that
-   this app manages. Keep everything else (permissions, hooks, your own env).
-2. Delete `~/Library/Application Support/ClaudeConfigManager/helpers/`.
-3. Delete `~/Library/Application Support/ClaudeConfigManager/backups/` **only if** you no longer want the
-   ability to roll back.
-4. Delete the stored credential: `rm "$HOME/Library/Application Support/ClaudeConfigManager/secrets/<provider>.secret"`.
-5. Delete the app.
+Section and field **i** buttons open help on focus/hover or click/tap; Escape or
+an outside click dismisses it. Important errors remain inline. Use Refresh after
+external file edits; the app also refreshes on window focus. Overview reports
+saved global settings, not a full evaluation of all Claude Code settings scopes.
 
-Then open a new terminal so Claude Code picks up the reverted configuration.
+The local Apple Silicon DMG is ad-hoc signed, not Developer ID signed/notarized.
+Signature integrity and Apple trust acceptance are different checks. Do not
+interpret a locally valid signature as Gatekeeper approval. No security settings
+are changed automatically. See the release evidence for what was actually tested.
 
----
 
-## 7. Troubleshooting
+## NVIDIA connection limits
 
-| Symptom | Likely cause | What to do |
-|---|---|---|
-| "Save & Apply" is greyed out | no provider, no key, invalid model id, or an invalid role override | read the red message under the field; it names the rule |
-| `The settings file has a problem this app will not overwrite` | malformed JSON or the file is a symlink | fix the JSON by hand (the app refuses to guess); symlinks are refused for safety |
-| Claude Code still uses the old endpoint | plaintext `ANTHROPIC_*` env vars in your shell or in `env` outrank the helper | the app warns about this; remove the stale variable |
-| Claude Code says the model does not exist | the id is well-formed but not offered by that provider | the app validates *shape* only; check the provider's catalog |
-| Claude Code says `apiKeyHelper: Failing — exited 127: …/Library/Application: No such file` | You are on a build older than G16, whose helper path contained a space (Claude Code does not quote it) | Install the current build and press Save & Apply again; helpers now live under `~/.claude-config-manager/` |
-| Claude Code prints `401 Missing Authentication header` or `Both ANTHROPIC_AUTH_TOKEN and apiKeyHelper set` | Your **shell** exports `ANTHROPIC_AUTH_TOKEN` (e.g. in `~/.zshrc`). It outranks `apiKeyHelper`, so Claude Code never uses the key this app stored | Remove/comment that `export` line, open a new terminal, and re-run `claude`; the app shows a warning naming the variable and its length |
-| Helper returns nothing | Credential file missing (deleted, or moved) | re-apply with your key, or check `ls -l "$HOME/Library/Application Support/ClaudeConfigManager/secrets/"` |
-| Helper prints "permissions are too open" | Something loosened the file's mode | `chmod 600 "$HOME/Library/Application Support/ClaudeConfigManager/secrets/<provider>.secret"` |
-| Model fetch fails behind a corporate network | TLS trust or proxy | the app uses the macOS system trust store (MDM roots work) and honours `HTTPS_PROXY`/`NO_PROXY`; SOCKS proxies are not supported |
-| "Fetch models" fails with 401 | the provider wants a different credential style for its catalog | DeepSeek already handled (Bearer); for others, type the model id manually |
-| `…is damaged and can't be opened` | the build is unsigned (ad-hoc) | expected for this build; see Limitations |
+The built-in adapter translates text, images where supported by the selected
+model, function tool declarations/calls/results, usage and streamed tool argument
+fragments. Tool execution remains with Claude Code, not the helper. Anthropic
+server/computer tools, document blocks and structured-output formats are rejected
+with a clear request error. Anthropic cache metadata is not NVIDIA cache state;
+signed Anthropic thinking is not forwarded as NVIDIA reasoning. Nemotron 3 uses
+`enable_thinking: false` and `force_nonempty_content: true`. NVIDIA output is capped
+at its documented 32,768 tokens; a large context declaration does not increase
+that output limit. Interrupted/malformed streams are not replayed.
 
-Diagnostics never print your key. Error text is redacted by exact match **and** by shape (anything
-credential-looking is replaced with `[REDACTED]`).
-
----
-
-## 8. Limitations
-
-- **Unsigned, not notarized build.** Gatekeeper refuses it; distribution requires an Apple Developer ID
-  (`docs/audits/T64-package.md`). arm64 only.
-- **Bridge mode (OpenAI-only providers) is not implemented.** Claude Code speaks the Anthropic API; providers
-  such as NVIDIA NIM that only expose an OpenAI-compatible API need a translation bridge. Those tasks
-  (T47–T58) are blocked pending a decision on installing a third-party binary, and the app makes no claim to
-  support them. Selecting such a provider only writes configuration; requests would fail at Claude Code.
-- **Model capability data is `unknown`.** The app does not claim a third-party model supports tool use,
-  vision or reasoning — that depends on the model *and* on the provider's compatibility layer.
-- **No automated uninstall**, no auto-update. There *is* a **Test connection** action for providers that document a key-check endpoint.
-- **Failover is opt-in and only for direct Anthropic-compatible providers.** See §11.
-- **Clearing a role override** requires editing the file (see §4).
-
----
-
-## 9. Bridge limitations (gated off in this release)
-
-The bridge install/lifecycle code ships, but **the app disables it**: this build does not yet write
-provider configuration into the pinned claude-code-router, so an installed gateway would have
-nothing to route to. The Bridge card says so. Use an Anthropic-compatible provider in direct mode
-instead. Original design constraints, still binding:
-
-If bridge support is ever approved, these are the constraints it must satisfy (already recorded as design
-requirements, not as shipped features):
-
-- local-only listener (loopback, never `0.0.0.0`), pinned version with integrity verification before
-  execution, verified license/provenance, and an explicit first-run consent screen naming source, version and
-  license;
-- per-provider/per-model capability reporting, with anything unverified shown as unknown;
-- an uninstall path, and a documented behaviour when the GUI is closed (who owns the bridge lifecycle);
-- no silent stripping of tool calls, streaming, vision or reasoning.
-
-None of this exists in the current build.
-
----
-
-## 10. Windows porting notes
-
-The architecture is deliberately tiered, so a Windows port is mostly a platform-adapter job:
-
-| Layer | macOS today | Windows equivalent |
-|---|---|---|
-| Secret storage | Owner-only file (0700 dir / 0600 file) under Application Support | `%LOCALAPPDATA%\ClaudeConfigManager\secrets` with an ACL granting only the current user |
-| Settings location | `~/.claude/settings.json` / `$CLAUDE_CONFIG_DIR` | `%USERPROFILE%\.claude\settings.json` (verify with the Claude Code docs before claiming parity) |
-| Helper script | `/bin/sh` script calling `security` | `apiKeyHelper` on Windows is not covered by the test suite; a `.cmd`/`.ps1` equivalent would need its own security review (argument quoting, execution policy) |
-| Atomic write | temp + `fsync` + `rename` | `MoveFileEx` with `MOVEFILE_REPLACE_EXISTING`; the "same directory temp file" rule still applies |
-| File permissions | `0600` | ACLs (`icacls`) — the current tests assert POSIX modes and would need a platform-specific variant |
-| Paths | `~/Library/Application Support/...` | `%LOCALAPPDATA%\ClaudeConfigManager` |
-
-Also needed: CI on Windows, a Windows-aware `ConfigLocator`, and re-checking every `#[cfg(unix)]` test (the
-whole filesystem suite is Unix-only today). Do **not** assume macOS behaviour transfers: the symlink refusals,
-permission checks and helper execution model all differ.
-
-## 11. Failover routing (optional)
-
-The app can run a small proxy on your own machine so that one failed provider does not stop your
-session.
-
-1. Choose a provider and add a stored key (Credentials).
-2. Under **Failover routing**, pick the provider and one of its stored credentials, optionally
-   pin a model, and press **Add target**. Repeat for the backup providers you want.
-3. Order the list (↑ / ↓). The proxy tries targets top to bottom.
-4. **Save chain**, then **Start helper**, then **Apply routed mode** (the footer button changes
-   to this while Claude Code is routed).
-
-What it changes — `~/.claude/settings.json` gets
-
-```json
-{
-  "env": { "ANTHROPIC_BASE_URL": "http://127.0.0.1:<port>" },
-  "apiKeyHelper": "/Users/<you>/.claude-config-manager/helpers/proxy.sh"
-}
-```
-
-The helper prints a **proxy token**, not a provider key. Keys stay in
-`~/.claude-config-manager/secrets/` and only the proxy reads them.
-
-When it fails over: 401/403 (bad key), 429 (rate limit, honours `Retry-After`), 5xx, timeouts and
-network errors. It does **not** fail over on a malformed request (400/404/422), and it never
-retries a request whose stream already started — so a tool call or a charge is never duplicated.
-
-Limits worth knowing:
-
-- The listener is `127.0.0.1` only. Since V3 it runs in a **helper process that outlives the
-  window**, so Claude Code in a VS Code terminal keeps working after you close the app. The
-  Failover screen shows the helper state with **Start / Stop / Restart**.
-- The helper's port and bearer token are kept on disk (`0600`) so a restart does not invalidate
-  the configuration Claude Code already has.
-- To survive a logout/login, tick **Start the helper when I log in**. That installs a user
-  LaunchAgent in `~/Library/LaunchAgents` (no admin rights) and the same checkbox removes it.
-  Nothing is installed unless you tick it.
-- Cooldowns (30 s for a rate limit, 6 h for a rejected key or exhausted quota) are in memory and
-  reset on restart.
-- Only `anthropic-version`, `anthropic-beta` and `accept` are forwarded besides the body.
-- Routing adds a hop: if the helper is not running, Claude Code cannot reach the provider. The
-  header then says `mode: proxy stopped` instead of pretending everything is fine.
-- The global **Save & Apply** button is intentionally replaced while routed: switching back to
-  direct mode needs **Switch to direct…** and a second confirmation, so a working routed setup
-  cannot be undone by one stray click.
-- Providers that only speak the OpenAI API (for example NVIDIA NIM) are **refused with a clear
-  `compatibility_error`**, not sent an Anthropic body they cannot parse. This build ships no
-  protocol bridge.
-
----
-
----
-
-## Where the key lives (and what that protects)
-
-The app stopped using the macOS Keychain: SecItemAdd was refused for the shipped bundle
-("keychain access refused by the OS") and no signing configuration fixed it, which made
-Save & Apply impossible. Credentials are now written to:
-
-```
-~/.claude-config-manager/secrets/<provider>.secret   (0600, dir 0700)
-```
-
-- **Protects against:** other users on the machine, backups/cloud sync of `~/.claude`
-  (the file is outside it), logs and bug reports (never printed), and any accidental
-  world-readable state (the helper and the store both refuse a loosened file).
-- **Does not protect against:** another process running **as you**. This is the same
-  guarantee as `~/.ssh/id_ed25519`, `~/.aws/credentials` and `~/.config/gcloud`. macOS
-  has no API to encrypt a secret so the same user cannot decrypt it; anything that
-  claimed otherwise would be storing the key beside the lock.
-- Encrypting the file would be security theatre without a separate secret to derive a
-  key from, so the app does not pretend to.
+Save and tool execution were tested end to end with the installed CLI using
+loopback fixtures and fake keys. A real NVIDIA account/inference request was not
+run, so model availability, account credit and hosted-model behavior remain
+provider-dependent. See [1.0.5 release evidence](releases/1.0.5.md).

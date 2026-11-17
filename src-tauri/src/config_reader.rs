@@ -40,6 +40,7 @@ pub enum ConfigError {
     ConcurrentModification,
     SymlinkRefused,
     Io(String),
+    RollbackFailed(String),
 }
 
 impl std::fmt::Display for ConfigError {
@@ -47,15 +48,15 @@ impl std::fmt::Display for ConfigError {
         match self {
             ConfigError::Missing => write!(f, "settings file does not exist yet"),
             ConfigError::PermissionDenied(m) => write!(f, "settings file not readable ({m})"),
-            ConfigError::MalformedJson(_) => {
+            ConfigError::MalformedJson(position) => {
                 write!(
                     f,
-                    "settings file contains invalid JSON — not overwritten; fix it manually first"
+                    "settings file contains invalid JSON ({position}) — not overwritten; use Recovery or repair the file"
                 )
             }
             ConfigError::MalformedJsonHint(hint) => write!(
                 f,
-                "settings file contains invalid JSON ({hint}) — not overwritten; fix it manually first"
+                "settings file contains invalid JSON ({hint}) — not overwritten; use Recovery or repair the file"
             ),
             ConfigError::TooLarge { size, limit } => write!(
                 f,
@@ -73,6 +74,10 @@ impl std::fmt::Display for ConfigError {
                 write!(f, "settings path is a symlink — refused for safety")
             }
             ConfigError::Io(m) => write!(f, "settings file error ({m})"),
+            ConfigError::RollbackFailed(m) => write!(
+                f,
+                "settings rollback failed ({m}); open Recovery & diagnostics"
+            ),
         }
     }
 }
@@ -121,6 +126,12 @@ pub fn read_settings(path: &Path) -> Result<Value, ConfigError> {
         _ => ConfigError::Io(e.to_string()),
     })?;
 
+    if raw.trim().is_empty() {
+        return Err(ConfigError::MalformedJson(format!(
+            "empty file, {} bytes",
+            raw.len()
+        )));
+    }
     let value: Value = serde_json::from_str(&raw).map_err(|e| {
         // G6: name the most likely cause when we can do so safely. Claude Code
         // does not accept comments in settings.json (code.claude.com/docs/en/
@@ -270,7 +281,7 @@ mod tests {
             matches!(err, ConfigError::MalformedJsonHint(h) if h.contains("comments")),
             "expected a comment hint, got {err:?}"
         );
-        assert!(err.to_string().contains("fix it manually"));
+        assert!(err.to_string().contains("Recovery"));
         fs::remove_dir_all(&dir).ok();
     }
 

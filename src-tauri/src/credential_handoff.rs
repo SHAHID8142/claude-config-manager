@@ -25,8 +25,92 @@
 use crate::config_backup::BackupError;
 use crate::secret_store::SecretError;
 use std::io::Write;
-use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static HELPER_TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+struct PendingHelper(PathBuf);
+impl Drop for PendingHelper {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+/// Check only app-owned components. macOS /tmp, /var and a user's home may be
+/// legitimate symlink ancestors and are deliberately outside this boundary.
+fn check_helper_directories(helpers_dir: &Path) -> Result<(), BackupError> {
+    let owned_root = helpers_dir
+        .ancestors()
+        .find(|p| p.file_name().is_some_and(|n| n == ".claude-config-manager"));
+    for directory in helpers_dir.ancestors() {
+        match std::fs::symlink_metadata(directory) {
+            Ok(meta) if !meta.is_dir() || meta.file_type().is_symlink() => {
+                return Err(BackupError::Io(
+                    "helper directory is not an owned regular directory".into(),
+                ));
+            }
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(BackupError::Io(e.to_string())),
+        }
+        if owned_root.is_none() || Some(directory) == owned_root {
+            break;
+        }
+    }
+    Ok(())
+}
+
+fn private_directory_mode(directory: &Path) -> Result<(), BackupError> {
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(target_os = "macos")]
+    options.custom_flags(0x100 | 0x4); // O_NOFOLLOW | O_NONBLOCK
+    #[cfg(target_os = "linux")]
+    options.custom_flags(0x20000 | 0x800); // O_NOFOLLOW | O_NONBLOCK
+    let file = options
+        .open(directory)
+        .map_err(|e| BackupError::Io(e.to_string()))?;
+    if !file
+        .metadata()
+        .map_err(|e| BackupError::Io(e.to_string()))?
+        .is_dir()
+    {
+        return Err(BackupError::Io(
+            "helper directory is not a directory".into(),
+        ));
+    }
+    file.set_permissions(std::fs::Permissions::from_mode(0o700))
+        .map_err(|e| BackupError::Io(e.to_string()))
+}
+
+/// Encode one executable path for Claude Code's /bin/sh command line.
+/// Ordinary paths retain their old representation; metacharacters are quoted.
+pub fn helper_command(path: &Path) -> String {
+    let raw = path.to_string_lossy();
+    if raw
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || "/._-".contains(c))
+    {
+        raw.into_owned()
+    } else {
+        format!("'{}'", raw.replace('\'', "'\\''"))
+    }
+}
+/// Recognize only our single-path encoding, never arbitrary shell commands.
+pub fn helper_command_path(command: &str) -> Option<PathBuf> {
+    if command.len() > 4096 || command.chars().any(char::is_control) {
+        return None;
+    }
+    let raw = if command.starts_with('\'') && command.ends_with('\'') && command.len() >= 2 {
+        command[1..command.len() - 1].replace("'\\''", "'")
+    } else {
+        command.to_owned()
+    };
+    let path = PathBuf::from(raw);
+    (path.is_absolute() && helper_command(&path) == command).then_some(path)
+}
 
 /// Strict provider-id validation shared with the catalog ([a-z0-9-]{1,64}).
 pub fn validate_provider_id(provider_id: &str) -> Result<(), SecretError> {
@@ -76,6 +160,7 @@ pub fn generate_helper_script_for(provider_id: &str, account: &str) -> Result<St
 # Prints the stored credential for provider '{provider_id}'. The secret lives in
 # an owner-only file (0600), never in settings.json and never in this script.
 f="$HOME/.claude-config-manager/secrets/{account}.secret"
+[ ! -L "$HOME/.claude-config-manager" ] && [ ! -L "$HOME/.claude-config-manager/secrets" ] && [ ! -L "$f" ] || {{ echo "credential path is a symlink; refusing" >&2; exit 1; }}
 [ -f "$f" ] || {{ echo "credential file missing for {account}" >&2; exit 1; }}
 # Portable permission check: GNU stat first (Linux), BSD stat fallback (macOS).
 perms="$(stat -c %a "$f" 2>/dev/null || stat -f %Lp "$f" 2>/dev/null)"
@@ -108,38 +193,56 @@ pub fn install_helper_script(
 ) -> Result<PathBuf, BackupError> {
     validate_provider_id(provider_id).map_err(|_| BackupError::Io("invalid provider id".into()))?;
 
+    check_helper_directories(helpers_dir)?;
     std::fs::create_dir_all(helpers_dir).map_err(|e| BackupError::Io(e.to_string()))?;
-    std::fs::set_permissions(helpers_dir, std::fs::Permissions::from_mode(0o700))
-        .map_err(|e| BackupError::Io(e.to_string()))?;
+    check_helper_directories(helpers_dir)?;
+    if let Some(root) = helpers_dir
+        .ancestors()
+        .find(|p| p.file_name().is_some_and(|n| n == ".claude-config-manager"))
+    {
+        private_directory_mode(root)?;
+    }
+    private_directory_mode(helpers_dir)?;
 
     let target = helpers_dir.join(format!("{provider_id}.sh"));
+    if std::fs::symlink_metadata(&target).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err(BackupError::Io(
+            "helper path is a symlink; refusing to replace it".into(),
+        ));
+    }
     let tmp = helpers_dir.join(format!(
-        ".{provider_id}.sh.tmp-{}",
+        ".{provider_id}.sh.tmp-{}-{}-{}",
+        std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos()
+            .as_nanos(),
+        HELPER_TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
     ));
 
-    {
-        let mut f = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&tmp)
-            .map_err(|e| BackupError::Io(e.to_string()))?;
-        f.write_all(script.as_bytes())
-            .map_err(|e| BackupError::Io(e.to_string()))?;
-        let _ = f.sync_all();
-    }
-    std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o700))
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o700)
+        .open(&tmp)
         .map_err(|e| BackupError::Io(e.to_string()))?;
-    std::fs::rename(&tmp, &target).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
-        BackupError::Io(e.to_string())
-    })?;
+    // The guard exists only once create_new succeeds, so an EEXIST collision
+    // never removes a temporary file belonging to another installer.
+    let pending = PendingHelper(tmp);
+    file.set_permissions(std::fs::Permissions::from_mode(0o700))
+        .map_err(|e| BackupError::Io(e.to_string()))?;
+    file.write_all(script.as_bytes())
+        .map_err(|e| BackupError::Io(e.to_string()))?;
+    file.sync_all()
+        .map_err(|e| BackupError::Io(e.to_string()))?;
+    std::fs::rename(&pending.0, &target).map_err(|e| BackupError::Io(e.to_string()))?;
+    if let Ok(directory) = std::fs::File::open(helpers_dir) {
+        let _ = directory.sync_all();
+    }
 
     // Verify installed state before returning the path.
-    let mode = std::fs::metadata(&target)
+    let mode = file
+        .metadata()
         .map_err(|e| BackupError::Io(e.to_string()))?
         .permissions()
         .mode();
@@ -152,6 +255,7 @@ pub fn install_helper_script(
 /// Remove the helper script for a provider. Idempotent.
 pub fn uninstall_helper_script(helpers_dir: &Path, provider_id: &str) -> Result<(), BackupError> {
     validate_provider_id(provider_id).map_err(|_| BackupError::Io("invalid provider id".into()))?;
+    check_helper_directories(helpers_dir)?;
     let target = helpers_dir.join(format!("{provider_id}.sh"));
     match std::fs::remove_file(&target) {
         Ok(()) => Ok(()),

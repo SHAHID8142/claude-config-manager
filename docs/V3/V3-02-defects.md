@@ -1,3 +1,6 @@
+> Historical phase snapshot. For current 1.0.2 behavior and remaining work, see
+> [the dated repair audit](../audits/2026-11-17-project-review.md) and [user guide](../USER_GUIDE.md).
+
 # V3-02 — Verification of the seven reported defects
 
 Method: read the current code, then try to reproduce. "Confirmed" means the

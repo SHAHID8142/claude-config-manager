@@ -23,12 +23,38 @@
 //! script — the script only contains the derived path.
 
 use crate::secret_store::{SecretError, SecretStore};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Refuse absurd values before they reach the disk.
 const MAX_SECRET_BYTES: usize = 16 * 1024;
+static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+/// Cleans only this writer's exclusively created temporary file. Other writers
+/// may be committing the same account concurrently.
+struct PendingSecret {
+    path: PathBuf,
+    owned: bool,
+}
+impl Drop for PendingSecret {
+    fn drop(&mut self) {
+        if self.owned {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
+fn private_read(path: &Path) -> std::io::Result<std::fs::File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(target_os = "macos")]
+    options.custom_flags(0x100 | 0x4); // O_NOFOLLOW | O_NONBLOCK on Darwin
+    #[cfg(target_os = "linux")]
+    options.custom_flags(0x20000 | 0x800); // O_NOFOLLOW | O_NONBLOCK on Linux
+    options.open(path)
+}
 
 #[derive(Debug, Clone)]
 pub struct FileSecretStore {
@@ -38,8 +64,8 @@ pub struct FileSecretStore {
 impl FileSecretStore {
     /// `<home>/.claude-config-manager/secrets`
     ///
-    /// Deliberately space-free: the helper script's path is embedded in
-    /// `apiKeyHelper`, which Claude Code does not quote (see `credential_handoff`).
+    /// Stable app-owned root. Helper commands quote paths containing spaces
+    /// or shell metacharacters (see `credential_handoff`).
     pub fn for_home(home: &Path) -> Self {
         Self {
             root: home.join(".claude-config-manager").join("secrets"),
@@ -110,7 +136,18 @@ fn validate_provider_component(value: &str) -> Result<(), SecretError> {
 impl SecretStore for FileSecretStore {
     fn set_secret(&self, service: &str, account: &str, secret: &str) -> Result<(), SecretError> {
         let path = self.path_for(service, account)?;
-        if secret.is_empty() {
+        for directory in [Some(self.root.as_path()), self.root.parent()]
+            .into_iter()
+            .flatten()
+        {
+            if std::fs::symlink_metadata(directory).is_ok_and(|meta| meta.file_type().is_symlink())
+            {
+                return Err(SecretError::Platform(
+                    "credential parent is a symlink; refusing".into(),
+                ));
+            }
+        }
+        if secret.trim().is_empty() {
             return Err(SecretError::Platform(
                 "refusing to store an empty credential".into(),
             ));
@@ -130,16 +167,30 @@ impl SecretStore for FileSecretStore {
         }
         self.ensure_root()?;
 
-        let tmp = path.with_extension("secret.tmp");
-        // Remove a stale temp so `create_new` cannot fail on our own leftovers.
-        let _ = std::fs::remove_file(&tmp);
+        let mut tmp = PendingSecret {
+            path: path.with_extension(format!(
+                "secret.tmp-{}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_nanos(),
+                TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+            )),
+            owned: false,
+        };
 
         {
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
                 .mode(0o600) // created owner-only, not chmod after the fact
-                .open(&tmp)
+                .open(&tmp.path)
+                .map_err(|e| SecretError::Platform(e.to_string()))?;
+            tmp.owned = true;
+            // Set the precise mode through the open descriptor, before secrets
+            // are written, even under a restrictive caller umask.
+            file.set_permissions(std::fs::Permissions::from_mode(0o600))
                 .map_err(|e| SecretError::Platform(e.to_string()))?;
             file.write_all(secret.as_bytes())
                 .map_err(|e| SecretError::Platform(e.to_string()))?;
@@ -150,22 +201,32 @@ impl SecretStore for FileSecretStore {
         if let Ok(meta) = std::fs::symlink_metadata(&path)
             && meta.file_type().is_symlink()
         {
-            let _ = std::fs::remove_file(&tmp);
             return Err(SecretError::Platform(
                 "credential file is a symlink; refusing to write through it".into(),
             ));
         }
-        std::fs::rename(&tmp, &path).map_err(|e| {
-            let _ = std::fs::remove_file(&tmp);
-            SecretError::Platform(e.to_string())
-        })?;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
-            .map_err(|e| SecretError::Platform(e.to_string()))?;
+        std::fs::rename(&tmp.path, &path).map_err(|e| SecretError::Platform(e.to_string()))?;
+        // The file itself is durable before rename; directory syncing is best
+        // effort because some supported filesystems do not allow it.
+        if let Ok(directory) = private_read(&self.root) {
+            let _ = directory.sync_all();
+        }
         Ok(())
     }
 
     fn get_secret(&self, service: &str, account: &str) -> Result<Option<String>, SecretError> {
         let path = self.path_for(service, account)?;
+        for directory in [Some(self.root.as_path()), self.root.parent()]
+            .into_iter()
+            .flatten()
+        {
+            if std::fs::symlink_metadata(directory).is_ok_and(|meta| meta.file_type().is_symlink())
+            {
+                return Err(SecretError::Platform(
+                    "credential parent is a symlink; refusing".into(),
+                ));
+            }
+        }
         let meta = match std::fs::symlink_metadata(&path) {
             Ok(m) => m,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -176,27 +237,77 @@ impl SecretStore for FileSecretStore {
                 "credential file is a symlink; refusing to read through it".into(),
             ));
         }
-        if meta.permissions().mode() & 0o077 != 0 {
+        if !meta.is_file() {
+            return Err(SecretError::Platform(
+                "credential path is not a regular file".into(),
+            ));
+        }
+        // Inspect the descriptor we actually read. The final component cannot
+        // be swapped to a symlink between the path check and open.
+        let file = private_read(&path).map_err(|e| SecretError::Platform(e.to_string()))?;
+        let meta = file
+            .metadata()
+            .map_err(|e| SecretError::Platform(e.to_string()))?;
+        if !meta.is_file() {
+            return Err(SecretError::Platform(
+                "credential path is not a regular file".into(),
+            ));
+        }
+        if meta.permissions().mode() & 0o7777 != 0o600 {
             // Someone loosened the file: a group/world-readable credential is a
             // finding, not something to silently keep using.
             return Err(SecretError::Platform(format!(
-                "credential file permissions are too open ({:o}); expected 600",
-                meta.permissions().mode() & 0o777
+                "credential file permissions are {:o}; expected 600",
+                meta.permissions().mode() & 0o7777
             )));
         }
-        if meta.len() as usize > MAX_SECRET_BYTES + 1 {
+        if meta.len() as usize > MAX_SECRET_BYTES + 2 {
             return Err(SecretError::Platform(
                 "credential file is unexpectedly large".into(),
             ));
         }
-        let raw = std::fs::read(&path).map_err(|e| SecretError::Platform(e.to_string()))?;
+        let mut raw = Vec::new();
+        file.take((MAX_SECRET_BYTES + 3) as u64)
+            .read_to_end(&mut raw)
+            .map_err(|e| SecretError::Platform(e.to_string()))?;
+        if raw.len() > MAX_SECRET_BYTES + 2 {
+            return Err(SecretError::Platform(
+                "credential file is unexpectedly large".into(),
+            ));
+        }
         let text = String::from_utf8(raw)
             .map_err(|_| SecretError::Platform("credential file is not valid UTF-8".into()))?;
-        Ok(Some(text.trim_end_matches(['\n', '\r']).to_string()))
+        // A single text-file newline is compatible with legacy/manual files.
+        // Additional newlines, embedded controls or empty credentials indicate
+        // corruption rather than a usable key.
+        let value = text
+            .strip_suffix("\r\n")
+            .or_else(|| text.strip_suffix('\n'))
+            .unwrap_or(&text);
+        if value.len() > MAX_SECRET_BYTES
+            || value.trim().is_empty()
+            || value.chars().any(char::is_control)
+        {
+            return Err(SecretError::Platform(
+                "credential file contains an empty or control-bearing value".into(),
+            ));
+        }
+        Ok(Some(value.to_string()))
     }
 
     fn delete_secret(&self, service: &str, account: &str) -> Result<(), SecretError> {
         let path = self.path_for(service, account)?;
+        for directory in [Some(self.root.as_path()), self.root.parent()]
+            .into_iter()
+            .flatten()
+        {
+            if std::fs::symlink_metadata(directory).is_ok_and(|meta| meta.file_type().is_symlink())
+            {
+                return Err(SecretError::Platform(
+                    "credential parent is a symlink; refusing".into(),
+                ));
+            }
+        }
         match std::fs::remove_file(&path) {
             Ok(()) => Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),

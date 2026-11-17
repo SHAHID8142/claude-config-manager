@@ -1,3 +1,6 @@
+> Historical phase snapshot. For current 1.0.2 behavior and remaining work, see
+> [the dated repair audit](../audits/2026-11-17-project-review.md) and [user guide](../USER_GUIDE.md).
+
 # V2-01 — Baseline inspection (evidence)
 
 **Date:** 2026-11-08 · **Branch:** `main` · **HEAD at start:** `e6e6bf8`

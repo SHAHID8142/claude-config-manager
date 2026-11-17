@@ -140,12 +140,46 @@ pub fn clear_state(home: &Path) {
 /// restarts so a restart does not invalidate an applied configuration.
 pub fn ensure_token(home: &Path) -> Result<String, String> {
     let store = FileSecretStore::for_home(home);
-    if let Ok(Some(existing)) = store.get_secret(TOKEN_SERVICE, TOKEN_ACCOUNT)
+    if let Some(existing) = store
+        .get_secret(TOKEN_SERVICE, TOKEN_ACCOUNT)
+        .map_err(|e| e.to_string())?
         && existing.len() >= 32
         && existing.chars().all(|c| c.is_ascii_hexdigit())
     {
         return Ok(existing);
     }
+    // Serialize first initialization, then recheck under the same shared lock.
+    let mut transaction = crate::transaction_journal::ManagedTransaction::begin(home, None)?;
+    let result = ensure_token_locked(home, &mut transaction);
+    match result {
+        Ok(token) => {
+            transaction.commit()?;
+            Ok(token)
+        }
+        Err(error) => {
+            transaction.rollback()?;
+            Err(error)
+        }
+    }
+}
+pub(crate) fn ensure_token_locked(
+    home: &Path,
+    transaction: &mut crate::transaction_journal::ManagedTransaction,
+) -> Result<String, String> {
+    let dir = crate::config_backup::default_backup_dir(home);
+    if transaction.lock().path() != dir.parent().unwrap().join("apply.lock") {
+        return Err("wrong transaction scope".into());
+    }
+    let store = FileSecretStore::for_home(home);
+    if let Some(existing) = store
+        .get_secret(TOKEN_SERVICE, TOKEN_ACCOUNT)
+        .map_err(|e| e.to_string())?
+        && existing.len() >= 32
+        && existing.chars().all(|c| c.is_ascii_hexdigit())
+    {
+        return Ok(existing);
+    }
+    transaction.track(&home.join(".claude-config-manager/secrets/proxy-helper.secret"))?;
     let token = proxy::random_token();
     store
         .set_secret(TOKEN_SERVICE, TOKEN_ACCOUNT, &token)
@@ -266,6 +300,40 @@ pub fn start_with_exe(home: &Path, exe: &Path) -> Result<HelperState, String> {
         .arg(pid.to_string())
         .status();
     Err("the proxy helper did not come up; nothing was changed".into())
+}
+
+pub struct RunningHelper {
+    executable: PathBuf,
+    port: u16,
+}
+/// Capture only a process that answers our own health identity check.
+pub fn running_identity(home: &Path) -> Option<RunningHelper> {
+    let state = read_state(home)?;
+    if health(state.port)?.pid != state.pid {
+        return None;
+    }
+    let output = std::process::Command::new("/bin/ps")
+        .args(["-p", &state.pid.to_string(), "-o", "command="])
+        .output()
+        .ok()?;
+    let command = String::from_utf8(output.stdout).ok()?;
+    let executable = PathBuf::from(command.trim().strip_suffix(" --proxy-helper")?);
+    if executable.file_name()?.to_str()? != "claude-config-manager" || !executable.is_file() {
+        return None;
+    }
+    Some(RunningHelper {
+        executable,
+        port: state.port,
+    })
+}
+pub fn restore_running(home: &Path, previous: &RunningHelper) -> Result<(), String> {
+    if let Some(state) = read_state(home)
+        && health(state.port).is_some_and(|h| h.pid == state.pid)
+    {
+        return Ok(());
+    }
+    write_last_port(home, previous.port)?;
+    start_with_exe(home, &previous.executable).map(|_| ())
 }
 
 /// Stop the helper. Only a pid that proves it is ours is signalled.

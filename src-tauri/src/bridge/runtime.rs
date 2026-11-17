@@ -69,14 +69,11 @@ pub fn generate_gateway_config(
     provider: &GatewayProviderConfig,
     port: u16,
 ) -> Result<String, BridgeRuntimeError> {
-    if !provider.base_url.starts_with("https://")
-        && !provider.base_url.starts_with("http://127.0.0.1")
-        && !provider.base_url.starts_with("http://localhost")
-    {
-        return Err(BridgeRuntimeError::Config(
-            "provider base URL must be https (or a loopback test endpoint)".into(),
-        ));
-    }
+    crate::model_discovery::validate_endpoint(&provider.base_url).map_err(|_| {
+        BridgeRuntimeError::Config(
+            "provider base URL must be https or a parsed loopback endpoint".into(),
+        )
+    })?;
     if provider.name.trim().is_empty() || provider.name.len() > 64 {
         return Err(BridgeRuntimeError::Config("provider name invalid".into()));
     }
@@ -131,13 +128,33 @@ fn pid_alive(pid: u32) -> bool {
         .unwrap_or(false)
 }
 
+fn pid_matches_bridge(state_dir: &Path, pid: u32) -> bool {
+    if !pid_alive(pid) {
+        return false;
+    }
+    let expected = state_dir
+        .join("packages")
+        .join(PINNED.version)
+        .join("dist/main/cli.js");
+    Command::new("/bin/ps")
+        .args(["-p", &pid.to_string(), "-o", "command="])
+        .output()
+        .ok()
+        .is_some_and(|output| {
+            let command = String::from_utf8_lossy(&output.stdout);
+            output.status.success()
+                && command.contains(expected.to_string_lossy().as_ref())
+                && command.contains("serve")
+        })
+}
+
 /// T52 status: read the pid file and probe liveness.
 pub fn status(state_dir: &Path) -> BridgeStatus {
     let pf = pid_file(state_dir);
     let pid = std::fs::read_to_string(&pf)
         .ok()
         .and_then(|s| s.trim().parse::<u32>().ok())
-        .filter(|p| pid_alive(*p));
+        .filter(|p| pid_matches_bridge(state_dir, *p));
     BridgeStatus {
         running: pid.is_some(),
         pid,
@@ -210,7 +227,7 @@ pub fn stop(state_dir: &Path) -> Result<bool, BridgeRuntimeError> {
         .ok()
         .and_then(|s| s.trim().parse::<u32>().ok());
     let was_running = match pid {
-        Some(p) if pid_alive(p) => {
+        Some(p) if pid_matches_bridge(state_dir, p) => {
             let _ = Command::new("kill")
                 .arg(p.to_string())
                 .stdout(Stdio::null())

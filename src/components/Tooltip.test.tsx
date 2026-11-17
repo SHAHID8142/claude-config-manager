@@ -14,7 +14,8 @@ describe("Tooltip", () => {
     trigger.focus();
     const tip = await screen.findByRole("tooltip");
     expect(tip).toHaveTextContent("Cloud credentials outrank the helper.");
-    expect(trigger).toHaveAttribute("aria-describedby", tip.id);
+    expect(trigger).toHaveAttribute("aria-controls", tip.id);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
@@ -43,11 +44,11 @@ describe("HelpPopover", () => {
     trigger.focus();
     await user.keyboard("{Enter}");
     expect(trigger).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("dialog", { name: "Authentication precedence" })).toHaveTextContent(
+    expect(screen.getByRole("tooltip", { name: "Authentication precedence" })).toHaveTextContent(
       "Shell exports beat the helper.",
     );
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 });

@@ -72,16 +72,19 @@ describe("CredentialsPanel (V2-21)", () => {
   it("adds a key with a label and clears the fields afterwards", async () => {
     const onAdd = vi.fn();
     render(<CredentialsPanel {...noop} onAdd={onAdd} credentials={[]} />);
-    await userEvent.type(screen.getByLabelText(/label for the new key/i), "second");
-    await userEvent.type(screen.getByLabelText(/new api key/i), "sk-test-fixture");
-    await userEvent.click(screen.getByRole("button", { name: "Add" }));
+    await userEvent.type(screen.getByLabelText(/key label/i, { selector: "input" }), "second");
+    await userEvent.type(
+      screen.getByLabelText(/new api key/i, { selector: "input" }),
+      "sk-test-fixture",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add key" }));
     expect(onAdd).toHaveBeenCalledWith("second", "sk-test-fixture");
-    expect(screen.getByLabelText(/new api key/i)).toHaveValue("");
+    expect(screen.getByLabelText(/new api key/i, { selector: "input" })).toHaveValue("");
   });
 
   it("cannot add a blank key and keeps the button disabled", () => {
     render(<CredentialsPanel {...noop} credentials={[]} />);
-    expect(screen.getByRole("button", { name: "Add" })).toBeDisabled();
-    expect(screen.getByText(/never shown again/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add key" })).toBeDisabled();
+    expect(screen.getByText(/only the last four characters/i)).toBeInTheDocument();
   });
 });

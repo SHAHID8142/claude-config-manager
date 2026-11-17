@@ -2,7 +2,7 @@
 //!
 //! Contract (T02 matrix §6, PRD F02/F06):
 //! - Only the managed key set is touched; every other key — at the top level
-//!   AND inside `env` — passes through byte-for-byte.
+//!   AND inside `env` — retains its semantic value after JSON serialization.
 //! - `None` in `DesiredSettings` means "leave this managed key untouched"
 //!   (settings can set but not remove; removal is a separate explicit
 //!   operation, not a side effect of a merge).
@@ -11,7 +11,6 @@
 
 use crate::config_reader::ConfigError;
 use crate::credential_handoff::validate_provider_id;
-use crate::provider_catalog::classify_endpoint;
 use serde_json::{Map, Value};
 use std::path::Path;
 
@@ -77,6 +76,7 @@ pub struct DesiredSettings {
     pub clear_env_model: bool,
     /// Explicitly remove `CLAUDE_CODE_MAX_CONTEXT_TOKENS` (window reset).
     pub clear_env_max_context_tokens: bool,
+    pub clear_env_roles: [bool; 3],
 }
 
 impl DesiredSettings {
@@ -117,26 +117,12 @@ impl DesiredSettings {
                 "authentication mode conflict: apiKeyHelper and plaintext env credentials are mutually exclusive (helper credentials rank below env keys and would be shadowed)".into(),
             ));
         }
-        if let Some(helper) = &self.api_key_helper {
-            let p = Path::new(helper);
-            if helper.chars().any(|c| c.is_whitespace()) {
-                // Claude Code executes the apiKeyHelper value as-is; a space
-                // silently truncates it (".../Library/Application: No such file").
-                return Err(ConfigError::ValidationFailed(
-                    "apiKeyHelper path must not contain whitespace (Claude Code does not quote it)"
-                        .into(),
+        if let Some(helper) = &self.api_key_helper
+            && crate::credential_handoff::helper_command_path(helper).is_none()
+        {
+            return Err(ConfigError::ValidationFailed(
+                    "apiKeyHelper must be a safely quoted absolute path; unquoted whitespace or shell commands are refused".into(),
                 ));
-            }
-            if !p.is_absolute() {
-                return Err(ConfigError::ValidationFailed(
-                    "apiKeyHelper must be an absolute path (settings env values are not shell-expanded; T02)".into(),
-                ));
-            }
-            if helper.contains('\0') || helper.len() > 4096 {
-                return Err(ConfigError::ValidationFailed(
-                    "apiKeyHelper: invalid path".into(),
-                ));
-            }
         }
         for (key, value) in self.env_writes() {
             match key {
@@ -144,17 +130,7 @@ impl DesiredSettings {
                     // V2-31: the failover proxy is loopback http by design.
                     // Anything else that is not https is still refused: a remote
                     // http endpoint would put the key on the wire in clear text.
-                    let loopback = value.starts_with("http://127.0.0.1:")
-                        || value.starts_with("http://localhost:")
-                        || value == "http://127.0.0.1"
-                        || value == "http://localhost";
-                    if !loopback
-                        && matches!(
-                            classify_endpoint(value),
-                            crate::provider_catalog::EndpointCheck::Invalid(_)
-                                | crate::provider_catalog::EndpointCheck::Insecure
-                        )
-                    {
+                    if crate::model_discovery::validate_endpoint(value).is_err() {
                         return Err(ConfigError::ValidationFailed(format!(
                             "{key}: endpoint must be a valid https URL (loopback http is allowed for the local proxy)"
                         )));
@@ -189,7 +165,7 @@ pub fn validate_model_id(model: &str) -> Result<(), ConfigError> {
     // T60: a pasted API key satisfies "printable ASCII" but would be written to
     // settings.json in plaintext. Refuse credential-shaped values outright.
     let t = model.trim();
-    if crate::redact::is_secret_shaped(t) {
+    if crate::redact::has_credential_prefix(t) {
         return Err(ConfigError::ValidationFailed(
             "value looks like an API key, not a model id — refusing to write it in plaintext"
                 .into(),
@@ -243,7 +219,9 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
     if let Some(helper) = &desired.api_key_helper {
         // Defense in depth: the helper path's provider segment must refer to
         // a valid provider id (the script name pattern is ours, T32).
-        let bad_stem = Path::new(helper)
+        let bad_stem = crate::credential_handoff::helper_command_path(helper)
+            .as_deref()
+            .unwrap_or_else(|| Path::new(""))
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .map(|stem| validate_provider_id(&stem).is_err())
@@ -262,6 +240,7 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
         || desired.clear_env_credentials
         || desired.clear_env_model
         || desired.clear_env_max_context_tokens
+        || desired.clear_env_roles.iter().any(|reset| *reset)
     {
         let existing_env = match out.get("env") {
             Some(Value::Object(m)) => m.clone(),
@@ -286,6 +265,15 @@ pub fn apply_desired(current: &Value, desired: &DesiredSettings) -> Result<Value
         }
         if desired.clear_env_max_context_tokens {
             env.remove("CLAUDE_CODE_MAX_CONTEXT_TOKENS");
+        }
+        for (reset, key) in desired.clear_env_roles.iter().zip([
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+            "ANTHROPIC_DEFAULT_SONNET_MODEL",
+            "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        ]) {
+            if *reset {
+                env.remove(key);
+            }
         }
         if desired.clear_env_credentials {
             // A blank string counts as present for precedence purposes, so both
@@ -588,6 +576,22 @@ mod tests {
         };
         let err = apply_desired(&obj(&[]), &desired).expect_err("must reject http");
         assert!(matches!(err, ConfigError::ValidationFailed(_)));
+    }
+
+    #[test]
+    fn rejects_loopback_prefix_spoofing_and_embedded_credentials() {
+        for endpoint in [
+            "http://127.0.0.1:80@evil.example",
+            "http://localhost:80@evil.example",
+            "http://localhost:invalid",
+            "https://user:pass@example.com",
+        ] {
+            let desired = DesiredSettings {
+                env_base_url: Some(endpoint.into()),
+                ..Default::default()
+            };
+            assert!(desired.validate().is_err(), "accepted {endpoint}");
+        }
     }
 
     #[test]

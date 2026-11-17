@@ -9,7 +9,7 @@ export interface CredentialsTabProps {
   credentials: CredentialView[];
   error: string | null;
   addDisabled: boolean;
-  onAdd: (label: string, secret: string) => void;
+  onAdd: (label: string, secret: string) => void | Promise<boolean | void>;
   onRemove: (id: string) => void;
   onToggle: (id: string, enabled: boolean) => void;
   onPromote: (id: string) => void;
@@ -45,8 +45,8 @@ export function CredentialsTab(props: CredentialsTabProps) {
         </span>
         <h2 className="text-[15px] font-semibold text-ink">Choose a provider first</h2>
         <p className="text-[13px] leading-[1.6] text-ink-muted">
-          Keys belong to a provider. Pick one on the Provider screen — custom providers work too —
-          and your keys will show up here.
+          Keys belong to a provider. Pick one on the Provider screen — then add your keys here — and
+          your keys will show up here.
         </p>
         <button type="button" onClick={props.onNavigateToProvider} className="btn btn-primary mt-1">
           Go to Provider
@@ -76,12 +76,12 @@ export function CredentialsTab(props: CredentialsTabProps) {
               {enabled.length}
             </span>
             <span className="text-[12px] text-ink-muted">
-              {enabled.length === 1 ? "key in use" : "keys eligible"}
+              {enabled.length === 1 ? "key eligible" : "keys eligible"}
             </span>
           </dd>
         </div>
         <div className="min-w-0 truncate">
-          <dt className="text-[11px] text-ink-subtle">Handed to Claude Code</dt>
+          <dt className="text-[11px] text-ink-subtle">First enabled key</dt>
           <dd className="mt-1 text-[13px] text-ink" title={active?.label}>
             {active === null ? "nothing yet" : active.label}
           </dd>
@@ -90,13 +90,14 @@ export function CredentialsTab(props: CredentialsTabProps) {
 
       <Section
         title={`Keys for ${name}`}
-        description="The first enabled key is used; the rest are spares."
+        description="Enabled keys are tried in order during automatic switching."
         help={{
           title: "About multiple keys",
           children: (
             <p>
-              Add as many keys as you like. Promoting moves a key to the front. A legacy key stays
-              where it is until you replace it.
+              Add keys for this provider and put your preferred key first. Automatic switching tries
+              the next enabled key after a failure, then the next provider. Direct mode uses the key
+              chosen when you Apply.
             </p>
           ),
         }}
@@ -112,24 +113,27 @@ export function CredentialsTab(props: CredentialsTabProps) {
         />
       </Section>
 
-      <section className="flex items-start gap-3 rounded-[10px] border border-line bg-surface p-4">
-        <span
-          aria-hidden="true"
-          className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[6px] bg-surface-sunken text-ink-muted"
-        >
-          <KeyRound size={13} />
-        </span>
-        <div className="min-w-0 break-words text-[12px] leading-[1.6] text-ink-muted">
-          <p className="font-medium text-ink">Where keys live</p>
-          <p>
-            Each key is a separate file under{" "}
-            <code className="font-mono text-[11.5px]">{secretsDir}/</code> — directory 0700, file
-            0600, replaced atomically. The index next to it holds labels and order only, never key
-            material. Nothing here is copied into settings.json: Claude Code runs a helper script
-            that cats the file.
-          </p>
-        </div>
-      </section>
+      <details className="rounded-[10px] border border-line bg-surface p-3">
+        <summary className="cursor-pointer text-[12px] text-ink-muted">Storage details</summary>
+        <section className="mt-3 flex items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-[6px] bg-surface-sunken text-ink-muted"
+          >
+            <KeyRound size={13} />
+          </span>
+          <div className="min-w-0 break-words text-[12px] leading-[1.6] text-ink-muted">
+            <p className="font-medium text-ink">Where keys live</p>
+            <p>
+              Each key is a separate file under{" "}
+              <code className="font-mono text-[11.5px]">{secretsDir}/</code> — directory 0700, file
+              0600, replaced atomically. The index next to it holds labels and order only, never key
+              material. Nothing here is copied into settings.json: Claude Code runs a helper script
+              that cats the file.
+            </p>
+          </div>
+        </section>
+      </details>
     </div>
   );
 }

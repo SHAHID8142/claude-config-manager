@@ -87,6 +87,7 @@ export interface SaveApplyArgs {
   credentialId?: string;
   /** Remove `CLAUDE_CODE_MAX_CONTEXT_TOKENS` instead of writing a value. */
   resetContextWindow?: boolean;
+  resetRoles?: string[];
 }
 
 export async function saveAndApply(
@@ -104,6 +105,7 @@ export async function saveAndApply(
     credentialId: args.credentialId ?? null,
     maxContextTokens: args.maxContextTokens ?? null,
     resetContextWindow: args.resetContextWindow ?? false,
+    ...(args.resetRoles ? { resetRoles: args.resetRoles } : {}),
   });
 }
 
@@ -154,8 +156,11 @@ export interface RestoreOutcome {
   preRestoreBackup: string;
 }
 
-export async function restoreLastBackup(ipc: IpcLike = defaultIpc): Promise<RestoreOutcome> {
-  return ipc.invoke<RestoreOutcome>("restore_last_backup");
+export async function restoreLastBackup(
+  ipc: IpcLike = defaultIpc,
+  fileName?: string,
+): Promise<RestoreOutcome> {
+  return ipc.invoke<RestoreOutcome>("restore_last_backup", fileName ? { fileName } : undefined);
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +216,18 @@ export async function testConnection(
   return ipc.invoke<ConnectionTestResult>("test_connection", {
     providerId,
     credential: credential ?? null,
+  });
+}
+
+/** Explicitly preserve and recover invalid settings; never a normal Apply. */
+export async function recoverSettings(
+  useBackup: boolean,
+  ipc: IpcLike = defaultIpc,
+  fileName?: string,
+): Promise<RestoreOutcome> {
+  return ipc.invoke<RestoreOutcome>("recover_settings", {
+    useBackup,
+    ...(fileName ? { fileName } : {}),
   });
 }
 
@@ -345,6 +362,10 @@ export interface ProxyStatus {
   pid?: number;
   lastError: string | null;
   cooling: string[];
+  cooldownSeconds?: Record<string, number>;
+  lastSwitchReason?: string | null;
+  lastKeyLabel?: string | null;
+  activityError?: string | null;
 }
 
 export async function getRouting(ipc: IpcLike = defaultIpc): Promise<RoutingConfig> {
@@ -390,8 +411,9 @@ export async function helperLoginStart(
 export async function applyRoutedMode(
   model: string | null,
   ipc: IpcLike = defaultIpc,
+  config?: RoutingConfig,
 ): Promise<ApplyOutcome> {
-  return ipc.invoke<ApplyOutcome>("apply_routed_mode", { model });
+  return ipc.invoke<ApplyOutcome>("apply_routed_mode", config ? { model, config } : { model });
 }
 
 export interface TargetHealth {
@@ -500,4 +522,50 @@ export async function bridgeApplyMode(
     providerId,
     model: model ?? null,
   });
+}
+
+export interface BackupPreview {
+  fileName: string;
+  sizeBytes: number;
+  createdEpoch: number;
+  valid: boolean;
+  detail: string | null;
+  model: string | null;
+  baseUrl: string | null;
+  helperPresent: boolean | null;
+}
+export function backupPreviews(ipc: IpcLike = defaultIpc): Promise<BackupPreview[]> {
+  return ipc.invoke<BackupPreview[]>("backup_previews");
+}
+
+export interface PendingTransaction {
+  createdEpoch: number;
+  fileCount: number;
+  settingsPath: string | null;
+}
+export function pendingTransaction(ipc: IpcLike = defaultIpc): Promise<PendingTransaction | null> {
+  return ipc.invoke("pending_transaction");
+}
+export function recoverTransaction(
+  restorePrevious: boolean,
+  ipc: IpcLike = defaultIpc,
+): Promise<{ restoredPrevious: boolean; fileCount: number; currentSnapshotFile: string | null }> {
+  return ipc.invoke("recover_transaction", { restorePrevious });
+}
+
+export interface SwitchEvent {
+  epoch: number;
+  providerId: string;
+  outcome:
+    | "selected"
+    | "auth"
+    | "quota"
+    | "rate_limit"
+    | "server_error"
+    | "timeout"
+    | "network"
+    | "request";
+}
+export async function switchHistory(ipc: IpcLike = defaultIpc): Promise<SwitchEvent[]> {
+  return ipc.invoke("switch_history");
 }

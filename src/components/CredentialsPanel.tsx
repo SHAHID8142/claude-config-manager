@@ -4,16 +4,18 @@
  * show `•••• 1f2a`, so a screenshot, a shared screen, or a support transcript
  * cannot leak a credential. A migrated pre-V2 key is labelled and cannot be
  * deleted from here (it is the file Claude Code already reads). */
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ArrowUp, KeyRound, Trash2 } from "lucide-react";
 import type { CredentialView } from "../lib/ipc";
 import { maskKey } from "../lib/maskKey";
+import { FieldRow } from "./FieldRow";
+import { HelpPopover } from "./HelpPopover";
 
 export interface CredentialsPanelProps {
   credentials: CredentialView[];
   /** Adding is disabled until a provider is selected. */
   addDisabled?: boolean;
-  onAdd: (label: string, secret: string) => void;
+  onAdd: (label: string, secret: string) => void | Promise<boolean | void>;
   onRemove: (id: string) => void;
   onToggle: (id: string, enabled: boolean) => void;
   onPromote: (id: string) => void;
@@ -30,14 +32,32 @@ export function CredentialsPanel({
   onPromote,
   error = null,
 }: CredentialsPanelProps) {
+  const fieldId = useId();
+  const labelId = `${fieldId}-label`;
+  const secretId = `${fieldId}-secret`;
   const [label, setLabel] = useState("");
   const [secret, setSecret] = useState("");
 
-  function submit() {
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  async function submit() {
     if (secret.trim() === "") return;
-    onAdd(label.trim() === "" ? "key" : label.trim(), secret.trim());
-    setLabel("");
-    setSecret("");
+    if (saving || addDisabled) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const saved = await onAdd(label.trim() === "" ? "key" : label.trim(), secret.trim());
+      if (saved !== false) {
+        setLabel("");
+        setSecret("");
+      }
+    } catch {
+      setSaveError(
+        "The key could not be saved. Your entry has been kept; retry when the problem is resolved.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -68,8 +88,8 @@ export function CredentialsPanel({
                   type="button"
                   onClick={() => onPromote(c.id)}
                   aria-label={`Try ${c.label} first`}
-                  title="Move to the front of the failover order"
-                  className="shrink-0 rounded p-0.5 text-ink-subtle hover:text-ink"
+                  title="Move this key to the top of this provider’s order"
+                  className="inline-grid min-h-6 min-w-6 shrink-0 place-items-center rounded p-1 text-ink-subtle hover:text-ink"
                 >
                   <ArrowUp aria-hidden="true" className="size-3.5" />
                 </button>
@@ -79,7 +99,7 @@ export function CredentialsPanel({
                   type="button"
                   onClick={() => onRemove(c.id)}
                   aria-label={`Delete ${c.label}`}
-                  className="shrink-0 rounded p-0.5 text-ink-subtle hover:text-danger"
+                  className="inline-grid min-h-6 min-w-6 shrink-0 place-items-center rounded p-1 text-ink-subtle hover:text-danger"
                 >
                   <Trash2 aria-hidden="true" className="size-3.5" />
                 </button>
@@ -106,46 +126,71 @@ export function CredentialsPanel({
         </ul>
       )}
 
-      <div className="flex flex-col gap-1.5 rounded-md border border-dashed border-line px-2 py-2">
-        <div className="flex gap-1.5">
-          <label htmlFor="new-credential-label" className="sr-only">
-            Label for the new key
-          </label>
-          <input
-            id="new-credential-label"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="Label (e.g. work)"
-            className="w-32 shrink-0 rounded border border-control bg-surface px-2 py-1 text-[12px] text-ink placeholder:text-ink-subtle"
-          />
-          <label htmlFor="new-credential-secret" className="sr-only">
-            New API key
-          </label>
-          <input
-            id="new-credential-secret"
-            type="password"
-            value={secret}
-            onChange={(e) => setSecret(e.target.value)}
-            placeholder="Paste key"
-            autoComplete="off"
-            spellCheck={false}
-            className="min-w-0 flex-1 rounded border border-control bg-surface px-2 py-1 font-mono text-[12px] text-ink placeholder:text-ink-subtle"
-          />
-          <button
-            type="button"
-            onClick={submit}
-            disabled={addDisabled || secret.trim() === ""}
-            className="shrink-0 rounded border border-line px-2 py-1 text-[12px] font-medium text-ink hover:bg-surface-sunken disabled:opacity-40"
-          >
-            Add
-          </button>
-        </div>
-        <p className="text-[11px] text-ink-subtle">
-          Stored as <code>secrets/&lt;id&gt;.secret</code> (0600). Keys are never shown again after
-          saving — only the last four characters.
-        </p>
+      <div className="flex items-center gap-1 text-[12px] font-medium text-ink">
+        Add a key{" "}
+        <HelpPopover title="Add a key">
+          Keys are tried in their displayed order within this provider. Give each key a label.
+          Saving alone does not activate automatic switching. Keys on the same account may share
+          limits.
+        </HelpPopover>
       </div>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+        className="flex flex-col gap-2 rounded-md border border-dashed border-line p-3"
+      >
+        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+          <FieldRow
+            label="Key label"
+            htmlFor={labelId}
+            help="A name such as Work or Personal. This label identifies the key in the order and activity view; never paste your secret here."
+          >
+            <input
+              id={labelId}
+              value={label}
+              onChange={(event) => setLabel(event.target.value)}
+              placeholder="e.g. Work"
+              disabled={saving || addDisabled}
+              className="h-9 min-w-0 w-full rounded border border-control bg-surface px-2 text-[12px] text-ink"
+            />
+          </FieldRow>
+          <FieldRow
+            label="New API key"
+            htmlFor={secretId}
+            help="Paste a credential for this provider. It remains masked and is stored privately. A successful save clears this field; a failed save keeps it for retry."
+          >
+            <input
+              id={secretId}
+              type="password"
+              value={secret}
+              onChange={(event) => setSecret(event.target.value)}
+              placeholder="Paste key"
+              autoComplete="off"
+              spellCheck={false}
+              disabled={saving || addDisabled}
+              className="h-9 min-w-0 w-full rounded border border-control bg-surface px-2 font-mono text-[12px] text-ink"
+            />
+          </FieldRow>
+        </div>
+        <button
+          type="submit"
+          disabled={saving || addDisabled || secret.trim() === ""}
+          className="btn btn-secondary self-start"
+        >
+          {saving ? "Saving…" : "Add key"}
+        </button>
+        <p className="text-[11px] text-ink-subtle">
+          Saved privately on this Mac. Only the last four characters are shown after saving.
+        </p>
+      </form>
 
+      {saveError && (
+        <p role="alert" className="text-[12px] text-danger">
+          {saveError}
+        </p>
+      )}
       {error !== null && (
         <p role="alert" className="text-[11.5px] text-danger">
           {error}

@@ -23,7 +23,12 @@ export interface MockIpc extends IpcLike {
 }
 
 export function createMockIpc(options: MockIpcOptions = {}): MockIpc {
-  const handlers: Record<string, MockHandler> = { ...(options.handlers ?? {}) };
+  const handlers: Record<string, MockHandler> = {
+    switch_history: async () => [],
+    pending_transaction: async () => null,
+    backup_previews: async () => [],
+    ...(options.handlers ?? {}),
+  };
   const failures: Record<string, CommandError> = { ...(options.failures ?? {}) };
   const calls: MockIpc["calls"] = [];
 

@@ -73,7 +73,7 @@ fn spawn_upstream(responses: Vec<(u16, String)>) -> Upstream {
                 .get(i)
                 .cloned()
                 .unwrap_or((500, "exhausted".to_string()));
-            let ctype = if payload.starts_with("event:") {
+            let ctype = if payload.starts_with("event:") || payload.starts_with("data:") {
                 "text/event-stream"
             } else {
                 "application/json"
@@ -357,4 +357,207 @@ fn shutdown_stops_accepting_requests() {
     let port = handle.port;
     handle.shutdown();
     assert!(TcpStream::connect(("127.0.0.1", port)).is_err() || !handle.status().running);
+}
+
+#[test]
+fn grouped_provider_tries_its_second_key_before_touching_next_provider() {
+    let a = spawn_upstream(vec![
+        (401, "rejected".into()),
+        (200, "from-a-second-key".into()),
+    ]);
+    let b = spawn_upstream(vec![(200, "should-not-be-called".into())]);
+    let mut first = target("provider-a", &a.addr, Some("a-model"));
+    first.credential_id = None;
+    let mut second = target("provider-b", &b.addr, Some("b-model"));
+    second.provider_id = "deepseek".into();
+    second.credential_id = None;
+    let (home, mut handle) = setup("group-first", vec![first, second]);
+    let vault = CredentialVault::for_home(&home);
+    vault
+        .add("openrouter", "spare", "second-fixture-key")
+        .unwrap();
+    vault
+        .add("deepseek", "fallback", "third-fixture-key")
+        .unwrap();
+    let (status, body) = call(
+        handle.port,
+        &handle.token,
+        r#"{"model":"caller","messages":[]}"#,
+    );
+    assert!(status.contains("200"));
+    assert!(body.contains("from-a-second-key"));
+    assert_eq!(a.hits.load(Ordering::SeqCst), 2);
+    assert_eq!(b.hits.load(Ordering::SeqCst), 0);
+    handle.shutdown();
+    std::fs::remove_dir_all(home).unwrap();
+}
+
+#[test]
+fn grouped_provider_exhausts_keys_then_switches_provider_with_its_model() {
+    let a = spawn_upstream(vec![(401, "rejected".into()), (402, "no credit".into())]);
+    let b = spawn_upstream(vec![(200, "from-b".into())]);
+    let mut first = target("provider-a", &a.addr, Some("a-model"));
+    first.credential_id = None;
+    let mut second = target("provider-b", &b.addr, Some("b-model"));
+    second.provider_id = "deepseek".into();
+    second.credential_id = None;
+    let (home, mut handle) = setup("group-next", vec![first, second]);
+    let vault = CredentialVault::for_home(&home);
+    vault
+        .add("openrouter", "spare", "second-fixture-key")
+        .unwrap();
+    vault
+        .add("deepseek", "fallback", "third-fixture-key")
+        .unwrap();
+    let (status, body) = call(
+        handle.port,
+        &handle.token,
+        r#"{"model":"caller","messages":[]}"#,
+    );
+    assert!(status.contains("200"));
+    assert!(body.contains("from-b"));
+    assert_eq!(a.hits.load(Ordering::SeqCst), 2);
+    assert_eq!(b.hits.load(Ordering::SeqCst), 1);
+    let sent: serde_json::Value = serde_json::from_str(&b.bodies.lock().unwrap()[0]).unwrap();
+    assert_eq!(sent["model"], "b-model");
+    handle.shutdown();
+    std::fs::remove_dir_all(home).unwrap();
+}
+
+#[test]
+fn exhausted_group_does_not_retry_cooling_keys_on_the_next_request() {
+    let a = spawn_upstream(vec![
+        (401, "rejected".into()),
+        (200, "must-not-retry".into()),
+    ]);
+    let mut first = target("provider-a", &a.addr, Some("a-model"));
+    first.credential_id = None;
+    let (home, mut handle) = setup("group-cooling", vec![first]);
+    assert!(
+        call(handle.port, &handle.token, r#"{"messages":[]}"#)
+            .0
+            .contains("503")
+    );
+    assert!(
+        call(handle.port, &handle.token, r#"{"messages":[]}"#)
+            .0
+            .contains("503")
+    );
+    assert_eq!(a.hits.load(Ordering::SeqCst), 1);
+    handle.shutdown();
+    std::fs::remove_dir_all(home).unwrap();
+}
+
+fn setup_nvidia(
+    name: &str,
+    nv: &Upstream,
+    backup: &Upstream,
+) -> (std::path::PathBuf, proxy::ProxyHandle) {
+    let home = temp_home(name);
+    let vault = CredentialVault::for_home(&home);
+    vault.add("nvidia-nim", "first", "fixture-first").unwrap();
+    vault.add("nvidia-nim", "second", "fixture-second").unwrap();
+    vault.add("openrouter", "backup", "fixture-backup").unwrap();
+    routing_config::save(
+        &home,
+        &RoutingConfig {
+            version: 1,
+            enabled: true,
+            targets: vec![
+                RouteTarget {
+                    id: "nv".into(),
+                    provider_id: "nvidia-nim".into(),
+                    credential_id: None,
+                    model: Some("nvidia/nemotron-3-ultra-550b-a55b".into()),
+                    base_url: nv.addr.clone(),
+                    enabled: true,
+                },
+                RouteTarget {
+                    id: "backup".into(),
+                    provider_id: "openrouter".into(),
+                    credential_id: None,
+                    model: Some("backup-model".into()),
+                    base_url: backup.addr.clone(),
+                    enabled: true,
+                },
+            ],
+        },
+    )
+    .unwrap();
+    let handle = proxy::start(home.clone()).unwrap();
+    (home, handle)
+}
+#[test]
+fn nvidia_keys_exhaust_then_anthropic_provider_serves_its_own_model() {
+    let nv = spawn_upstream(vec![(401, "{}".into()), (402, "{}".into())]);
+    let backup = spawn_upstream(vec![(
+        200,
+        "{\"type\":\"message\",\"content\":[{\"type\":\"text\",\"text\":\"BACKUP_OK\"}]}".into(),
+    )]);
+    let (_home, handle) = setup_nvidia("nv-fallback", &nv, &backup);
+    let (status, body) = call(
+        handle.port,
+        &handle.token,
+        r#"{"model":"caller-model","max_tokens":12,"messages":[{"role":"user","content":"Hi"}]}"#,
+    );
+    assert!(status.contains("200"));
+    assert!(body.contains("BACKUP_OK"));
+    assert_eq!(nv.hits.load(Ordering::SeqCst), 2);
+    assert_eq!(backup.hits.load(Ordering::SeqCst), 1);
+    let first: serde_json::Value = serde_json::from_str(&nv.bodies.lock().unwrap()[0]).unwrap();
+    assert_eq!(first["model"], "nvidia/nemotron-3-ultra-550b-a55b");
+    let second: serde_json::Value =
+        serde_json::from_str(&backup.bodies.lock().unwrap()[0]).unwrap();
+    assert_eq!(second["model"], "backup-model");
+}
+#[test]
+fn nvidia_interrupted_stream_is_not_replayed_on_backup() {
+    let nv=spawn_upstream(vec![(200,"data: {\"id\":\"nv\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"PARTIAL\"},\"finish_reason\":null}]}\n\n".into())]);
+    let backup = spawn_upstream(vec![(200, "SHOULD_NOT_BE_USED".into())]);
+    let (_home, handle) = setup_nvidia("nv-truncated", &nv, &backup);
+    let (status, body) = call(
+        handle.port,
+        &handle.token,
+        r#"{"stream":true,"model":"caller","max_tokens":12,"messages":[{"role":"user","content":"Hi"}]}"#,
+    );
+    assert!(status.contains("200"));
+    assert!(body.contains("PARTIAL"));
+    assert!(!body.contains("message_stop"));
+    assert!(!body.ends_with("0\r\n\r\n"));
+    assert_eq!(nv.hits.load(Ordering::SeqCst), 1);
+    assert_eq!(backup.hits.load(Ordering::SeqCst), 0);
+}
+#[test]
+fn nvidia_caller_error_is_anthropic_error_and_does_not_switch_keys() {
+    let nv = spawn_upstream(vec![(
+        400,
+        "{\"error\":{\"message\":\"fixture-secret-echo\"}}".into(),
+    )]);
+    let backup = spawn_upstream(vec![(200, "unused".into())]);
+    let (_home, handle) = setup_nvidia("nv-bad-model", &nv, &backup);
+    let (status, body) = call(
+        handle.port,
+        &handle.token,
+        r#"{"model":"caller","max_tokens":12,"messages":[{"role":"user","content":"Hi"}]}"#,
+    );
+    assert!(status.contains("400"));
+    assert!(body.contains("invalid_request_error"));
+    assert!(!body.contains("fixture-secret-echo"));
+    assert_eq!(nv.hits.load(Ordering::SeqCst), 1);
+    assert_eq!(backup.hits.load(Ordering::SeqCst), 0);
+}
+#[test]
+fn nvidia_unsupported_content_is_explained_before_any_provider_is_contacted() {
+    let nv = spawn_upstream(vec![(200, "unused".into())]);
+    let backup = spawn_upstream(vec![(200, "unused".into())]);
+    let (_home, handle) = setup_nvidia("nv-document", &nv, &backup);
+    let (status, body) = call(
+        handle.port,
+        &handle.token,
+        r#"{"model":"caller","messages":[{"role":"user","content":[{"type":"document"}]}]}"#,
+    );
+    assert!(status.contains("400"));
+    assert!(body.contains("unsupported content"));
+    assert_eq!(nv.hits.load(Ordering::SeqCst), 0);
+    assert_eq!(backup.hits.load(Ordering::SeqCst), 0);
 }

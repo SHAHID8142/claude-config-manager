@@ -1,3 +1,8 @@
+> 1.0.2 update: the [current guide](../USER_GUIDE.md) and
+> [repair audit](../audits/2026-11-17-project-review.md) supersede older behavior claims below.
+> Secrets use private plaintext files; bridge execution is unavailable; managed
+> writes are individually atomic, with best-effort multi-file rollback.
+
 # Bridge — Supported Features and Known Losses (T47)
 
 > **Status (2026-11-17, v1.0.1):** the install/lifecycle machinery below is real and tested

@@ -24,11 +24,11 @@ export function Section({ title, description, help, children }: SectionProps) {
       <div className="pt-0.5">
         <h2 className="flex items-center gap-1.5 text-[14px] leading-[1.3] font-semibold text-ink">
           {title}
-          {help !== undefined && (
-            <HelpPopover title={help.title} label={`About ${title.toLowerCase()}`}>
-              {help.children}
-            </HelpPopover>
-          )}
+          <HelpPopover title={help?.title ?? title} label={`About ${title.toLowerCase()}`}>
+            {help?.children ??
+              description ??
+              `Settings and actions for ${title.toLowerCase()}. Changes are activated only by the action shown in this section.`}
+          </HelpPopover>
         </h2>
         {description !== undefined && (
           <p className="mt-1.5 text-[12px] leading-[1.5] text-ink-muted">{description}</p>

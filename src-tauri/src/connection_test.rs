@@ -115,22 +115,22 @@ fn interpret(status: u16, provider_id: &str, endpoint: &str, latency_ms: u64) ->
         ),
         402 => (
             false,
-            "the key is valid but the account has no credit (402 Payment Required)".to_string(),
+            "the provider reported Payment Required (402); check account credit".to_string(),
         ),
         403 => (
             false,
-            "the provider accepted the key but refused access (403 Forbidden) — check the key's \
+            "the provider refused access (403 Forbidden) — check the key's \
              permissions or region"
                 .to_string(),
         ),
         404 => (
             false,
-            "the provider answered 404 — the endpoint path is wrong for this key (check the base URL)"
+            "the provider answered Not Found (404); check the documented endpoint and account access"
                 .to_string(),
         ),
         429 => (
-            true,
-            "the key is accepted; the account is rate limited right now (429)".to_string(),
+            false,
+            "the provider is rate limiting this request (429); key validity and available credit are unconfirmed".to_string(),
         ),
         500..=599 => (
             false,
@@ -264,14 +264,15 @@ mod tests {
         assert!(out.message.contains("403"));
         let t404 = template_with_url("deepseek", &serve_once(404, ""));
         let out = test_connection(&t404, "k").expect("result");
-        assert!(out.message.contains("base URL"));
+        assert!(out.message.contains("documented endpoint"));
     }
 
     #[test]
-    fn a_rate_limited_account_still_has_a_valid_key() {
+    fn a_rate_limited_response_does_not_certify_a_key() {
         let t = template_with_url("deepseek", &serve_once(429, ""));
         let out = test_connection(&t, "k").expect("result");
-        assert!(out.ok, "429 means the key was accepted: {out:?}");
+        assert!(!out.ok, "429 does not prove key validity: {out:?}");
+        assert!(out.message.contains("unconfirmed"));
     }
 
     #[test]

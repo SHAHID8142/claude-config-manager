@@ -23,14 +23,14 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 const MAX_HEADER_BYTES: usize = 64 * 1024;
 const MAX_BODY_BYTES: usize = 16 * 1024 * 1024;
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(120);
-const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(120);
+const UPSTREAM_TIMEOUT: Duration = Duration::from_secs(30);
 
 fn err_body(kind: &str, message: &str) -> String {
     serde_json::json!({
@@ -53,6 +53,14 @@ pub struct ProxyStatus {
     pub last_error: Option<String>,
     /// Target ids currently in cooldown (never key material).
     pub cooling: Vec<String>,
+    #[serde(default)]
+    pub cooldown_seconds: HashMap<String, u64>,
+    #[serde(default)]
+    pub last_switch_reason: Option<String>,
+    #[serde(default)]
+    pub last_key_label: Option<String>,
+    #[serde(default)]
+    pub activity_error: Option<String>,
     /// Owning process. The GUI uses it to prove that the pid in its state file
     /// is the process actually answering on this port before signalling it.
     pub pid: u32,
@@ -87,7 +95,7 @@ impl ProxyHandle {
                 if let Ok(cfg) = routing_config::load(&self.home) {
                     let now = Instant::now();
                     let mut guard = c;
-                    for t in &cfg.targets {
+                    for t in &expand_provider_keys(&self.home, &cfg).targets {
                         if guard.is_cooling(&t.id, now) {
                             out.push(t.id.clone());
                         }
@@ -96,6 +104,17 @@ impl ProxyHandle {
                 out
             })
             .unwrap_or_default();
+        if let Ok(cooldowns) = self.cooldowns.lock() {
+            s.cooldown_seconds = s
+                .cooling
+                .iter()
+                .filter_map(|id| {
+                    cooldowns
+                        .remaining_seconds(id, Instant::now())
+                        .map(|seconds| (id.clone(), seconds))
+                })
+                .collect();
+        }
         s
     }
 
@@ -170,6 +189,7 @@ pub fn start_with(
     });
 
     let accept_shutdown = Arc::clone(&shutdown);
+    let in_flight = Arc::new(AtomicUsize::new(0));
     let accept = std::thread::Builder::new()
         .name("ccm-proxy".into())
         .spawn(move || {
@@ -178,15 +198,42 @@ pub fn start_with(
                     break;
                 }
                 match conn {
-                    Ok(stream) => {
+                    Ok(mut stream) => {
+                        if in_flight
+                            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+                                (n < 32).then_some(n + 1)
+                            })
+                            .is_err()
+                        {
+                            let _ = stream.set_write_timeout(Some(Duration::from_millis(100)));
+                            let _ = write_simple(
+                                &mut stream,
+                                503,
+                                "application/json",
+                                &err_body(
+                                    "overloaded_error",
+                                    "Too many local requests. Retry shortly.",
+                                ),
+                            );
+                            continue;
+                        }
+                        let active = Arc::clone(&in_flight);
                         let ctx = Arc::clone(&ctx);
-                        // One thread per request: Claude Code issues few, long
-                        // requests; a pool would add failure modes for nothing.
-                        let _ = std::thread::Builder::new()
+                        let spawned = std::thread::Builder::new()
                             .name("ccm-proxy-req".into())
                             .spawn(move || {
+                                struct Permit(Arc<AtomicUsize>);
+                                impl Drop for Permit {
+                                    fn drop(&mut self) {
+                                        self.0.fetch_sub(1, Ordering::SeqCst);
+                                    }
+                                }
+                                let _permit = Permit(active);
                                 let _ = handle_conn(stream, &ctx);
                             });
+                        if spawned.is_err() {
+                            in_flight.fetch_sub(1, Ordering::SeqCst);
+                        }
                     }
                     Err(_) => break,
                 }
@@ -287,13 +334,32 @@ fn handle_conn(mut stream: TcpStream, ctx: &Ctx) -> std::io::Result<()> {
 
     let attempt = forward(&body, &headers, &cfg, ctx);
     match attempt {
-        Ok(Final::Rejected { status, body }) => {
+        Ok(Final::Rejected(mut response)) => {
+            let status = response.status().as_u16();
             bump(&ctx.status, |s| {
                 s.requests += 1;
                 s.failures += 1;
                 s.last_error = Some(format!("request rejected by upstream ({status})"));
             });
-            write_simple(&mut stream, status, "application/json", &body)
+            stream_response(&mut stream, &mut response)
+        }
+        Ok(Final::RejectedNvidia(status)) => {
+            bump(&ctx.status, |s| {
+                s.requests += 1;
+                s.failures += 1;
+                s.last_error = Some(format!("NVIDIA rejected request ({status})"));
+            });
+            write_simple(
+                &mut stream,
+                status,
+                "application/json",
+                &err_body(
+                    "invalid_request_error",
+                    &format!(
+                        "NVIDIA rejected this request ({status}). Check the selected model, supported content and function tools."
+                    ),
+                ),
+            )
         }
         Ok(Final::Stream(mut ok)) => {
             bump(&ctx.status, |s| {
@@ -304,7 +370,24 @@ fn handle_conn(mut stream: TcpStream, ctx: &Ctx) -> std::io::Result<()> {
                 s.last_target = Some(ok.target_id.clone());
                 s.last_error = None;
             });
-            stream_response(&mut stream, &mut ok.response)
+            let result = if ok.nvidia {
+                crate::nvidia_adapter::write_response(
+                    &mut stream,
+                    &mut ok.response,
+                    ok.streaming,
+                    &ok.model,
+                )
+            } else {
+                stream_response(&mut stream, &mut ok.response)
+            };
+            if result.is_err() {
+                bump(&ctx.status, |s| {
+                    s.failures += 1;
+                    s.last_error =
+                        Some("response stream interrupted; request was not replayed".into());
+                });
+            }
+            result
         }
         Err(e) => {
             bump(&ctx.status, |s| {
@@ -329,14 +412,28 @@ impl Ctx {
         s.pid = std::process::id();
         let now = Instant::now();
         if let (Ok(mut c), Ok(cfg)) = (self.cooldowns.lock(), routing_config::load(&self.home)) {
-            s.cooling = cfg
+            s.cooling = expand_provider_keys(&self.home, &cfg)
                 .targets
                 .iter()
                 .filter(|t| c.is_cooling(&t.id, now))
                 .map(|t| t.id.clone())
                 .collect();
+            s.cooldown_seconds = s
+                .cooling
+                .iter()
+                .filter_map(|id| {
+                    c.remaining_seconds(id, now)
+                        .map(|seconds| (id.clone(), seconds))
+                })
+                .collect();
         }
         s
+    }
+}
+
+fn record_activity(ctx: &Ctx, provider: &str, outcome: crate::switch_history::Outcome) {
+    if let Err(error) = crate::switch_history::append(&ctx.home, provider, outcome) {
+        bump(&ctx.status, |s| s.activity_error = Some(error));
     }
 }
 
@@ -501,6 +598,9 @@ struct Upstream {
     target_id: String,
     response: ureq::http::Response<ureq::Body>,
     attempts: usize,
+    nvidia: bool,
+    streaming: bool,
+    model: String,
 }
 
 /// What the proxy finally sends back to Claude Code.
@@ -509,7 +609,8 @@ enum Final {
     Stream(Box<Upstream>),
     /// The caller's own request was rejected (400/404/422): pass the status and
     /// the provider's explanation through, never a synthetic error.
-    Rejected { status: u16, body: String },
+    Rejected(Box<ureq::http::Response<ureq::Body>>),
+    RejectedNvidia(u16),
 }
 
 /// V3-13/V3-16: which wire protocol a provider speaks.
@@ -526,10 +627,17 @@ pub enum Adapter {
     AnthropicCompatible,
     /// OpenAI Chat Completions only; needs a bridge this build does not ship.
     OpenAiUnbridged,
+    NvidiaChat,
 }
 
 pub fn adapter_for(provider_id: &str) -> Option<Adapter> {
     use crate::provider_catalog::Protocol;
+    if provider_id == "nvidia-nim" {
+        return Some(Adapter::NvidiaChat);
+    }
+    if provider_id == "custom" || provider_id.starts_with("custom-") {
+        return Some(Adapter::AnthropicCompatible);
+    }
     let templates = crate::presets::load_builtin_presets();
     let t = templates.iter().find(|t| t.id == provider_id)?;
     Some(match t.protocol {
@@ -572,6 +680,32 @@ impl ProxyFailure {
     }
 }
 
+/// A provider target (no explicit credential) means all enabled keys for that
+/// provider, in key priority order. Explicit legacy targets retain their order.
+pub fn expand_provider_keys(home: &std::path::Path, cfg: &RoutingConfig) -> RoutingConfig {
+    let vault = crate::credential_vault::CredentialVault::for_home(home);
+    let mut targets = Vec::new();
+    for target in &cfg.targets {
+        if target.credential_id.is_some() || !target.enabled {
+            targets.push(target.clone());
+            continue;
+        }
+        if let Ok(keys) = vault.list(&target.provider_id) {
+            for key in keys.into_iter().filter(|key| key.enabled) {
+                let mut expanded = target.clone();
+                expanded.id = format!("{}--{}", target.id, key.id);
+                expanded.credential_id = Some(key.id);
+                targets.push(expanded);
+            }
+        }
+    }
+    RoutingConfig {
+        version: cfg.version,
+        enabled: cfg.enabled,
+        targets,
+    }
+}
+
 /// Try targets in order. Returns the first successful upstream response, or a
 /// redacted description of why every target failed.
 fn forward(
@@ -580,7 +714,8 @@ fn forward(
     cfg: &RoutingConfig,
     ctx: &Ctx,
 ) -> Result<Final, ProxyFailure> {
-    let ordered = cfg.ordered();
+    let expanded = expand_provider_keys(&ctx.home, cfg);
+    let ordered = expanded.ordered();
     if ordered.is_empty() {
         return Err(ProxyFailure::unavailable(
             "no routing targets are enabled — add one in the app".into(),
@@ -613,7 +748,11 @@ fn forward(
 
     let mut attempts = 0usize;
     let mut reasons: Vec<String> = Vec::new();
-    for id in candidates {
+    let started = Instant::now();
+    for id in candidates.into_iter().take(200) {
+        if started.elapsed() >= Duration::from_secs(60) {
+            break;
+        }
         let Some(target) = ordered.iter().find(|t| t.id == id).copied() else {
             continue;
         };
@@ -621,9 +760,43 @@ fn forward(
             reasons.push(format!("{}: needs a protocol bridge", target.provider_id));
             continue;
         }
+        if target.provider_id == "nvidia-nim" {
+            crate::nvidia_adapter::request(body, target.model.as_deref()).map_err(|message| {
+                ProxyFailure {
+                    status: 400,
+                    kind: "invalid_request_error",
+                    message: message.into(),
+                }
+            })?;
+        }
         attempts += 1;
-        match try_target(target, body, client_headers, ctx) {
+        match try_target(
+            target,
+            body,
+            client_headers,
+            ctx,
+            Duration::from_secs(60).saturating_sub(started.elapsed()),
+        ) {
             Ok(TargetOutcome::Answered(resp)) => {
+                let key_label = target.credential_id.as_deref().and_then(|id| {
+                    crate::credential_vault::CredentialVault::for_home(&ctx.home)
+                        .list(&target.provider_id)
+                        .ok()?
+                        .into_iter()
+                        .find(|key| key.id == id)
+                        .map(|key| key.label)
+                });
+                bump(&ctx.status, |status| {
+                    status.last_key_label =
+                        key_label.map(|key| format!("{} · {key}", target.provider_id));
+                });
+                if attempts > 1 {
+                    record_activity(
+                        ctx,
+                        &target.provider_id,
+                        crate::switch_history::Outcome::Selected,
+                    );
+                }
                 if let Ok(mut cd) = ctx.cooldowns.lock() {
                     cd.clear(&id);
                 }
@@ -631,14 +804,29 @@ fn forward(
                     target_id: id,
                     response: resp,
                     attempts,
+                    nvidia: target.provider_id == "nvidia-nim",
+                    streaming: serde_json::from_slice::<serde_json::Value>(body)
+                        .ok()
+                        .and_then(|v| v["stream"].as_bool())
+                        .unwrap_or(false),
+                    model: target.model.clone().unwrap_or_default(),
                 })));
             }
-            Ok(TargetOutcome::Rejected { status, body }) => {
-                return Ok(Final::Rejected { status, body });
+            Ok(TargetOutcome::RejectedNvidia(status)) => return Ok(Final::RejectedNvidia(status)),
+            Ok(TargetOutcome::Rejected(response)) => {
+                return Ok(Final::Rejected(response));
             }
             Err(AttemptError { class, detail }) => {
+                record_activity(ctx, &target.provider_id, class.into());
+                bump(&ctx.status, |status| {
+                    status.last_switch_reason = Some(format!(
+                        "{}: {} — skipped after failure",
+                        target.provider_id,
+                        class.as_str()
+                    ));
+                });
                 if let Ok(mut cd) = ctx.cooldowns.lock() {
-                    cd.mark(&id, class, detail.retry_after, now);
+                    cd.mark(&id, class, detail.retry_after, Instant::now());
                 }
                 reasons.push(format!("{}: {}", id, class.as_str()));
                 if !class.retryable() {
@@ -649,7 +837,7 @@ fn forward(
     }
     if reasons.is_empty() {
         return Err(ProxyFailure::unavailable(
-            "no routing target could be used".into(),
+            "All keys are temporarily unavailable. Wait for their cooldowns or check your provider accounts.".into(),
         ));
     }
     Err(ProxyFailure::unavailable(format!(
@@ -675,7 +863,8 @@ impl RetryDetail {
 
 enum TargetOutcome {
     Answered(ureq::http::Response<ureq::Body>),
-    Rejected { status: u16, body: String },
+    Rejected(Box<ureq::http::Response<ureq::Body>>),
+    RejectedNvidia(u16),
 }
 
 fn try_target(
@@ -683,14 +872,32 @@ fn try_target(
     body: &[u8],
     client_headers: &HashMap<String, String>,
     ctx: &Ctx,
+    remaining: Duration,
 ) -> Result<TargetOutcome, AttemptError> {
     let secret = resolve_secret(&ctx.home, target).ok_or(AttemptError {
         class: FailureClass::Auth,
         detail: RetryDetail::none(),
     })?;
 
-    let url = format!("{}/v1/messages", target.base_url.trim_end_matches('/'));
-    let payload = rewrite_model(body, target.model.as_deref()).map_err(|_| AttemptError {
+    let base = target.base_url.trim_end_matches('/');
+    let nvidia = target.provider_id == "nvidia-nim";
+    let suffix = if nvidia {
+        "chat/completions"
+    } else {
+        "messages"
+    };
+    let url = if base.ends_with("/v1") {
+        format!("{base}/{suffix}")
+    } else {
+        format!("{base}/v1/{suffix}")
+    };
+    let payload = if nvidia {
+        crate::nvidia_adapter::request(body, target.model.as_deref())
+            .and_then(|value| serde_json::to_vec(&value).map_err(|_| "serialization failed"))
+    } else {
+        rewrite_model(body, target.model.as_deref()).map_err(|_| "invalid Messages request")
+    }
+    .map_err(|_| AttemptError {
         class: FailureClass::Request,
         detail: RetryDetail::none(),
     })?;
@@ -702,14 +909,26 @@ fn try_target(
         AuthStyle::BearerToken => req.header("authorization", &format!("Bearer {secret}")),
     };
     // Pass through only protocol headers Claude Code owns.
-    for name in ["anthropic-version", "anthropic-beta", "accept"] {
-        if let Some(v) = client_headers.get(name) {
-            req = req.header(name, v);
+    for (name, value) in client_headers {
+        if !nvidia
+            && (name.starts_with("anthropic-")
+                || name.starts_with("x-claude-code-")
+                || name == "accept")
+        {
+            req = req.header(name, value);
         }
     }
     match req
         .config()
-        .timeout_global(Some(UPSTREAM_TIMEOUT))
+        .timeout_global(Some(if nvidia {
+            Duration::from_secs(1800)
+        } else {
+            UPSTREAM_TIMEOUT.min(remaining)
+        }))
+        .timeout_connect(Some(Duration::from_secs(10)))
+        .timeout_send_body(Some(UPSTREAM_TIMEOUT.min(remaining)))
+        .timeout_recv_response(Some(UPSTREAM_TIMEOUT.min(remaining)))
+        .timeout_per_read(Some(Duration::from_secs(120)))
         // Statuses are data here: the proxy decides whether a status is a
         // retryable provider failure or the caller's own error.
         .http_status_as_error(false)
@@ -721,6 +940,12 @@ fn try_target(
             let status = resp.status().as_u16();
             if (200..300).contains(&status) {
                 return Ok(TargetOutcome::Answered(resp));
+            }
+            if failover::classify(status, "") == FailureClass::Request {
+                if nvidia {
+                    return Ok(TargetOutcome::RejectedNvidia(status));
+                }
+                return Ok(TargetOutcome::Rejected(Box::new(resp)));
             }
             let retry_after = failover::parse_retry_after(
                 resp.headers()
@@ -736,12 +961,6 @@ fn try_target(
                 .take(8192)
                 .read_to_string(&mut prefix);
             let class = failover::classify(status, &prefix);
-            if class == FailureClass::Request {
-                return Ok(TargetOutcome::Rejected {
-                    status,
-                    body: prefix,
-                });
-            }
             Err(AttemptError {
                 class,
                 detail: RetryDetail { retry_after },
@@ -786,44 +1005,14 @@ fn provider_auth_style(provider_id: &str) -> AuthStyle {
 /// Credential for a target: the named credential, else the provider's own file.
 pub fn resolve_secret(home: &std::path::Path, target: &RouteTarget) -> Option<String> {
     let vault = crate::credential_vault::CredentialVault::for_home(home);
-    if let Some(id) = &target.credential_id {
-        // V3-20: a credential may only serve the provider it was stored for.
-        // Without this check a hand-edited routing.json could send provider B's
-        // key to provider A's endpoint.
-        let record = vault
-            .list(&target.provider_id)
-            .ok()
-            .and_then(|list| list.into_iter().find(|c| &c.id == id));
-        match record {
-            Some(rec) if rec.provider_id == target.provider_id && rec.enabled => {
-                if let Ok(Some(s)) = vault.secret(id) {
-                    return Some(s);
-                }
-            }
-            // Another provider's key, or a disabled one: never used.
-            Some(_) => return None,
-            None => {
-                // The index may not know it yet (fresh file, migrated install).
-                // Fall through to the provider's own legacy file only when the
-                // target's credential id *is* the provider id.
-                if id != &target.provider_id {
-                    return None;
-                }
-            }
-        }
-    }
-    if let Ok(Some(s)) = vault.secret(&target.provider_id) {
-        return Some(s);
-    }
-    // Legacy file that the index does not know about yet.
-    let store = crate::file_secret_store::FileSecretStore::for_home(home);
-    crate::secret_store::SecretStore::get_secret(
-        &store,
-        &format!("com.claude-config-manager.{}", target.provider_id),
-        &target.provider_id,
-    )
-    .ok()
-    .flatten()
+    let credential = target
+        .credential_id
+        .as_deref()
+        .filter(|id| *id != target.provider_id);
+    vault
+        .resolve(&target.provider_id, credential)
+        .ok()
+        .flatten()
 }
 
 /// Stream the upstream body to the client with chunked encoding, flushing per
@@ -840,8 +1029,21 @@ fn stream_response(
         .unwrap_or("application/json")
         .to_string();
 
+    let mut extra = String::new();
+    for (name, value) in resp.headers() {
+        let name = name.as_str();
+        if (name == "retry-after"
+            || name == "x-should-retry"
+            || name == "request-id"
+            || name.starts_with("anthropic-")
+            || name.starts_with("x-claude-code-"))
+            && let Ok(value) = value.to_str()
+        {
+            extra.push_str(&format!("{name}: {value}\r\n"));
+        }
+    }
     let head = format!(
-        "HTTP/1.1 {status} {}\r\ncontent-type: {ctype}\r\ntransfer-encoding: chunked\r\nconnection: close\r\n\r\n",
+        "HTTP/1.1 {status} {}\r\ncontent-type: {ctype}\r\n{extra}transfer-encoding: chunked\r\nconnection: close\r\n\r\n",
         reason(status)
     );
     stream.write_all(head.as_bytes())?;

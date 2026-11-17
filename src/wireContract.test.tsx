@@ -104,7 +104,19 @@ function realIpc(overrides: Record<string, unknown> = {}) {
 
 /** The sidebar is a settings list: warnings and controls live on a screen. */
 async function goTo(user: ReturnType<typeof userEvent.setup>, label: string) {
-  await user.click(screen.getByRole("button", { name: label }));
+  await user.click(
+    screen.getByRole("button", {
+      name:
+        (
+          {
+            Provider: "Providers & keys",
+            Maintenance: "Recovery",
+            Dashboard: "Overview",
+            Failover: "Switching",
+          } as Record<string, string>
+        )[label] ?? label,
+    }),
+  );
 }
 
 describe("real backend payloads (contract reproduction)", () => {

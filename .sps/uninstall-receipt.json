@@ -1,0 +1,18 @@
+{
+  "date": "2026-11-17",
+  "removedToTrash": [
+    "~/Library/LaunchAgents/io.github.shahid8142.claude-config-manager.proxy.plist",
+    "/Applications/Claude Config Manager.app",
+    "~/Library/Caches/io.github.shahid8142.claude-config-manager",
+    "~/Library/WebKit/io.github.shahid8142.claude-config-manager"
+  ],
+  "preserved": [
+    "API key files",
+    "credential index",
+    "Claude Code settings",
+    "routing policy",
+    "settings backups"
+  ],
+  "installedAppStillPresent": false,
+  "loginAgentStillPresent": false
+}

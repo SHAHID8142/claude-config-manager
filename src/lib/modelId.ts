@@ -15,6 +15,16 @@ export const MODEL_ID_MAX_LEN = 256;
 
 export function validateModelId(raw: string): ModelIdCheck {
   const value = raw.trim();
+  const core = value.split(/[=:]/).pop() ?? value;
+  if (
+    core.length >= 16 &&
+    ["sk-ant-", "sk-or-", "nvapi-", "sk-", "r8_", "ghp_"].some((prefix) => core.startsWith(prefix))
+  ) {
+    return {
+      ok: false,
+      message: "This looks like an API key, not a model ID. Use the key field instead.",
+    };
+  }
   if (value === "") {
     return { ok: false, message: "Enter a model ID, or select one from the catalog." };
   }

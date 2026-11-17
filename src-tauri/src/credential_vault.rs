@@ -23,7 +23,9 @@ use crate::credential_migration::migrate_legacy;
 use crate::credential_service::CredentialService;
 use crate::file_secret_store::FileSecretStore;
 use std::fs;
+#[cfg(test)]
 use std::io::Write;
+#[cfg(test)]
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
@@ -58,8 +60,7 @@ pub struct CredentialVault {
 /// Process-wide mutex around every read-modify-write of `credentials.json`.
 /// Without it, two concurrent commands (two windows, or a mutation racing an
 /// apply) interleave their load/save and the second save silently drops the
-/// first's record. Cross-process races remain possible on paper; a single user
-/// running one app process is the real deployment shape.
+/// first's record. Mutations also take the same cross-process ApplyLock as configuration changes.
 static VAULT_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn lock_vault() -> std::sync::MutexGuard<'static, ()> {
@@ -104,40 +105,37 @@ impl CredentialVault {
     /// persisted by the next mutation so a read never writes).
     pub fn load(&self) -> Result<CredentialIndex, VaultError> {
         let path = self.index_path();
-        let parsed = match fs::read_to_string(&path) {
-            Ok(raw) => CredentialIndex::parse(&raw)?,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => CredentialIndex::default(),
+        let parsed = match crate::config_reader::read_settings(&path) {
+            Ok(value) => CredentialIndex::parse(&value.to_string())?,
+            Err(crate::config_reader::ConfigError::Missing) => CredentialIndex::default(),
             Err(e) => return Err(VaultError::Io(e.to_string())),
         };
-        Ok(migrate_legacy(
-            &parsed,
-            &self.legacy_stems(),
-            &now_rfc3339(),
-        ))
+        let legacy_stems: Vec<String> = self
+            .legacy_stems()
+            .into_iter()
+            .filter(|stem| stem != "proxy-helper" && stem != "proxy")
+            .filter(|stem| parsed.get(stem).is_none())
+            .filter(|stem| {
+                crate::presets::load_builtin_presets()
+                    .iter()
+                    .any(|p| &p.id == stem)
+                    || stem == "custom"
+                    || stem.strip_prefix("custom-").is_some_and(|suffix| {
+                        !suffix.is_empty()
+                            && suffix.len() <= 16
+                            && suffix.chars().all(|ch| ch.is_ascii_hexdigit())
+                    })
+            })
+            .collect();
+        Ok(migrate_legacy(&parsed, &legacy_stems, &now_rfc3339()))
     }
 
     /// Persist an index: validate, write 0600 through a temp file, fsync, rename.
     pub fn save(&self, index: &CredentialIndex) -> Result<(), VaultError> {
-        let json = index.to_json()?;
-        fs::create_dir_all(&self.root).map_err(|e| VaultError::Io(e.to_string()))?;
-        let target = self.index_path();
-        let tmp = target.with_extension("json.tmp");
-        {
-            let mut f = fs::OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .mode(0o600)
-                .open(&tmp)
-                .map_err(|e| VaultError::Io(e.to_string()))?;
-            f.write_all(json.as_bytes())
-                .map_err(|e| VaultError::Io(e.to_string()))?;
-            f.sync_all().map_err(|e| VaultError::Io(e.to_string()))?;
-        }
-        fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600))
-            .map_err(|e| VaultError::Io(e.to_string()))?;
-        fs::rename(&tmp, &target).map_err(|e| VaultError::Io(e.to_string()))?;
-        Ok(())
+        index.validate()?;
+        let doc = serde_json::to_value(index).map_err(|e| VaultError::Io(e.to_string()))?;
+        crate::config_writer::write_settings_atomic(&self.index_path(), &doc, None)
+            .map_err(|e| VaultError::Io(e.to_string()))
     }
 
     pub fn list(&self, provider_id: &str) -> Result<Vec<CredentialRecord>, VaultError> {
@@ -151,7 +149,27 @@ impl CredentialVault {
 
     /// True when any credential (indexed or legacy) exists for the provider.
     pub fn has_any(&self, provider_id: &str) -> Result<bool, VaultError> {
-        Ok(!self.load()?.for_provider(provider_id).is_empty())
+        Ok(self.resolve(provider_id, None)?.is_some())
+    }
+
+    /// Select a usable provider-owned key. All credential consumers use this
+    /// path so a legacy file cannot silently override indexed/disabled keys.
+    pub fn resolve(
+        &self,
+        provider_id: &str,
+        credential_id: Option<&str>,
+    ) -> Result<Option<String>, VaultError> {
+        let list = self.list(provider_id)?;
+        let record = match credential_id {
+            Some(id) => list.iter().find(|c| c.id == id && c.enabled),
+            None => list.iter().find(|c| c.enabled),
+        };
+        match record {
+            Some(record) => Ok(self
+                .secret(&record.id)?
+                .filter(|secret| !secret.trim().is_empty())),
+            None => Ok(None),
+        }
     }
 
     /// Next free `<provider>-<n>` id.
@@ -168,87 +186,154 @@ impl CredentialVault {
         ))
     }
 
-    /// Add a credential. The secret is written first; if the index write then
-    /// fails the secret is deleted again, so no orphan key is left behind.
+    fn check_transaction(
+        &self,
+        transaction: &crate::transaction_journal::ManagedTransaction,
+    ) -> Result<(), VaultError> {
+        let backups = crate::config_backup::default_backup_dir(self.root.parent().unwrap());
+        if transaction.lock().path() != backups.parent().unwrap().join("apply.lock") {
+            return Err(VaultError::Invalid("wrong transaction scope".into()));
+        }
+        Ok(())
+    }
+    fn finish<T>(
+        transaction: crate::transaction_journal::ManagedTransaction,
+        result: Result<T, VaultError>,
+    ) -> Result<T, VaultError> {
+        match result {
+            Ok(value) => {
+                transaction.commit().map_err(VaultError::Io)?;
+                Ok(value)
+            }
+            Err(error) => match transaction.rollback() {
+                Ok(()) => Err(error),
+                Err(_) => Err(VaultError::Io(format!(
+                    "{error}; recovery rollback failed. Review the interrupted-operation recovery before retrying."
+                ))),
+            },
+        }
+    }
+    /// Add or re-enable an existing identical key. Repeated failed setup retries
+    /// never create duplicate secret files or consume all index slots.
     pub fn add(
         &self,
         provider_id: &str,
         label: &str,
         secret: &str,
     ) -> Result<CredentialRecord, VaultError> {
+        let _guard = lock_vault();
+        let mut transaction = crate::transaction_journal::ManagedTransaction::begin(
+            self.root.parent().unwrap(),
+            None,
+        )
+        .map_err(VaultError::Io)?;
+        let result = self.add_locked(provider_id, label, secret, &mut transaction);
+        Self::finish(transaction, result)
+    }
+    pub(crate) fn add_locked(
+        &self,
+        provider_id: &str,
+        label: &str,
+        secret: &str,
+        transaction: &mut crate::transaction_journal::ManagedTransaction,
+    ) -> Result<CredentialRecord, VaultError> {
+        self.check_transaction(transaction)?;
         crate::credential_handoff::validate_provider_id(provider_id)
             .map_err(|_| VaultError::Invalid("invalid provider id".into()))?;
         if secret.trim().is_empty() {
             return Err(VaultError::Invalid("credential is empty".into()));
         }
-        let _guard = lock_vault();
         let mut index = self.load()?;
+        for record in index.for_provider(provider_id) {
+            if self.secret(&record.id)?.as_deref() == Some(secret) {
+                let mut existing = record.clone();
+                existing.enabled = true;
+                if let Some(slot) = index.credentials.iter_mut().find(|r| r.id == existing.id) {
+                    slot.enabled = true;
+                }
+                self.save(&index)?;
+                return Ok(existing);
+            }
+        }
         let id = self.next_id(&index, provider_id)?;
-        let creds = CredentialService::new(&self.store);
-        creds
-            .set_credential(&id, secret)
-            .map_err(|e| VaultError::Secret(e.to_string()))?;
-
-        let priority = index.for_provider(provider_id).len() as u32;
         let record = CredentialRecord {
             id: id.clone(),
-            provider_id: provider_id.to_string(),
-            label: label.trim().to_string(),
+            provider_id: provider_id.into(),
+            label: label.trim().into(),
             last4: last4_of(secret),
-            priority,
+            priority: index.for_provider(provider_id).len() as u32,
             enabled: true,
             created_at: now_rfc3339(),
         };
-        if let Err(e) = index.insert(record.clone()) {
-            let _ = creds.delete_credential(&id);
-            return Err(e.into());
-        }
-        if let Err(e) = self.save(&index) {
-            let _ = creds.delete_credential(&id);
-            return Err(e);
-        }
+        index.insert(record.clone())?;
+        transaction
+            .track(&self.secrets_dir().join(format!("{id}.secret")))
+            .map_err(VaultError::Io)?;
+        CredentialService::new(&self.store)
+            .set_credential(&id, secret)
+            .map_err(|e| VaultError::Secret(e.to_string()))?;
+        self.save(&index)?;
         Ok(record)
     }
-
-    /// Delete a credential and its secret. Idempotent: `false` when unknown.
-    ///
-    /// Order matters: the index is persisted BEFORE the secret is deleted.
-    /// If the secret delete fails, the worst case is an orphaned 0600 key file
-    /// no record points at; the reverse order would leave a record whose
-    /// secret is gone, and the helper fails closed at request time.
+    /// Delete only an indexed key. An arbitrary unknown account must never
+    /// delete an internal proxy token or unrelated orphan file.
     pub fn remove(&self, credential_id: &str) -> Result<bool, VaultError> {
-        validate_credential_id(credential_id)?;
         let _guard = lock_vault();
-        let mut index = self.load()?;
-        if !index.remove(credential_id) {
-            // Unknown record — still clean up a possible orphan secret so a
-            // failed earlier remove cannot leave key material behind.
-            let _ = CredentialService::new(&self.store).delete_credential(credential_id);
-            return Ok(false);
-        }
-        self.save(&index)?;
-        CredentialService::new(&self.store)
-            .delete_credential(credential_id)
-            .map_err(|e| VaultError::Secret(e.to_string()))?;
-        Ok(true)
+        let transaction = crate::transaction_journal::ManagedTransaction::begin(
+            self.root.parent().unwrap(),
+            None,
+        )
+        .map_err(VaultError::Io)?;
+        let result = (|| {
+            validate_credential_id(credential_id)?;
+            let mut index = self.load()?;
+            if !index.remove(credential_id) {
+                return Ok(false);
+            }
+            self.save(&index)?;
+            CredentialService::new(&self.store)
+                .delete_credential(credential_id)
+                .map_err(|e| VaultError::Secret(e.to_string()))?;
+            Ok(true)
+        })();
+        Self::finish(transaction, result)
     }
-
     pub fn set_enabled(&self, credential_id: &str, enabled: bool) -> Result<bool, VaultError> {
-        validate_credential_id(credential_id)?;
         let _guard = lock_vault();
-        let mut index = self.load()?;
-        let Some(slot) = index.credentials.iter_mut().find(|c| c.id == credential_id) else {
-            return Ok(false);
-        };
-        slot.enabled = enabled;
-        self.save(&index)?;
-        Ok(true)
+        let transaction = crate::transaction_journal::ManagedTransaction::begin(
+            self.root.parent().unwrap(),
+            None,
+        )
+        .map_err(VaultError::Io)?;
+        let result = (|| {
+            validate_credential_id(credential_id)?;
+            let mut index = self.load()?;
+            let Some(slot) = index.credentials.iter_mut().find(|c| c.id == credential_id) else {
+                return Ok(false);
+            };
+            slot.enabled = enabled;
+            self.save(&index)?;
+            Ok(true)
+        })();
+        Self::finish(transaction, result)
     }
-
-    /// Move a credential to the front of its provider's chain.
     pub fn promote(&self, credential_id: &str) -> Result<bool, VaultError> {
-        validate_credential_id(credential_id)?;
         let _guard = lock_vault();
+        let mut transaction = crate::transaction_journal::ManagedTransaction::begin(
+            self.root.parent().unwrap(),
+            None,
+        )
+        .map_err(VaultError::Io)?;
+        let result = self.promote_locked(credential_id, &mut transaction);
+        Self::finish(transaction, result)
+    }
+    pub(crate) fn promote_locked(
+        &self,
+        credential_id: &str,
+        transaction: &mut crate::transaction_journal::ManagedTransaction,
+    ) -> Result<bool, VaultError> {
+        self.check_transaction(transaction)?;
+        validate_credential_id(credential_id)?;
         let mut index = self.load()?;
         if !index.promote(credential_id) {
             return Ok(false);

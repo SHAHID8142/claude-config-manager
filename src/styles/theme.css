@@ -22,7 +22,7 @@
   --line: #e6e1d8;
   --line-strong: #d5cfc5;
   /* Control borders sit one step darker than a panel edge. */
-  --control: #d3ccc2;
+  --control: #8b8379;
 
   /* ink */
   --ink: #1b1a19;
@@ -73,7 +73,7 @@
 
   --line: #322f2b;
   --line-strong: #433f3a;
-  --control: #4a4640;
+  --control: #777068;
 
   --ink: #f3f0eb;
   --ink-muted: #a9a29a;
@@ -185,12 +185,7 @@
    collapses on press. All states: hover / active / focus-visible /
    disabled / loading. Reduced-motion handled by the global rule. */
 :root {
-  --btn-primary-face: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 72%, white) 0%,
-    var(--accent) 52%,
-    color-mix(in srgb, var(--accent) 84%, black) 100%
-  );
+  --btn-primary-face: linear-gradient(180deg, var(--primary-hover), var(--primary));
   --btn-primary-edge: inset 0 1px 0 rgb(255 255 255 / 0.28), inset 0 -1px 0 rgb(0 0 0 / 0.22);
   --btn-primary-shadow:
     0 1px 2px rgb(27 26 25 / 0.22),
@@ -198,12 +193,7 @@
   --btn-primary-shadow-hover:
     0 1px 2px rgb(27 26 25 / 0.22),
     0 8px 18px -5px color-mix(in srgb, var(--accent) 70%, rgb(27 26 25 / 0.5));
-  --btn-primary-face-hover: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 62%, white) 0%,
-    color-mix(in srgb, var(--accent) 94%, white) 55%,
-    var(--accent) 100%
-  );
+  --btn-primary-face-hover: var(--primary-hover);
   --btn-secondary-face: linear-gradient(180deg, #ffffff 0%, #faf9f6 100%);
   --btn-secondary-face-hover: linear-gradient(180deg, #ffffff 0%, #f4f1ed 100%);
   --btn-secondary-edge: inset 0 1px 0 rgb(255 255 255 / 0.9);
@@ -212,12 +202,7 @@
 }
 
 .dark {
-  --btn-primary-face: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 80%, white) 0%,
-    var(--accent) 55%,
-    color-mix(in srgb, var(--accent) 78%, black) 100%
-  );
+  --btn-primary-face: linear-gradient(180deg, var(--primary-hover), var(--primary));
   --btn-secondary-face: linear-gradient(180deg, #2a2928 0%, #232221 100%);
   --btn-secondary-face-hover: linear-gradient(180deg, #323130 0%, #2a2928 100%);
   --btn-secondary-edge: inset 0 1px 0 rgb(255 255 255 / 0.06);
@@ -254,7 +239,7 @@
   transform: none;
 }
 
-/* Primary — the clay gradient CTA with top light + bottom reflection edge.
+/* Primary — neutral surfaces keep text contrast high throughout the gradient.
    Text color is the managed token: white on the deep light-theme accent,
    near-black on the brighter dark-theme accent (white text there is a
    WCAG-failing 2.57:1; the token is ~7.9:1). */

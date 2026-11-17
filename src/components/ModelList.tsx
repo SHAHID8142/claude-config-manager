@@ -2,6 +2,7 @@
  * explicit click (PRD F04 — nothing is ever auto-selected, not on fetch, not on
  * filter). Rows stay one line tall so a 60-model catalog is scannable, and the
  * provenance line is stated once instead of repeating a chip on every row. */
+import { HelpPopover } from "./HelpPopover";
 import { useMemo, useState } from "react";
 import { Check, Search } from "lucide-react";
 import type { ModelEntry } from "../lib/ipc";
@@ -31,6 +32,13 @@ export function ModelList({ models, selectedId, onSelect }: ModelListProps) {
 
   return (
     <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-1 text-[12px] text-ink-muted">
+        Filter models{" "}
+        <HelpPopover title="Filter models">
+          Filters the provider's catalog by model ID or name. Searching never selects or activates a
+          model.
+        </HelpPopover>
+      </div>
       <div className="relative">
         <Search
           aria-hidden="true"

@@ -83,13 +83,22 @@ pub fn classify(status: u16, body: &str) -> FailureClass {
     }
 }
 
-/// Parse `Retry-After` in seconds form. HTTP-date form is ignored (we fall back
-/// to our own bounded cooldown rather than trusting a clock skew).
+/// Retry-After supports delay-seconds and HTTP-date (RFC 9110 §10.2.3).
+/// Clamp to ten minutes; expired dates permit an immediate next attempt.
 pub fn parse_retry_after(value: Option<&str>) -> Option<Duration> {
+    parse_retry_after_at(value, std::time::SystemTime::now())
+}
+fn parse_retry_after_at(value: Option<&str>, now: std::time::SystemTime) -> Option<Duration> {
     let raw = value?.trim();
-    let secs: u64 = raw.parse().ok()?;
-    // Bound it: a provider asking for a day would otherwise disable failover.
-    Some(Duration::from_secs(secs.min(600)))
+    let wait = if raw.chars().all(|c| c.is_ascii_digit()) && !raw.is_empty() {
+        Duration::from_secs(raw.parse::<u64>().unwrap_or(u64::MAX))
+    } else {
+        httpdate::parse_http_date(raw)
+            .ok()?
+            .duration_since(now)
+            .unwrap_or_default()
+    };
+    Some(wait.min(Duration::from_secs(600)))
 }
 
 /// Cooldown for a failed target. Bounded so a stale failure cannot disable it
@@ -147,6 +156,13 @@ impl Cooldowns {
         self.until.remove(target_id);
     }
 
+    pub fn remaining_seconds(&self, target_id: &str, now: Instant) -> Option<u64> {
+        self.until
+            .get(target_id)
+            .filter(|until| **until > now)
+            .map(|until| until.duration_since(now).as_secs().saturating_add(1))
+    }
+
     pub fn prune(&mut self, now: Instant) {
         self.until.retain(|_, t| *t > now);
     }
@@ -158,9 +174,8 @@ impl Cooldowns {
 }
 
 /// Ordered candidates for one request: enabled targets, skipping cooling ones,
-/// preserving configured order. Falls back to including cooling targets when
-/// every target is cooling, so a request is never refused for a reason the owner
-/// cannot see or override.
+/// preserving configured order. All-cooling means temporarily unavailable;
+/// callers can show cooldown deadlines or request an explicit helper restart.
 pub fn candidates(ids: &[(String, bool)], cooldowns: &mut Cooldowns, now: Instant) -> Vec<String> {
     let enabled: Vec<&(String, bool)> = ids.iter().filter(|(_, on)| *on).collect();
     let ready: Vec<String> = enabled
@@ -168,10 +183,6 @@ pub fn candidates(ids: &[(String, bool)], cooldowns: &mut Cooldowns, now: Instan
         .filter(|(id, _)| !cooldowns.is_cooling(id, now))
         .map(|(id, _)| id.clone())
         .collect();
-    if ready.is_empty() {
-        // Everything is cooling: try in order rather than failing blind.
-        return enabled.into_iter().map(|(id, _)| id.clone()).collect();
-    }
     ready
 }
 
@@ -201,16 +212,22 @@ mod tests {
     }
 
     #[test]
-    fn retry_after_is_bounded_and_seconds_only() {
+    fn retry_after_is_bounded_and_accepts_http_dates() {
         assert_eq!(parse_retry_after(Some("12")), Some(Duration::from_secs(12)));
         assert_eq!(
             parse_retry_after(Some("86400")),
             Some(Duration::from_secs(600)),
             "a day-long Retry-After must not disable failover"
         );
+        let now = std::time::UNIX_EPOCH + Duration::from_secs(1792567680);
+        let future = httpdate::fmt_http_date(now + Duration::from_secs(45));
         assert_eq!(
-            parse_retry_after(Some("Wed, 21 Oct 2026 07:28:00 GMT")),
-            None
+            parse_retry_after_at(Some(&future), now),
+            Some(Duration::from_secs(45))
+        );
+        assert_eq!(
+            parse_retry_after_at(Some(&future), now + Duration::from_secs(60)),
+            Some(Duration::ZERO)
         );
         assert_eq!(parse_retry_after(None), None);
         assert_eq!(parse_retry_after(Some("-5")), None);
@@ -245,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn candidates_skip_cooling_targets_but_never_return_empty() {
+    fn candidates_respect_cooldowns_when_every_key_is_unavailable() {
         let now = Instant::now();
         let ids = vec![
             ("a".to_string(), true),
@@ -259,7 +276,11 @@ mod tests {
         assert_eq!(candidates(&ids, &mut c, now), ["c"]);
 
         c.mark("c", FailureClass::RateLimit, None, now);
-        // Everything enabled is cooling: still offer the order instead of 503.
-        assert_eq!(candidates(&ids, &mut c, now), ["a", "c"]);
+        // Respect every pause; a subsequent request must not hammer exhausted keys.
+        assert!(candidates(&ids, &mut c, now).is_empty());
+        assert_eq!(
+            candidates(&ids, &mut c, now + Duration::from_secs(31)),
+            ["a", "c"]
+        );
     }
 }

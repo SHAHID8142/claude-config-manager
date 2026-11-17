@@ -244,7 +244,7 @@ scripts/dep-audit.sh       PASS (0 npm vulns, 0 advisories in the macOS graph)
 
 **T65 clean-install evidence — now REAL, on this machine:**
 - Fresh **1.0.0** bundle built (`tauri.conf.json` / `package.json` / `Cargo.toml` all at 1.0.0).
-- **DMG install to /Applications** performed; app launched; screenshot of the running window captured against the owner's **real live configuration** (`/tmp/ccm-final.png`; copy in `docs/audits/T65-install-evidence/`).
+- **DMG install to /Applications** performed; app launched; screenshot of the running window captured against the owner's **real live configuration** (historical capture removed from the current tree in1.0.5 because it included unrelated desktop content; earlier Git history is unchanged).
 - **Ad-hoc signature verified** (`codesign`: adhoc, linker-signed); embedded `icon.icns` byte-matches the owner's artwork.
 - **`~/.claude/settings.json` untouched** by install/launch (sha256 before == after; note: the first check mistakenly compared SHA-1 vs SHA-256 — re-run correctly).
 - Smoke launch with a **clean HOME**: app alive, window present, zero files written anywhere (read-only first launch).

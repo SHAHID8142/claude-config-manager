@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Check, Terminal, TriangleAlert } from "lucide-react";
 import { LoadingButton } from "../components/LoadingButton";
 import { Section } from "../components/Section";
@@ -7,6 +8,7 @@ import type { BackupInfo, EnvironmentReport, RestoreOutcome } from "../lib/ipc";
 export interface MaintenanceTabProps {
   /** D9: real backups from the backend, newest first (null = still loading). */
   backups: BackupInfo[] | null;
+  selectedBackup?: string | null;
   environment: EnvironmentReport | null;
   /** Set when the probe itself failed — surfaced, never swallowed. */
   environmentError: string | null;
@@ -31,6 +33,7 @@ function humanState(state: string): string {
  * every "restore" path. Nothing here writes provider settings.
  */
 export function MaintenanceTab(props: MaintenanceTabProps) {
+  const [confirming, setConfirming] = useState(false);
   const env = props.environment;
 
   return (
@@ -38,7 +41,7 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
       {props.restoreOutcome !== null && (
         <StatusBanner
           severity="success"
-          message="Settings restored from the latest backup."
+          message="Settings restored from the selected backup."
           detail={`Restored: ${props.restoreOutcome.restoredFrom} · pre-restore copy: ${props.restoreOutcome.preRestoreBackup || "(none — file was missing)"}`}
           onDismiss={props.onDismissRestore}
         />
@@ -117,7 +120,7 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
 
       <Section
         title="Actions"
-        description="Roll settings back to the newest backup."
+        description="Restore the snapshot reviewed above."
         help={{
           title: "About restore",
           children: (
@@ -130,24 +133,53 @@ export function MaintenanceTab(props: MaintenanceTabProps) {
       >
         <div className="flex flex-wrap items-center gap-3">
           <LoadingButton
-            label="Restore last backup"
+            label="Restore selected backup"
             pendingLabel="Restoring…"
             pending={props.restoring}
             variant="secondary"
-            onClick={props.onRestore}
+            disabled={!props.selectedBackup}
+            onClick={() => setConfirming(true)}
           />
           <p className="text-[12px] text-ink-muted">
-            Backups live beside settings.json as settings.json.backup-*.
+            Backups: ~/Library/Application Support/ClaudeConfigManager/backups/
           </p>
         </div>
+        {confirming && (
+          <div className="mt-3 text-[12px]">
+            <p>
+              Replace current settings with {props.selectedBackup}? The current file will be
+              preserved first. Stored keys are separate.
+            </p>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={props.restoring || !props.selectedBackup}
+                onClick={() => {
+                  setConfirming(false);
+                  props.onRestore();
+                }}
+              >
+                Confirm restore
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirming(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </Section>
 
-      <Section title="Backups" description="Every apply snapshots settings.json first.">
+      <Section title="Backups" description="Existing settings are backed up before Apply.">
         {props.backups === null ? (
           <p className="text-[12.5px] text-ink-muted">Reading backups…</p>
         ) : props.backups.length === 0 ? (
           <p className="text-[12.5px] text-ink-muted">
-            No backups yet — the first Save &amp; Apply creates one automatically.
+            No backups yet. Apply creates a backup when an existing settings file can be saved.
           </p>
         ) : (
           <ul

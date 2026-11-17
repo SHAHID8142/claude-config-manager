@@ -13,6 +13,7 @@ import type { EffectiveStatus, ModelEntry, ProviderSummary } from "../lib/ipc";
 const inputClass = `h-9 w-full rounded-[6px] border border-control bg-surface px-2.5 text-[13px] text-ink placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`;
 
 export interface ModelTabProps {
+  resetRoles?: string[];
   provider: ProviderSummary | null;
   isCustom: boolean;
   models: ModelEntry[] | null;
@@ -55,7 +56,7 @@ export function ModelTab(props: ModelTabProps) {
       {/* The answer to "which model is selected": applied vs draft, side by side. */}
       <dl className="grid grid-cols-2 gap-4 rounded-[10px] border border-line bg-surface p-4">
         <div className="min-w-0 truncate">
-          <dt className="text-[11px] text-ink-subtle">Applied (in Claude Code now)</dt>
+          <dt className="text-[11px] text-ink-subtle">Saved global model</dt>
           <dd className="mt-1 truncate font-mono text-[13px] text-ink" title={applied ?? undefined}>
             {applied ?? "not set"}
           </dd>
@@ -95,14 +96,17 @@ export function ModelTab(props: ModelTabProps) {
             testId="fetch-models"
             pendingLabel="Fetching…"
             pending={props.fetching}
-            disabled={props.provider === null || props.isCustom}
+            disabled={props.provider === null || props.isCustom || props.provider.id === "zai"}
             variant="secondary"
             onClick={props.onFetch}
           />
-          {props.provider !== null && !props.isCustom && (
-            <span className="text-[12px] text-ink-subtle">
-              Verified preset for {props.provider.name}
+          {props.provider?.id === "zai" && (
+            <span className="text-[12px] text-ink-muted">
+              This provider uses manual model IDs; no catalog endpoint is documented.
             </span>
+          )}
+          {props.provider !== null && !props.isCustom && props.provider.id !== "zai" && (
+            <span className="text-[12px] text-ink-subtle">Catalog for {props.provider.name}</span>
           )}
         </div>
 
@@ -130,7 +134,7 @@ export function ModelTab(props: ModelTabProps) {
             id="model-input"
             type="text"
             value={props.selectedModel ?? ""}
-            readOnly={props.models !== null && props.models.length > 0}
+            readOnly={false}
             disabled={props.provider === null && !props.isCustom}
             onChange={(e) => props.onSelectModel(e.target.value)}
             placeholder="provider-model-id"
@@ -140,10 +144,7 @@ export function ModelTab(props: ModelTabProps) {
           />
         </FieldRow>
 
-        {/* Context-window adoption: the catalog publishes the model's native
-            window (sourced, never invented) — one click declares it so
-            Claude Code does not hold an unrecognized id at a 200K-class
-            assumption. */}
+        {/* Catalog metadata is a sourced draft value; CLI/model support varies. */}
         {(() => {
           const chosen = props.models?.find((m) => m.id === props.selectedModel);
           if (chosen?.contextWindow == null) return null;
@@ -188,13 +189,14 @@ export function ModelTab(props: ModelTabProps) {
 
       <Section
         title="Declared window"
-        description="Declare the real window when a model is larger than 200k."
+        description="Optional context and role settings. Unedited values stay unchanged."
         help={{
           title: "About the context window",
           children: (
             <p>
-              Claude Code assumes 200k for model ids it does not recognise. Declaring the real
-              window keeps long sessions from being cut short.
+              Custom context behavior depends on the model ID and Claude Code version. Catalog
+              capacity is provider metadata; changing a local token count cannot expand the model
+              itself.
             </p>
           ),
         }}
@@ -203,7 +205,8 @@ export function ModelTab(props: ModelTabProps) {
           <p className="mb-3 flex items-start gap-2 rounded-[6px] bg-warn-soft px-3 py-2 text-[12px] leading-[1.5] text-warn">
             <Info aria-hidden="true" size={13} className="mt-0.5 shrink-0" />
             <span>
-              This id is not one Claude Code knows, so it will assume a 200k window.{" "}
+              This ID may need a declared context window. Check your provider and Claude Code
+              version.{" "}
               <button
                 type="button"
                 className="underline underline-offset-2 hover:text-ink"
@@ -218,6 +221,7 @@ export function ModelTab(props: ModelTabProps) {
         <AdvancedSettings
           open={props.advancedOpen}
           onToggle={props.onToggleAdvanced}
+          resetRoles={props.resetRoles}
           roles={props.roles}
           onChange={props.onRole}
           current={{
