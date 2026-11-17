@@ -3,9 +3,9 @@
 A macOS desktop utility for Claude Code global settings, provider credentials
 and automatic provider/key switching. Built with Tauri 2, Rust and React.
 
-## Version 1.0.6 — unsigned prerelease
+## Version 1.0.7 — unsigned prerelease
 
-[Download the Apple Silicon prerelease](https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.6) · [SHA256SUMS](https://github.com/SHAHID8142/claude-config-manager/releases/download/v1.0.6/SHA256SUMS)
+[Download the Apple Silicon prerelease](https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.7) · [SHA256SUMS](https://github.com/SHAHID8142/claude-config-manager/releases/download/v1.0.7/SHA256SUMS)
 
 Not notarized: macOS Gatekeeper may block it. See the release notes for acceptance limits.
 
@@ -25,7 +25,7 @@ Existing explicit-key policies retain their ordering; conversion to all enabled
 provider keys is explicit. Single-key direct Apply remains available.
 
 Read the [user guide](docs/USER_GUIDE.md), [audit and complete todo register](docs/audits/2026-11-17-project-review.md),
-[release notes](docs/releases/1.0.6.md), and [limitations](docs/V3/LIMITATIONS.md).
+[release notes](docs/releases/1.0.7.md), and [limitations](docs/V3/LIMITATIONS.md).
 Old screenshots/recordings in `docs/assets` demonstrate earlier versions, not
 acceptance evidence for the current interface. Historical V2/V3 audits describe
 their own checkpoints; the dated repair audit supersedes conflicting claims.
@@ -68,7 +68,7 @@ npm run build:macos
 Development browser mode uses an in-memory fixture transport; it does not write
 real settings or contact providers. `?fail=env|catalog|models|apply` injects errors.
 
-Artifacts appear under `src-tauri/target/release/bundle/`. Version 1.0.6 is a
+Artifacts appear under `src-tauri/target/release/bundle/`. Version 1.0.7 is an
 **unsigned prerelease** (ad-hoc signature only). It is ad-hoc signed without
 Developer ID/notarization. Clean-Mac Gatekeeper acceptance, VoiceOver, reboot and
 real paid-provider end-to-end behavior must not be assumed. See release evidence.

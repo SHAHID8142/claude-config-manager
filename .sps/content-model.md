@@ -33,3 +33,8 @@ no key input stored. Completed custom endpoint/model drafts are scoped by endpoi
 hash. Private managed-operation before-images live in apply-journal.json; explicit
 recovery snapshots may contain key copies. Activity retains100 fixed-category,
 provider/timestamp events, never prompts/responses/endpoints/key values/key labels.
+
+1.0.7: helper health adds optional version; runtime.lock is a persistent empty
+private regular file holding an OS exclusive lease for the helper lifetime. It is
+not an age-based transaction lock. System text is translated to one initial
+NVIDIA instruction with active turn scopes; dynamic tool-state changes are rejected.

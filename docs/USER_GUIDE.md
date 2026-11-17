@@ -1,6 +1,6 @@
 # Claude Config Manager — user guide
 
-Updated for 1.0.6, 2026-11-17. This app edits Claude Code's global user settings.
+Updated for 1.0.7, 2026-11-18. This app edits Claude Code's global user settings.
 Project settings, managed settings and terminal environment variables can take
 precedence. Restart Claude Code after changing authentication: helper output may
 be cached. [Official settings documentation](https://code.claude.com/docs/en/settings).
@@ -99,6 +99,16 @@ prove your key works. Other OpenAI-only endpoints and the optional third-party
 bridge remain unavailable; its install/start/apply commands stay disabled.
 A custom endpoint must speak Anthropic Messages, not just OpenAI Chat Completions.
 
+### Conversation instruction compatibility
+
+The adapter accepts text `system` entries inside Messages history. NVIDIA needs
+one initial system message, so active instruction text is collected there in
+original order, with the top-level instructions first. `clear_at: never` persists;
+`next_user_message` instructions expire when any later user/tool-result turn exists.
+This translation does not preserve Claude-native cache positions or thinking
+signatures. Dynamic tool additions/removals and per-message effort changes remain
+unsupported and return explicit errors rather than being silently discarded.
+
 ## Recover an invalid settings file
 
 The message “settings file contains invalid JSON — not overwritten” means the
@@ -194,6 +204,6 @@ at its documented 32,768 tokens; a large context declaration does not increase
 that output limit. Interrupted/malformed streams are not replayed.
 
 Save and tool execution were tested end to end with the installed CLI using
-loopback fixtures and fake keys. A real NVIDIA account/inference request was not
-run, so model availability, account credit and hosted-model behavior remain
-provider-dependent. See [1.0.6 release evidence](releases/1.0.6.md).
+loopback fixtures and fake keys. A minimal real NVIDIA request through the final
+1.0.7 packaged helper returned200 with inline system text and nonempty output.
+This does not certify all models, live tools, account quotas or live failover. See [1.0.7 release evidence](releases/1.0.7.md).

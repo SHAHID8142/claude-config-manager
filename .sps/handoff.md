@@ -1,3 +1,53 @@
+# Active handoff — 1.0.7 verified, publishing
+
+2026-11-18. Role400 repaired with current official docs; six system-scope adapter
+regressions + socket regression. Helper now holds exclusive OS lifetime file lease;
+duplicate raw startup, crash and restart tests pass. Full409 Rust /219 frontend,
+fmt/clippy/lint/typecheck/format pass. Final packaged CLI bare/default both PASS.
+Final packaged minimal hosted inline-system NVIDIA request200,29 input/2 output.
+No real prompt bodies logged. Source frozen and final app/DMG verified/mounted/copied.
+Ad-hoc integrity pass; Gatekeeper rejects; no signing certificate/notarization.
+
+Two attested old helpers stopped after health PID + exact command verification.
+New helper1.0.7 active at existing configured53054; state matches health. Real
+settings and all credential files byte-identical before/after, no rollback needed.
+No user key added/changed/deleted by agent. Async user conversation retry pending.
+Do not infer that original conversation works from minimal hosted fixture.
+
+Next: secret scan, source commit/push, publish unsigned7, remote checksum and CI,
+publication receipt. Existing6 release immutable. /Applications stays absent;
+user build-output GUI left untouched. Other native/manual/audit gaps remain.
+
+--- Prior record ---
+
+# Active fix — NVIDIA unsupported message role400
+
+User activated real global routing successfully (helper health200, NVIDIA mapping,
+proxy.sh and loopback; old entry removed, one stored NVIDIA credential remains).
+Then CLI returned400 unsupported message role. Active helper health lastError
+exactlymatches adapter's user/assistant-only guard. Current official Anthropic
+docs permit mid-conversation system messages; NVIDIA expects initial system.
+
+1.0.7 source now hoists active text system instructions in chronological order;
+respects clear_at never/next_user_message including later tool-result user turns;
+rejects dynamic tool-state/per-message effort and unknown roles clearly. No raw
+request logging. Added6 unit+1 socket regressions; full Rust409 pass,219 frontend
+pass, clippy/fmt pass. CLI fixture now uses saved NVIDIA model, normal tool list,
+and supports explicit bare/default runs. Default CLI passed; fixture fixed to
+ignore idle probes instead of panicking. Final package7 rebuilding with OS lifetime lease; source frozen.
+Two attested old helpers use configured53054 and recorded61446. Prepared reload
+attests both health PID + exact command before stopping them. Keys/settings must
+remain byte-identical. Lease duplicate-start/crash/restart tests pass.
+
+Next: packaged CLI both modes, minimal hosted system-role fixture, artifact hashes,
+verified owned helper restart at existing real port WITHOUT touching keys/settings,
+then live-local no-inference health/translation-preflight, askuserretry existing
+conversation. Version metadata added to health so active7 can be proved. Publish
+unsigned7 with honest role semantics/remaining limits and source provenance.
+Previous6 release remains immutable. User key never edited/deleted by agent.
+
+--- Historical handoff ---
+
 # Active handoff — live NVIDIA verified, user activation pending
 
 User needed help finding New API key. Native window exposed NVIDIA controls;

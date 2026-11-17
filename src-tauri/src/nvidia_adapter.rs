@@ -41,16 +41,45 @@ pub fn request(body: &[u8], model: Option<&str>) -> Result<Value, &'static str> 
         return Err("NVIDIA structured output is not supported by this adapter");
     }
     let mut messages = Vec::new();
+    let mut system_parts = Vec::new();
     if let Some(system) = v.get("system") {
-        messages.push(json!({"role":"system", "content":text(system)?}));
+        system_parts.push(text(system)?);
     }
-    for m in v["messages"]
+    let input = v["messages"]
         .as_array()
-        .ok_or("messages must be an array")?
-    {
+        .ok_or("messages must be an array")?;
+    for (index, m) in input.iter().enumerate() {
         let role = m["role"].as_str().ok_or("missing message role")?;
+        if role == "system" {
+            // Claude supports inline system text. NVIDIA accepts one initial
+            // system message, so collect active instructions in original order.
+            // Cache positions/signatures are Anthropic-specific, not replayed.
+            if m.get("output_config").is_some() {
+                return Err("NVIDIA does not support per-message effort changes");
+            }
+            let instruction = text(&m["content"]).map_err(
+                |_| "NVIDIA supports text system messages; dynamic tool changes are unavailable",
+            )?;
+            let active = match m.get("clear_at") {
+                None => true,
+                Some(Value::String(scope)) if scope == "never" => true,
+                Some(Value::String(scope)) if scope == "next_user_message" => !input[index + 1..]
+                    .iter()
+                    .any(|later| later["role"] == "user"),
+                _ => return Err("unsupported system message lifetime"),
+            };
+            if active {
+                system_parts.push(instruction);
+            }
+            continue;
+        }
         if role != "user" && role != "assistant" {
-            return Err("unsupported message role");
+            return Err(
+                "unsupported message role; NVIDIA Messages input accepts user, assistant and text system messages",
+            );
+        }
+        if m.get("clear_at").is_some() {
+            return Err("message lifetime is only valid for system messages");
         }
         if let Some(s) = m["content"].as_str() {
             messages.push(json!({"role":role,"content":s}));
@@ -87,6 +116,12 @@ pub fn request(body: &[u8], model: Option<&str>) -> Result<Value, &'static str> 
             }
             messages.push(message);
         }
+    }
+    if !system_parts.is_empty() {
+        messages.insert(
+            0,
+            json!({"role":"system", "content":system_parts.join("\n\n")}),
+        );
     }
     let mut out = json!({"model":model,"messages":messages,"max_tokens":v["max_tokens"].as_u64().unwrap_or(16384).clamp(1,32768),"stream":v["stream"].as_bool().unwrap_or(false)});
     if out["stream"] == true {
@@ -473,5 +508,97 @@ mod tests {
         ] {
             assert!(request(&body.to_string().into_bytes(), None).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod system_message_tests {
+    use super::*;
+    fn translate(messages: Value) -> Result<Value, &'static str> {
+        request(
+            &serde_json::to_vec(&json!({"system":"Initial instructions", "messages":messages}))
+                .unwrap(),
+            Some("nvidia/nemotron-3-ultra-550b-a55b"),
+        )
+    }
+    #[test]
+    fn inline_system_instructions_are_hoisted_in_order_without_changing_tool_pairs() {
+        let out=translate(json!([
+            {"role":"user","content":"Read the fixture"},
+            {"role":"assistant","content":[{"type":"tool_use","id":"call1","name":"Read","input":{}}]},
+            {"role":"user","content":[{"type":"tool_result","tool_use_id":"call1","content":"fixture result"}]},
+            {"role":"system","content":[{"type":"text","text":"Later instructions"}]},
+            {"role":"system","clear_at":"never","content":"Latest instructions"}
+        ])).unwrap();
+        let messages = out["messages"].as_array().unwrap();
+        assert_eq!(
+            messages[0],
+            json!({"role":"system","content":"Initial instructions\n\nLater instructions\n\nLatest instructions"})
+        );
+        assert_eq!(messages.iter().filter(|m| m["role"] == "system").count(), 1);
+        assert_eq!(messages[2]["tool_calls"][0]["id"], "call1");
+        assert_eq!(
+            messages[3],
+            json!({"role":"tool","tool_call_id":"call1","content":"fixture result"})
+        );
+    }
+    #[test]
+    fn turn_scoped_instructions_clear_on_later_user_including_tool_results() {
+        let out = translate(json!([
+            {"role":"user","content":"First request"},
+            {"role":"system","clear_at":"next_user_message","content":"Expired reminder"},
+            {"role":"assistant","content":[{"type":"tool_use","id":"t","name":"Read","input":{}}]},
+            {"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":"Done"}]},
+            {"role":"system","clear_at":"next_user_message","content":"Active reminder"}
+        ]))
+        .unwrap();
+        assert_eq!(
+            out["messages"][0]["content"],
+            "Initial instructions\n\nActive reminder"
+        );
+        assert!(!out.to_string().contains("Expired reminder"));
+    }
+    #[test]
+    fn persistent_instructions_survive_later_turns_and_assistant_does_not_clear_reminders() {
+        let out = translate(json!([
+            {"role":"user","content":"Start"},
+            {"role":"system","clear_at":"never","content":"Persistent"},
+            {"role":"assistant","content":"Reply"},
+            {"role":"user","content":"Continue"},
+            {"role":"system","clear_at":"next_user_message","content":"Still active"},
+            {"role":"assistant","content":"Partial"}
+        ]))
+        .unwrap();
+        assert_eq!(
+            out["messages"][0]["content"],
+            "Initial instructions\n\nPersistent\n\nStill active"
+        );
+    }
+    #[test]
+    fn system_only_request_does_not_require_a_top_level_system_field() {
+        let out=request(&serde_json::to_vec(&json!({"messages":[{"role":"user","content":"Reply"},{"role":"system","content":"Be brief"}]})).unwrap(),Some("nvidia/model")).unwrap();
+        assert_eq!(
+            out["messages"][0],
+            json!({"role":"system","content":"Be brief"})
+        );
+        assert_eq!(out["messages"][1]["role"], "user");
+    }
+    #[test]
+    fn unsupported_system_features_fail_before_sending_instead_of_being_dropped() {
+        for message in [
+            json!({"role":"system","content":[{"type":"tool_addition","tool":{"type":"tool_reference","name":"Read"}}]}),
+            json!({"role":"system","content":"Notice","output_config":{"effort":"high"}}),
+            json!({"role":"system","content":"Notice","clear_at":"invented"}),
+            json!({"role":"user","content":"Notice","clear_at":"never"}),
+        ] {
+            assert!(translate(json!([{"role":"user","content":"Start"},message])).is_err());
+        }
+    }
+    #[test]
+    fn unsupported_roles_do_not_echo_arbitrary_values() {
+        let err = translate(json!([{"role":"private-role-value","content":"private-content"}]))
+            .unwrap_err();
+        assert!(!err.contains("private-role-value"));
+        assert!(!err.contains("private-content"));
     }
 }

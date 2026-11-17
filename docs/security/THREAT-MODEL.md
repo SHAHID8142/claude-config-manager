@@ -1,4 +1,4 @@
-# Current threat model — 1.0.6
+# Current threat model — 1.0.7
 
 Reviewed 2026-11-17. Supersedes the v1 Keychain and external-bridge design claims.
 The supported distribution target is Apple Silicon macOS. The threat boundary
@@ -26,6 +26,6 @@ plaintext data. Filesystem permissions are not encryption or same-user isolation
 | macOS trust | Ad-hoc signature integrity checked. No Developer ID/notarization; Gatekeeper rejects this unsigned prerelease. No security protections are disabled automatically. |
 
 Review evidence: [audit and register](../audits/2026-11-17-project-review.md),
-[release notes](../releases/1.0.6.md), and focused fixture-home security, recovery,
+[release notes](../releases/1.0.7.md), and focused fixture-home security, recovery,
 property, protocol and real CLI tool tests. Do not upload private files to reproduce
 bugs; use synthetic fixture data. A test pass does not establish universal safety.

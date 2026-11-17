@@ -472,6 +472,39 @@ pub fn uninstall_login_agent(home: &Path) -> Result<bool, String> {
     Ok(true)
 }
 
+/// Hold an OS-backed exclusive lease for the entire helper lifetime. A second
+/// raw --proxy-helper invocation must not bind a fallback port/overwrite state.
+/// The persistent empty file is never unlinked: the OS releases its lock when
+/// the descriptor/process closes, including SIGKILL, with no age-based stealing.
+fn runtime_lease(home: &Path) -> std::io::Result<fs::File> {
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    let path = home.join(".claude-config-manager/runtime.lock");
+    if crate::config_locator::ConfigLocator::new().config_dir_is_symlink(&path)? {
+        return Err(std::io::Error::other(
+            "runtime directory contains a symlink",
+        ));
+    }
+    let mut options = fs::OpenOptions::new();
+    options
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .mode(0o600);
+    #[cfg(target_os = "macos")]
+    options.custom_flags(0x100 | 0x4); // O_NOFOLLOW | O_NONBLOCK
+    #[cfg(target_os = "linux")]
+    options.custom_flags(0x20000 | 0x800);
+    let file = options.open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(std::io::Error::other("runtime lease is not a regular file"));
+    }
+    file.try_lock()
+        .map_err(|e| std::io::Error::other(format!("runtime lease unavailable: {e}")))?;
+    file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    Ok(file)
+}
+
 /// Body of the helper process (`--proxy-helper`). Never returns while healthy.
 pub fn run_helper() -> i32 {
     let Ok(home_raw) = std::env::var("HOME") else {
@@ -481,6 +514,10 @@ pub fn run_helper() -> i32 {
     let token = match ensure_token(&home) {
         Ok(t) => t,
         Err(_) => return 3,
+    };
+    let _runtime_lease = match runtime_lease(&home) {
+        Ok(lease) => lease,
+        Err(_) => return 6,
     };
     let preferred = std::env::var(PREFERRED_PORT_ENV)
         .ok()

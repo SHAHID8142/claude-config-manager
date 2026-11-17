@@ -1,4 +1,4 @@
-# Product behavior — 1.0.6
+# Product behavior — 1.0.7
 
 Claude Config Manager edits one Claude Code global settings scope. The central
 workflow is provider → ordered keys → model → switching order → explicit activation.
@@ -24,5 +24,5 @@ The app does not promise additional account quota, successful inference on every
 model, no duplicate upstream charges, or full resolution of all CLI settings scopes.
 
 See [user guide](docs/USER_GUIDE.md), [current audit](docs/audits/2026-11-17-project-review.md)
-and [release evidence](docs/releases/1.0.6.md). Historical screenshots and phase
+and [release evidence](docs/releases/1.0.7.md). Historical screenshots and phase
 acceptance reports are not current-release verification.

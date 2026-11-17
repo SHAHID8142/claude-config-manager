@@ -164,3 +164,38 @@ fn stop_never_signals_a_pid_it_cannot_verify() {
     );
     assert!(helper::read_state(&home).is_none());
 }
+
+#[test]
+fn a_second_raw_helper_cannot_rebind_or_overwrite_the_active_state() {
+    let home = temp_home("raw-duplicate");
+    let first = helper::start_with_exe(&home, &bin()).unwrap();
+    let mut duplicate = std::process::Command::new(bin())
+        .arg(helper::HELPER_ARG)
+        .env("HOME", &home)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    let exit = loop {
+        if let Some(exit) = duplicate.try_wait().unwrap() {
+            break exit;
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = duplicate.kill();
+            helper::stop(&home).unwrap();
+            panic!("duplicate helper did not exit");
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    assert_eq!(exit.code(), Some(6));
+    let state = helper::read_state(&home).unwrap();
+    assert_eq!(state.pid, first.pid);
+    assert_eq!(state.port, first.port);
+    assert_eq!(helper::health(first.port).unwrap().pid, first.pid);
+    helper::stop(&home).unwrap();
+    let restarted = helper::start_with_exe(&home, &bin()).unwrap();
+    assert_eq!(restarted.port, first.port);
+    helper::stop(&home).unwrap();
+}

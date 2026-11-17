@@ -1,13 +1,12 @@
 # Active agent
 
-- Host: Codex; SPS installed version 4.0.0; date 2026-11-17.
-- Mode: approved completion of audit repairs and unsigned prerelease publication.
-- Recovery lanes converged; root continues integration and checks.
-- Skills: SPS; modern-web-guidance/forms; React best practices; desktop review.
-- All automated tests use fixture homes. Never log user keys or request contents.
-- Real NVIDIA retry waits for user readiness after key update.
-- SPS checker reports unknown/latest4.0.0; installed VERSION is4.0.0. No inferred
-  global skill update. Native acceptance and hosted inference remain separate.
-
-- Latest:1.0.6 published, source8fc69bd; remoteCI all pass, remote artifact matches.
-- Current key check blocked before inference; await user correction/readiness.
+- Host: Codex; SPS installed version 4.0.0; date 2026-11-18.
+- Mode: approved NVIDIA follow-up, helper lifecycle repair and unsigned publication.
+- Root integrates alone; no new delegation. SPS lock and full batch approval apply.
+- Fixture homes for tests; live NVIDIA minimal synthetic checks authorized by user.
+- Never log keys, hashes of real credentials, real request bodies or conversation.
+- Current: 1.0.7 role translation and lifetime helper lease; 409 Rust tests pass,
+  six default ignored; 219 frontend passed. Final package/reload/publication pending.
+- User saved a working key independently. No need to replace it for this role bug.
+- SPS update checker falsely reports unknown/latest4.0.0; installed is4.0.0.
+- Native accessibility, clean-Mac/reboot and exhaustive manual review remain open.

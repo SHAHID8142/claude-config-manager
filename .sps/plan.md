@@ -227,3 +227,27 @@ Preserve valid drafts at the storage cap by evicting oldest entries before writi
 timestamps without throwing during render. Add focused regressions. Version and
 rebuild1.0.6 as a new unsigned prerelease; keep published1.0.5 immutable. Root owns
 these small shared UI/storage edits. No new dependency, key action or paid request.
+
+
+## Message-role400 repair — approved NVIDIA follow-up
+
+User reports real CLI400 unsupported message role after successful activation.
+Known: adapter accepts only user/assistant inside messages; current official
+Anthropic docs support mid-conversation system messages. NVIDIA expects an initial
+system instruction. Reproduce with actual saved NVIDIA model and both bare/default
+CLI fixture behavior; do not log real request bodies. Translate supported system
+text deliberately, preserve instruction order, reject unsupported scoped/tool-state
+semantics clearly rather than silently dropping. Add socket/real-CLI regressions,
+verify a minimal hosted case if necessary under existing live-check authorization.
+Build/publish next unsigned patch, preserve previous artifacts, verify and restart
+only identified owned helper after build so user retries against repaired code.
+Root owns this focused backend/fixture section; no UI or credential changes.
+
+
+Runtime observation2026-11-18: two identified app helper processes, configured
+port53054 differs from recorded helper port61446. First reload refused before
+mutation. Add lifetime OS file lease to run_helper (private/no-follow regular file,
+nonblocking File::try_lock; release on process death), not timestamp stale locks.
+Verify duplicate raw helper startup cannot overwrite state or bind another port,
+and existing crash/restart tests still pass. Rebuild7 before consolidating only
+attested old helper PIDs on the configured port; settings/secrets must not change.

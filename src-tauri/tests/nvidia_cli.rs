@@ -59,7 +59,9 @@ fn save_nvidia_then_real_cli_reads_a_file_and_finishes_through_key_failover() {
             sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
             let mut reader = BufReader::new(sock.try_clone().unwrap());
             let mut line = String::new();
-            reader.read_line(&mut line).unwrap();
+            if !matches!(reader.read_line(&mut line), Ok(n) if n > 0) {
+                continue; // Ignore idle/preconnect probes, not inference requests.
+            }
             let path = line.split_whitespace().nth(1).unwrap_or("").to_owned();
             let mut length = 0;
             let mut auth = String::new();
@@ -78,6 +80,13 @@ fn save_nvidia_then_real_cli_reads_a_file_and_finishes_through_key_failover() {
                     }
                 }
             }
+            if path != "/v1/chat/completions" || length == 0 {
+                let _ = sock.write_all(
+                    b"HTTP/1.1 404 Not Found\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}",
+                );
+                continue;
+            }
+            assert!(length <= 16 * 1024 * 1024);
             let mut raw = vec![0; length];
             reader.read_exact(&mut raw).unwrap();
             let body: Value = serde_json::from_slice(&raw).unwrap();
@@ -144,14 +153,12 @@ fn save_nvidia_then_real_cli_reads_a_file_and_finishes_through_key_failover() {
     policy.targets[0].base_url = format!("http://127.0.0.1:{port}");
     routing_config::save(&home, &policy).unwrap();
     let mut cli = Command::new("claude");
+    if std::env::var_os("CCM_CLI_STANDARD_FIXTURE").is_none() {
+        cli.arg("--bare");
+    }
     cli.args([
-        "--bare",
         "-p",
         "Use Read to read fixture.txt, then respond with NVIDIA_TOOL_LOOPBACK_OK",
-        "--model",
-        "claude-sonnet-4-5",
-        "--tools",
-        "Read",
         "--allowedTools",
         "Read",
         "--no-session-persistence",
@@ -177,7 +184,12 @@ fn save_nvidia_then_real_cli_reads_a_file_and_finishes_through_key_failover() {
     while child.try_wait().unwrap().is_none() {
         if start.elapsed() > Duration::from_secs(45) {
             let _ = child.kill();
-            panic!("CLI fixture timed out");
+            let output = child.wait_with_output().unwrap();
+            panic!(
+                "CLI fixture timed out: {} {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
         std::thread::sleep(Duration::from_millis(100));
     }

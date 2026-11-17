@@ -561,3 +561,28 @@ fn nvidia_unsupported_content_is_explained_before_any_provider_is_contacted() {
     assert_eq!(nv.hits.load(Ordering::SeqCst), 0);
     assert_eq!(backup.hits.load(Ordering::SeqCst), 0);
 }
+
+#[test]
+fn nvidia_inline_system_text_reaches_upstream_as_one_initial_system_message() {
+    let nv=spawn_upstream(vec![(200,serde_json::json!({"id":"nv","model":"nvidia/model","choices":[{"message":{"content":"OK"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}).to_string())]);
+    let backup = spawn_upstream(vec![(200, "unused".into())]);
+    let (_home, handle) = setup_nvidia("nv-system-text", &nv, &backup);
+    assert_eq!(
+        handle.status().version.as_deref(),
+        Some(env!("CARGO_PKG_VERSION"))
+    );
+    let (status, body) = call(
+        handle.port,
+        &handle.token,
+        r#"{"model":"caller","max_tokens":16,"system":"Initial","messages":[{"role":"user","content":"Hi"},{"role":"system","clear_at":"next_user_message","content":[{"type":"text","text":"Be brief"}]}]}"#,
+    );
+    assert!(status.contains("200"), "{body}");
+    let sent: serde_json::Value = serde_json::from_str(&nv.bodies.lock().unwrap()[0]).unwrap();
+    assert_eq!(
+        sent["messages"][0],
+        serde_json::json!({"role":"system","content":"Initial\n\nBe brief"})
+    );
+    assert_eq!(sent["messages"][1]["role"], "user");
+    assert_eq!(nv.hits.load(Ordering::SeqCst), 1);
+    assert_eq!(backup.hits.load(Ordering::SeqCst), 0);
+}

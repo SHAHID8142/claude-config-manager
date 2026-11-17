@@ -45,6 +45,8 @@ fn err_body(kind: &str, message: &str) -> String {
 #[serde(rename_all = "camelCase")]
 pub struct ProxyStatus {
     pub running: bool,
+    #[serde(default)]
+    pub version: Option<String>,
     pub port: Option<u16>,
     pub requests: u64,
     pub fallbacks: u64,
@@ -174,6 +176,7 @@ pub fn start_with(
     let shutdown = Arc::new(AtomicBool::new(false));
     let status = Arc::new(Mutex::new(ProxyStatus {
         running: true,
+        version: Some(env!("CARGO_PKG_VERSION").to_string()),
         port: Some(port),
         pid: std::process::id(),
         ..Default::default()

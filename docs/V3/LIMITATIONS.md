@@ -1,6 +1,6 @@
-# Current release limitations — 1.0.6
+# Current release limitations — 1.0.7
 
-Updated 2026-11-17; supersedes conflicting V2/V3 historical acceptance claims.
+Updated 2026-11-18; supersedes conflicting V2/V3 historical acceptance claims.
 
 - Apple Silicon macOS only. Windows/Linux builds are not produced or tested.
 - Ad-hoc signature only. Developer ID/notarization and clean-Mac Gatekeeper
@@ -36,7 +36,7 @@ Updated 2026-11-17; supersedes conflicting V2/V3 historical acceptance claims.
   with 32 concurrent connections. No retry after response streaming starts.
   A timeout may leave upstream processing uncertain; duplicate charges cannot
   be ruled out. Saved history retains 100 redacted failure/fallback events, not complete request logs.
-- Catalog/key checks do not verify model inference. OpenRouter key check returned200. A later minimal NVIDIA inference through the1.0.6 packaged helper returned200 with nonempty text. This does not certify every model/tool or live failover. The installed CLI completed a
+- Catalog/key checks do not verify model inference. OpenRouter key check returned200. A later minimal NVIDIA inference through the1.0.7 packaged helper returned200 with nonempty text. This does not certify every model/tool or live failover. The installed CLI completed a
   streamed response through the packaged helper using loopback fixtures only.
 - Overview reads one global scope. Project/managed settings and another
   terminal's environment may override it; helper output can be cached by CLI.
@@ -49,3 +49,9 @@ Updated 2026-11-17; supersedes conflicting V2/V3 historical acceptance claims.
 The full outstanding register is in
 [the repair audit](../audits/2026-11-17-project-review.md). An unchecked item is
 not silently accepted as complete because automated tests pass.
+
+1.0.7 accepts text system messages inside conversation history, collecting active
+instructions into NVIDIA's initial system message. Turn expiry is respected;
+cache placement is not portable. Dynamic tool changes/per-message effort remain
+unsupported. Basic bare/default-CLI fixtures use the actual saved NVIDIA model,
+not a forced Claude model; this is broader coverage, not every CLI feature.

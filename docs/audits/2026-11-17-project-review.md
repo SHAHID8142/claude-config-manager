@@ -515,3 +515,24 @@ old-entry delete refusal: saved direct settings still reference it. The tested
 NVIDIA model was entered as a draft; Save & Apply was observed ENABLED. User
 activation and old-entry deletion remain pending. Guide now explains this sequence
 and that a second API key/account is unnecessary. No real credential deleted.
+
+
+## 2026-11-18 follow-up: NVIDIA conversation role and helper ownership
+
+Observed: the activated old helper returned its local `unsupported message role`
+guard. Current Claude Messages supports inline system instructions, whereas the
+NVIDIA endpoint expects system text first. 1.0.7 hoists active text instructions,
+retains order and `clear_at` expiry, and rejects unsupported tool-state/effort
+changes explicitly. Six adapter and one socket regression pass. Minimal hosted
+synthetic system-message inference returned200; this is not the user's original
+conversation acceptance. The user key is valid and was not replaced by the agent.
+
+Two old owned helpers responded on different ports; the configured port differed
+from the state file. 1.0.7 holds a private OS file lease for the entire helper
+lifetime; duplicate raw startup exits before bind/state changes. A focused process
+regression and existing crash/restart tests pass. Full Rust409, six ignored default,
+frontend219. Final release evidence records package and active-helper checks.
+
+Still open: user retry of the actual conversation, accessibility/minimum native
+window/zoom, reboot/login/clean Mac, explicit model-override removal UI, exhaustive
+manual per-line/animation review. No blanket completion claim follows from counts.

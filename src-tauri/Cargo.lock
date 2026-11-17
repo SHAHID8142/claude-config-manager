@@ -393,7 +393,7 @@ dependencies = [
 
 [[package]]
 name = "claude-config-manager"
-version = "1.0.6"
+version = "1.0.7"
 dependencies = [
  "base64 0.23.1",
  "flate2",
