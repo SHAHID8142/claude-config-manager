@@ -1,3 +1,35 @@
+# Installed and final-release classification — 1.0.8
+
+2026-11-18. User explicitly requested push, installation and final release, then
+continue. Verified published8 DMG downloaded; checksum72df2df830c54904d57e19a828547937f8700507b76bc9c4c2d17136fb89325b.
+Installed staged/codesign-verified app to /Applications/Claude Config Manager.app.
+No previous app existed, no overwrite. Installed binary matches release. Native
+launch + Model order controls observed on actual WKWebView. Only helper ran before
+launch; no editing GUI was closed. App/helper now8 from Applications, same configured
+port and matching PID/state. Existing start-at-login ON retained; registration
+refreshed to installed path via app toggle off/on. No key/settings/policy changes.
+Observed helper failure count0; no paid verification request initiated.
+
+User's final-release instruction authorizes promoting8 to a normal latest GitHub
+release, keeping binary/tag immutable and unsigned/no-notarization + open high
+picomatch development-tool CI failure prominent. This metadata classification is
+NOT all-pass/stable acceptance certification; no audit gate/trust protection waived.
+Original evidence assets retain their historical prerelease observations; separate
+finalization receipt records install/promotion. Frontend225/Rust419 and source CI
+frontend/Rust PASS; security failed. Existing native/manual/live-model gaps remain.
+
+GitHub observed normal/non-draft/latest8; source tag unchanged. Initial service
+kickstart timed out and restored manual8; fresh bootout/bootstrap then PASS.
+Registered launchd job now owns healthy installed8 PID, same configured port;
+settings/keys/policy byte-identical across handover. Actual reboot/login unverified.
+Finalization receipt uploaded and downloaded again: bytes match. Latest release
+API confirms normal/non-draft8; original tag5bce8f5 unchanged. Release notes retain
+unsigned/no-notarization, failed security CI and acceptance limits. Final docs push
+follows successful source scan and formatting; no production code/binary changes.
+Leave installed app open on Switching. CUA completion summary already delivered.
+
+--- Historical records ---
+
 # Published handoff — ordered model fallback1.0.8
 
 2026-11-18. Release https://github.com/SHAHID8142/claude-config-manager/releases/tag/v1.0.8

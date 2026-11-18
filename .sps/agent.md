@@ -1,12 +1,12 @@
 # Active agent
 
-- Host Codex, SPS4.0.0, date2026-11-18, full batch and user-requested model fallback.
-- Root alone; source1.0.8 models/key/provider order implemented,419 Rust/225 frontend PASS.
-- Packaged bare key-fallback + default model-fallback CLI Read flow PASS;7->8 helper
-  upgrade with port/token retention passes in a fixture home. No real inference/key edits.
-- Safari fixture add/reorder/save verified with native AX; screenshot detailed layout
-  not certified. Native WKWebView/VoiceOver/zoom and real multi-model calls unverified.
-- Existing real7 helper intentionally kept running; reopen8/save/enabling upgrades it.
-- Unsigned8 published at5bce8f5, remote hashes verified; CI44169375305 failure.
-- Build/DMG/signature/mount/copy verified; ad-hoc only, Gatekeeper rejects.
-- Picomatch development-tool high advisory remains; do not waive CI or claim green.
+- Codex / SPS4.0.0 /2026-11-18; root alone, explicit user install/final-release request.
+- Installed published1.0.8 under /Applications, native launch/model controls verified.
+- Installed8 helper active, configured port retained; login registration updated.
+- Keys/settings/policy preserved; no new real provider requests or model changes.
+- Promoting existing8 asset/tag to normal latest unsigned release as requested;
+  classification does not certify all acceptance. Known picomatch CI failure stays.
+- Observed normal/non-draft/latest8, tag unchanged. Fresh service bootstrap PASS;
+  launchd job owns healthy installed8, same port/settings/keys/policy.
+- Finalization receipt uploaded/download-match verified; latest normal8 observed.
+- Final documentation commit/push records install/classification; binary/tag unchanged.

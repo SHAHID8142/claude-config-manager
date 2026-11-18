@@ -287,3 +287,23 @@ NVIDIA/local routing rather than passing OpenRouter-only fields to other provide
 Modern-web-guidance forms guide read; use native controls, labels, identifier input
 hints, explicit saves and inline feedback. React guideline: derive list state, no
 new library, catalog load on explicit action and cancel stale provider results.
+
+
+## Install and final release classification — requested2026-11-18
+
+User explicitly instructed push, install on this Mac and release the final version,
+then continue. Existing1.0.8 binary/source tests and unsigned distribution approval
+remain applicable. Install the checksum-verified release into /Applications using
+a staged verified copy. Preserve settings, key files, policy and any existing app
+by reversible handling. Inspect current GUI for pending edits before closing;
+launch and verify the installed8 window and owned helper. No new API keys or paid
+requests. Do not weaken macOS protections or bypass a trust prompt.
+
+Promote the existing verified1.0.8 GitHub asset/tag to a normal latest release under
+the user's explicit final-release instruction. This metadata classification does
+not certify all security/native checks. Keep unsigned/no-notarization and open
+picomatch development-tool security-CI failure prominent; do not waive the gate,
+claim all-pass, change the original binary/tag or fabricate signing. Publish a
+finalization receipt distinguishing release classification from acceptance limits.
+User's explicit publication instruction takes precedence over maintaining the
+previous prerelease classification; no repeated routine approval required.

@@ -40,8 +40,8 @@
     },
     {
       "path": ".sps/agent.md",
-      "bytes": 871,
-      "sha256": "be3dd71f0fadd75adbbdb4ba2aae6b1d69002414e641dc12ba4ea3a7adff1915",
+      "bytes": 843,
+      "sha256": "098685bd259c723032cfc13f91f709183355c3e80eb3449059ea43bc92679e84",
       "lines": 12,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
@@ -68,9 +68,9 @@
     },
     {
       "path": ".sps/handoff.md",
-      "bytes": 22621,
-      "sha256": "26162392de15a8c497f7789e1a2c6d50595f832f8bd205cca91b97a745955386",
-      "lines": 368,
+      "bytes": 24781,
+      "sha256": "da879db91d16ef178af84e031ad55e9e881af715c346a4168e393e7aeaac5aca",
+      "lines": 400,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -96,9 +96,9 @@
     },
     {
       "path": ".sps/plan.md",
-      "bytes": 18488,
-      "sha256": "6d81c54a39f1f4d46970442e8ce86a5538ff060a88411d2ae99b21166f38b724",
-      "lines": 289,
+      "bytes": 19761,
+      "sha256": "154807383ef9d67fe8c07cd092ce0d126102261f728f0adb093f126bacc5888c",
+      "lines": 309,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
@@ -187,8 +187,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 4819,
-      "sha256": "552f029c1245105befee3d28c3f19d4487d5eaebdb8d0fbf9b88fec882484ec2",
+      "bytes": 4816,
+      "sha256": "5203606bb1966d56e768336b18aa29e13327d9b21187a8e518a17957b1d86b31",
       "lines": 83,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
@@ -1152,6 +1152,13 @@
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
+      "path": "docs/releases/1.0.8-finalization.json",
+      "bytes": 2071,
+      "sha256": "dfc552af0abe6df6120f006e6dbbbb43611cb1d767b214a079f0e5427316e703",
+      "lines": 48,
+      "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
+    },
+    {
       "path": "docs/releases/1.0.8-publication.json",
       "bytes": 1783,
       "sha256": "e4b158455957e7d430b753a309ec283c529ce1d1ee72cf5d507fbacdfbbdb201",
@@ -1160,9 +1167,9 @@
     },
     {
       "path": "docs/releases/1.0.8.md",
-      "bytes": 3279,
-      "sha256": "0d748e1279c20a487bf936cb745e1453473e8ae52802f882c5e5016523f72a26",
-      "lines": 50,
+      "bytes": 4634,
+      "sha256": "3edfb3c386a648c36746d8eba8bc34767b99c8ba7dc60d7b2ac0e8eb650eb2c1",
+      "lines": 72,
       "reviewStatus": "inventoried; targeted source/document review and applicable automated checks in audit; no per-line certification"
     },
     {
